@@ -282,6 +282,8 @@ export class ScraperService {
     const stills = spanishMeta?.episodeStills || {};
     const seasonFallbackImage = jkMeta.seasonCover || spanishMeta?.backdrop || spanishMeta?.image || meta?.coverImage?.extraLarge || 'https://cdn.animeav1.com/covers/222.jpg';
 
+    const isSequel = /(?:season|part|2nd|3rd|4th|ii|iii|iv)/i.test(slug);
+
     const episodes: EpisodeItem[] = isMovie
       ? [
           {
@@ -296,7 +298,7 @@ export class ScraperService {
         ]
       : Array.from({ length: totalEpisodes }, (_, i) => {
           const epNum = i + 1;
-          const stillImg = stills[epNum.toString()] || seasonFallbackImage;
+          const stillImg = (!isSequel && stills[epNum.toString()]) ? stills[epNum.toString()] : seasonFallbackImage;
           return {
             id: `${slug}-episode-${epNum}`,
             number: epNum,
