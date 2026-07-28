@@ -50,7 +50,15 @@ fun SearchScreen(
     var popularList by remember { mutableStateOf<List<AnimeItem>>(emptyList()) }
     var isSearching by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
-    val firstKeyFocusRequester = remember { FocusRequester() }
+    // Land initial focus on the "Buscar" (Search) icon in SideNav upon opening SearchScreen (Option B)
+    LaunchedEffect(Unit) {
+        delay(150)
+        try {
+            navFocusRequester.requestFocus()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
 
     // Fetch initial popular recommendations for empty state
     LaunchedEffect(Unit) {

@@ -1,6 +1,7 @@
 package com.animetv.app.ui.screens
 
 import android.view.KeyEvent
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -44,6 +45,16 @@ fun MyListScreen(
     var myListAnimes by remember { mutableStateOf(MyListManager.getSavedAnimes(context)) }
     val isLoading = false
     val firstCardFocusRequester = remember { FocusRequester() }
+
+    // Land initial focus on the "Mi Lista" icon in SideNav upon opening MyListScreen (Option B)
+    LaunchedEffect(Unit) {
+        delay(150)
+        try {
+            navFocusRequester.requestFocus()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
 
     Box(
         modifier = Modifier
