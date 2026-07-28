@@ -6,8 +6,8 @@ import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 
 object ApiClient {
-    // Default emulator loopback IP (10.0.2.2) or local dev server URL
-    private const val BASE_URL = "http://10.0.2.2:3000/"
+    // Production Render backend API URL
+    private const val BASE_URL = "https://apk-animetv-backend.onrender.com/"
 
     private val loggingInterceptor = HttpLoggingInterceptor().apply {
         level = HttpLoggingInterceptor.Level.BODY
