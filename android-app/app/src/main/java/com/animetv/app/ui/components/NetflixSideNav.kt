@@ -111,17 +111,25 @@ fun NetflixSideNav(
                     .focusable()
                     .onKeyEvent { keyEvent ->
                         val keyCode = keyEvent.nativeKeyEvent.keyCode
-                        // Confirm selection & exit menu on D-Pad RIGHT ➡️ or OK/ENTER
-                        if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT || keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER) {
-                            if (keyEvent.type == KeyEventType.KeyDown) {
-                                if (selectedId != item.id) {
-                                    onSelect(item.id)
+                        when (keyCode) {
+                            KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
+                                if (keyEvent.type == KeyEventType.KeyDown) {
+                                    if (selectedId != item.id) {
+                                        onSelect(item.id)
+                                    }
                                 }
-                                onRequestExitNav?.invoke()
+                                true // Consume OK/ENTER: ONLY key that changes page
                             }
-                            true // Consume both KeyDown and KeyUp
-                        } else {
-                            false
+                            KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                                if (keyEvent.type == KeyEventType.KeyDown) {
+                                    onRequestExitNav?.invoke()
+                                }
+                                true // Consume D-Pad Right: ONLY key that exits navbar to page content
+                            }
+                            KeyEvent.KEYCODE_DPAD_LEFT -> {
+                                true // Disable D-Pad Left inside navbar completely
+                            }
+                            else -> false // Allow D-Pad Up and Down to move focus vertically through navbar options
                         }
                     }
                     .clickable(
