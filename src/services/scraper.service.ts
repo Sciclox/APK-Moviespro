@@ -311,32 +311,41 @@ export class ScraperService {
     );
     const jkStills = await Promise.all(jkStillsPromises);
 
-    const episodes: EpisodeItem[] = isMovie
-      ? [
-          {
-            id: `${slug}-movie`,
-            number: 1,
-            title: 'Película Completa',
-            image: jkStills[0] || seasonFallbackImage,
-            duration: '1 h 45 min',
-            overview: `Disfruta de la película completa de ${cleanTitle(cleanTitleText, slug)} en calidad Full HD.`,
-            slug: `${slug}/1`,
-          },
-        ]
-      : Array.from({ length: totalEpisodes }, (_, i) => {
-          const epNum = i + 1;
-          const jkStill = jkStills[i];
-          const stillImg = jkStill || (!isSequel && stills[epNum.toString()]) || seasonFallbackImage;
-          return {
-            id: `${slug}-episode-${epNum}`,
-            number: epNum,
-            title: `Episodio ${epNum}`,
-            image: stillImg,
-            duration: '24 min',
-            overview: `Capítulo ${epNum} de ${cleanTitle(cleanTitleText, slug)}`,
-            slug: `${slug}/${epNum}`,
-          };
+    const episodes: EpisodeItem[] = [];
+
+    if (isMovie) {
+      episodes.push({
+        id: `${slug}-movie`,
+        number: 1,
+        title: 'Película Completa',
+        image: jkStills[0] || seasonFallbackImage,
+        duration: '1 h 45 min',
+        overview: `Disfruta de la película completa de ${cleanTitle(cleanTitleText, slug)} en calidad Full HD.`,
+        slug: `${slug}/1`,
+      });
+    } else {
+      const isReleasingStatus = meta?.status === 'RELEASING';
+      for (let i = 0; i < totalEpisodes; i++) {
+        const epNum = i + 1;
+        const jkStill = jkStills[i];
+
+        // Stop adding ghost episodes if this episode does not exist yet on JKAnime
+        if (i > 0 && !jkStill && (isSequel || isReleasingStatus || jkMeta.epCount === 0)) {
+          break;
+        }
+
+        const stillImg = jkStill || (!isSequel && stills[epNum.toString()]) || seasonFallbackImage;
+        episodes.push({
+          id: `${slug}-episode-${epNum}`,
+          number: epNum,
+          title: `Episodio ${epNum}`,
+          image: stillImg,
+          duration: '24 min',
+          overview: `Capítulo ${epNum} de ${cleanTitle(cleanTitleText, slug)}`,
+          slug: `${slug}/${epNum}`,
         });
+      }
+    }
 
     let rawSynopsis = spanishMeta?.synopsis || null;
 
