@@ -223,6 +223,76 @@ export class ScraperService {
   }
 
   /**
+   * Universal automatic slug resolver for JKAnime
+   */
+  static async resolveJkSlug(slugInput: string): Promise<string> {
+    const slug = cleanSlug(slugInput);
+
+    try {
+      await axios.head(`${CONFIG.JKANIME_BASE_URL}/${slug}/`, {
+        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
+        timeout: 1500,
+      });
+      return slug;
+    } catch {
+      // Direct slug returned 404, fallback to automatic JKAnime search
+    }
+
+    try {
+      const cleanTitleText = slug.replace(/-/g, ' ');
+      const words = cleanTitleText.split(' ').filter((w) => w.length > 2);
+      const query = words.slice(0, 3).join(' ');
+      const searchUrl = `${CONFIG.JKANIME_BASE_URL}/buscar/${encodeURIComponent(query)}/`;
+      const { data: html } = await axios.get(searchUrl, {
+        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
+        timeout: 3000,
+      });
+      const $ = cheerio.load(html);
+      const candidates: string[] = [];
+
+      $('a').each((_, el) => {
+        const href = $(el).attr('href') || '';
+        if (href.includes('jkanime.net/')) {
+          const parts = href.replace(/\/$/, '').split('/');
+          const candidate = parts[parts.length - 1];
+          if (
+            candidate &&
+            !['buscar', 'animes', 'directorio', 'genero', 'emision', 'usuario', 'top', 'letra', 'ajax', 'assets', 'assets3'].includes(candidate)
+          ) {
+            if (!candidates.includes(candidate)) {
+              candidates.push(candidate);
+            }
+          }
+        }
+      });
+
+      if (candidates.length > 0) {
+        const hasSeason4 = slug.includes('4th') || slug.includes('season-4') || slug.includes('iv');
+        const hasSeason3 = slug.includes('3rd') || slug.includes('season-3') || slug.includes('iii');
+        const hasSeason2 = slug.includes('2nd') || slug.includes('season-2') || slug.includes('ii');
+
+        if (hasSeason4) {
+          const m = candidates.find((c) => c.includes('4th') || c.includes('season-4') || c.includes('iv'));
+          if (m) return m;
+        }
+        if (hasSeason3) {
+          const m = candidates.find((c) => c.includes('3rd') || c.includes('season-3') || c.includes('iii'));
+          if (m) return m;
+        }
+        if (hasSeason2) {
+          const m = candidates.find((c) => c.includes('2nd') || c.includes('season-2') || c.includes('ii'));
+          if (m) return m;
+        }
+        return candidates[0];
+      }
+    } catch {
+      // ignore
+    }
+
+    return slug;
+  }
+
+  /**
    * Helper to fetch real native episode thumbnail preview directly from JKAnime episode page
    */
   static async fetchJkEpisodeStill(slug: string, epNum: number): Promise<string | null> {
@@ -246,7 +316,7 @@ export class ScraperService {
    * Get Anime Detail, Spanish Synopsis, Episode Stills and Metadata
    */
   static async getAnimeDetails(slugInput: string): Promise<AnimeDetail> {
-    const slug = cleanSlug(slugInput);
+    const slug = await ScraperService.resolveJkSlug(slugInput);
     const cleanTitleText = slug.replace(/-/g, ' ');
 
     const jkDataPromise = (async () => {
@@ -405,7 +475,7 @@ export class ScraperService {
   static async getStreamSources(episodeSlug: string): Promise<WatchResponse> {
     const parts = episodeSlug.split('/');
     const rawAnimeSlug = parts[0] || 'anime';
-    const animeSlug = cleanSlug(rawAnimeSlug);
+    const animeSlug = await ScraperService.resolveJkSlug(rawAnimeSlug);
     const epNum = parseInt(parts[1] || '1', 10);
 
     const servers: StreamSource[] = [];
