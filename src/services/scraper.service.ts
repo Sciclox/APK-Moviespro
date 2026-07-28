@@ -97,7 +97,8 @@ export class ScraperService {
       const mediaList = response.data?.data?.Page?.media || [];
       if (mediaList.length > 0) {
         return mediaList.map((item: any) => {
-          const titleStr = item.title?.english || item.title?.romaji || 'Anime en Emisión';
+          // Prioritize Romaji title to match JKAnime/native Japanese slugs
+          const titleStr = item.title?.romaji || item.title?.english || 'Anime en Emisión';
           const slugStr = titleStr
             .toLowerCase()
             .replace(/[^a-z0-9]+/g, '-')
@@ -116,6 +117,41 @@ export class ScraperService {
       }
     } catch (e) {
       console.error('Error fetching releasing anime from AniList:', e);
+    }
+
+    // Fallback: Scrape releasing episodes directly from JKAnime homepage
+    try {
+      const { data: html } = await axios.get(CONFIG.JKANIME_BASE_URL, {
+        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
+        timeout: 4500,
+      });
+      const $ = cheerio.load(html);
+      const items: AnimeItem[] = [];
+
+      $('a.box').each((_, el) => {
+        const href = $(el).attr('href') || '';
+        const title = $(el).find('h2, h3, .title').text().trim() || cleanTitle('', href);
+        const img = $(el).find('img').attr('src') || 'https://cdn.animeav1.com/covers/222.jpg';
+        const parts = href.replace(/\/$/, '').split('/');
+        if (parts.length >= 4) {
+          const slug = parts[parts.length - 2] || parts[parts.length - 1];
+          if (slug && !items.some((i) => i.slug === slug)) {
+            items.push({
+              id: slug,
+              title: cleanTitle(title, slug),
+              slug: slug,
+              image: img,
+              backdrop: null,
+              type: 'EN EMISIÓN',
+              provider: 'JKAnime',
+            });
+          }
+        }
+      });
+
+      if (items.length > 0) return items.slice(0, 15);
+    } catch (e) {
+      console.error('JKAnime homepage fallback error:', e);
     }
 
     return [];
