@@ -1,5 +1,6 @@
 package com.animetv.app.ui.screens
 
+import android.view.KeyEvent
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -15,23 +16,20 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.key.*
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.foundation.lazy.list.TvLazyRow
 import androidx.tv.foundation.lazy.list.items
-import androidx.tv.foundation.lazy.list.itemsIndexed
 import androidx.tv.material3.*
 import coil.compose.AsyncImage
-import com.animetv.app.data.api.ApiClient
 import com.animetv.app.data.model.AnimeItem
 import com.animetv.app.ui.components.NetflixLogo
 import com.animetv.app.ui.components.NetflixSideNav
-import com.animetv.app.ui.components.SkeletonHomeScreen
 import com.animetv.app.ui.components.TvAnimeCard
-import com.animetv.app.ui.components.TvContinueWatchingCard
-import com.animetv.app.ui.components.TvTop10Card
 import com.animetv.app.ui.theme.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -44,11 +42,15 @@ fun HomeScreen(
     releasingList: List<AnimeItem>,
     isLoading: Boolean,
     onAnimeSelect: (AnimeItem) -> Unit,
-    onNavigateNav: (String) -> Unit = {}
+    onNavigateNav: (String) -> Unit = {},
+    navFocusRequester: FocusRequester,
+    searchNavFocusRequester: FocusRequester,
+    myListNavFocusRequester: FocusRequester
 ) {
     var currentNav by remember { mutableStateOf("home") }
     val playButtonFocusRequester = remember { FocusRequester() }
     val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
 
     // Auto-focus on REPRODUCIR button when screen finishes loading
     LaunchedEffect(isLoading) {
@@ -109,7 +111,7 @@ fun HomeScreen(
                                     )
                             )
 
-                            // Bottom vertical gradient blend
+                            // Bottom vertical gradient
                             Box(
                                 modifier = Modifier
                                     .fillMaxSize()
@@ -117,36 +119,33 @@ fun HomeScreen(
                                         Brush.verticalGradient(
                                             colors = listOf(
                                                 Color.Transparent,
-                                                Color.Transparent,
+                                                NetflixBlack.copy(alpha = 0.4f),
                                                 NetflixBlack
                                             )
                                         )
                                     )
                             )
 
-                            // Top logo aligned start = 72dp to clear the side nav
-                            Box(
-                                modifier = Modifier
-                                    .align(Alignment.TopStart)
-                                    .padding(start = 72.dp, top = 20.dp)
-                            ) {
-                                NetflixLogo()
-                            }
-
-                            // Hero Text Content aligned start = 72dp
+                            // Text Content and Info
                             Column(
                                 modifier = Modifier
                                     .align(Alignment.BottomStart)
-                                    .padding(start = 72.dp, bottom = 48.dp)
-                                    .width(460.dp)
+                                    .padding(start = 72.dp, bottom = 24.dp) // shifted 72.dp to avoid overlap with SideNav
+                                    .width(480.dp)
                             ) {
-                                // N SERIE Badge
+                                // Netflix original tag
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {
-                                    Text("N", color = NetflixRed, fontSize = 22.sp, fontFamily = BebasNeue, fontWeight = FontWeight.Normal)
-                                    Text("SERIE", color = NetflixLightGrey, fontSize = 11.sp, fontFamily = Inter, fontWeight = FontWeight.Bold, letterSpacing = 3.sp)
+                                    NetflixLogo(modifier = Modifier.size(16.dp))
+                                    Text(
+                                        text = "A N I M E   O R I G I N A L",
+                                        color = NetflixLightGrey,
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        fontFamily = Inter
+                                    )
                                 }
 
                                 Spacer(modifier = Modifier.height(4.dp))
@@ -178,7 +177,7 @@ fun HomeScreen(
 
                                 // Focusable TV Action Buttons with unified Netflix TV style
                                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                    // REPRODUCIR Button (scrolls to top when focused)
+                                    // REPRODUCIR Button
                                     Button(
                                         onClick = { onAnimeSelect(firstHero) },
                                         modifier = Modifier
@@ -189,6 +188,15 @@ fun HomeScreen(
                                                         delay(60)
                                                         listState.animateScrollToItem(0, 0)
                                                     }
+                                                }
+                                            }
+                                            .onKeyEvent { keyEvent ->
+                                                // Pressing Left D-pad ⬅️ targets the active navbar icon
+                                                if (keyEvent.type == KeyEventType.KeyDown && keyEvent.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
+                                                    navFocusRequester.requestFocus()
+                                                    true
+                                                } else {
+                                                    false
                                                 }
                                             },
                                         scale = ButtonDefaults.scale(focusedScale = 1.08f),
@@ -210,7 +218,7 @@ fun HomeScreen(
                                         Text("▶  REPRODUCIR", fontFamily = Inter, fontWeight = FontWeight.Black, fontSize = 14.sp)
                                     }
 
-                                    // MAS INFORMACION Button (scrolls to top when focused)
+                                    // MAS INFORMACION Button
                                     Button(
                                         onClick = { onAnimeSelect(firstHero) },
                                         modifier = Modifier.onFocusChanged { focusState ->
@@ -235,7 +243,7 @@ fun HomeScreen(
                                             )
                                         ),
                                         shape = ButtonDefaults.shape(shape = RoundedCornerShape(4.dp)),
-                                        contentPadding = PaddingValues(horizontal = 18.dp, vertical = 10.dp)
+                                        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 10.dp)
                                     ) {
                                         Text("ⓘ  MÁS INFORMACIÓN", fontFamily = Inter, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                                     }
@@ -245,86 +253,7 @@ fun HomeScreen(
                     }
                 }
 
-                // ROW: Seguir viendo
-                item {
-                    if (heroList.isNotEmpty()) {
-                        Column(modifier = Modifier.fillMaxWidth()) {
-                            Text(
-                                text = "Seguir viendo",
-                                color = NetflixLightGrey,
-                                fontSize = 15.sp,
-                                fontFamily = Inter,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(start = 72.dp, bottom = 8.dp)
-                            )
-                            TvLazyRow(
-                                modifier = Modifier.fillMaxWidth().height(205.dp),
-                                horizontalArrangement = Arrangement.spacedBy(14.dp),
-                                contentPadding = PaddingValues(start = 72.dp, top = 16.dp, bottom = 20.dp, end = 36.dp)
-                            ) {
-                                itemsIndexed(heroList.take(5)) { index, anime ->
-                                    val fakeProgress = listOf(0.35f, 0.72f, 0.15f, 0.88f, 0.5f)
-                                    val fakeEpisode = listOf(3, 7, 1, 12, 5)
-                                    TvContinueWatchingCard(
-                                        anime = anime,
-                                        episodeNumber = fakeEpisode[index % fakeEpisode.size],
-                                        progress = fakeProgress[index % fakeProgress.size],
-                                        onClick = { onAnimeSelect(anime) }
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // ROW: Tendencias ahora
-                item {
-                    Column(modifier = Modifier.fillMaxWidth()) {
-                        Text(
-                            text = "Tendencias ahora",
-                            color = NetflixLightGrey,
-                            fontSize = 15.sp,
-                            fontFamily = Inter,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(start = 72.dp, bottom = 8.dp)
-                        )
-                        TvLazyRow(
-                            modifier = Modifier.fillMaxWidth().height(290.dp),
-                            horizontalArrangement = Arrangement.spacedBy(14.dp),
-                            contentPadding = PaddingValues(start = 72.dp, top = 16.dp, bottom = 24.dp, end = 36.dp)
-                        ) {
-                            items(heroList) { anime ->
-                                TvAnimeCard(anime = anime, onClick = { onAnimeSelect(anime) })
-                            }
-                        }
-                    }
-                }
-
-                // ROW: Top 10 hoy en Anime TV
-                item {
-                    Column(modifier = Modifier.fillMaxWidth()) {
-                        Text(
-                            text = "Top 10 hoy en Anime TV",
-                            color = NetflixLightGrey,
-                            fontSize = 15.sp,
-                            fontFamily = Inter,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(start = 72.dp, bottom = 8.dp)
-                        )
-                        val top10List = (heroList + catalogList).distinctBy { it.id }.take(10)
-                        TvLazyRow(
-                            modifier = Modifier.fillMaxWidth().height(290.dp),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                            contentPadding = PaddingValues(start = 72.dp, top = 16.dp, bottom = 24.dp, end = 36.dp)
-                        ) {
-                            itemsIndexed(top10List) { index, anime ->
-                                TvTop10Card(anime = anime, rank = index + 1, onClick = { onAnimeSelect(anime) })
-                            }
-                        }
-                    }
-                }
-
-                // ROW: Nuevos lanzamientos (Animes en Emisión)
+                // ROW 1: Nuevos lanzamientos (En emisión)
                 item {
                     Column(modifier = Modifier.fillMaxWidth()) {
                         Text(
@@ -335,19 +264,34 @@ fun HomeScreen(
                             fontWeight = FontWeight.Bold,
                             modifier = Modifier.padding(start = 72.dp, bottom = 8.dp)
                         )
+                        val releasingRowItems = if (releasingList.isNotEmpty()) releasingList else catalogList
                         TvLazyRow(
                             modifier = Modifier.fillMaxWidth().height(290.dp),
                             horizontalArrangement = Arrangement.spacedBy(14.dp),
                             contentPadding = PaddingValues(start = 72.dp, top = 16.dp, bottom = 24.dp, end = 36.dp)
                         ) {
-                            items(if (releasingList.isNotEmpty()) releasingList else catalogList) { anime ->
-                                TvAnimeCard(anime = anime, onClick = { onAnimeSelect(anime) })
+                            items(releasingRowItems) { anime ->
+                                val isFirst = anime == releasingRowItems.firstOrNull()
+                                TvAnimeCard(
+                                    anime = anime,
+                                    onClick = { onAnimeSelect(anime) },
+                                    modifier = if (isFirst) {
+                                        Modifier.onKeyEvent { keyEvent ->
+                                            if (keyEvent.type == KeyEventType.KeyDown && keyEvent.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
+                                                navFocusRequester.requestFocus()
+                                                true
+                                            } else {
+                                                false
+                                            }
+                                        }
+                                    } else Modifier
+                                )
                             }
                         }
                     }
                 }
 
-                // ROW: Popular en Anime TV
+                // ROW 2: Popular en Anime TV
                 item {
                     Column(modifier = Modifier.fillMaxWidth()) {
                         Text(
@@ -364,13 +308,27 @@ fun HomeScreen(
                             contentPadding = PaddingValues(start = 72.dp, top = 16.dp, bottom = 24.dp, end = 36.dp)
                         ) {
                             items(heroList.reversed()) { anime ->
-                                TvAnimeCard(anime = anime, onClick = { onAnimeSelect(anime) })
+                                val isFirst = anime == heroList.reversed().firstOrNull()
+                                TvAnimeCard(
+                                    anime = anime,
+                                    onClick = { onAnimeSelect(anime) },
+                                    modifier = if (isFirst) {
+                                        Modifier.onKeyEvent { keyEvent ->
+                                            if (keyEvent.type == KeyEventType.KeyDown && keyEvent.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
+                                                navFocusRequester.requestFocus()
+                                                true
+                                            } else {
+                                                false
+                                            }
+                                        }
+                                    } else Modifier
+                                )
                             }
                         }
                     }
                 }
 
-                // ROW: Anime de accion
+                // ROW 3: Anime de accion
                 item {
                     Column(modifier = Modifier.fillMaxWidth()) {
                         Text(
@@ -387,7 +345,21 @@ fun HomeScreen(
                             contentPadding = PaddingValues(start = 72.dp, top = 16.dp, bottom = 24.dp, end = 36.dp)
                         ) {
                             items(catalogList.reversed()) { anime ->
-                                TvAnimeCard(anime = anime, onClick = { onAnimeSelect(anime) })
+                                val isFirst = anime == catalogList.reversed().firstOrNull()
+                                TvAnimeCard(
+                                    anime = anime,
+                                    onClick = { onAnimeSelect(anime) },
+                                    modifier = if (isFirst) {
+                                        Modifier.onKeyEvent { keyEvent ->
+                                            if (keyEvent.type == KeyEventType.KeyDown && keyEvent.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
+                                                navFocusRequester.requestFocus()
+                                                true
+                                            } else {
+                                                false
+                                            }
+                                        }
+                                    } else Modifier
+                                )
                             }
                         }
                     }
@@ -395,7 +367,7 @@ fun HomeScreen(
             }
         }
 
-        // Overlay Transparent Lucide Side Navbar positioned on the left
+        // Overlay Side Navbar
         NetflixSideNav(
             selectedId = currentNav,
             onSelect = { navId ->
@@ -409,7 +381,43 @@ fun HomeScreen(
                     e.printStackTrace()
                 }
             },
+            searchFocusRequester = searchNavFocusRequester,
+            homeFocusRequester = navFocusRequester,
+            myListFocusRequester = myListNavFocusRequester,
             modifier = Modifier.align(Alignment.CenterStart)
+        )
+    }
+}
+
+@Composable
+fun SkeletonHomeScreen() {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(start = 72.dp, top = 36.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .width(100.dp)
+                .height(36.dp)
+                .clip(RoundedCornerShape(4.dp))
+                .background(Color.White.copy(alpha = 0.08f))
+        )
+        Spacer(modifier = Modifier.height(24.dp))
+        Box(
+            modifier = Modifier
+                .width(420.dp)
+                .height(48.dp)
+                .clip(RoundedCornerShape(4.dp))
+                .background(Color.White.copy(alpha = 0.08f))
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        Box(
+            modifier = Modifier
+                .width(300.dp)
+                .height(20.dp)
+                .clip(RoundedCornerShape(4.dp))
+                .background(Color.White.copy(alpha = 0.08f))
         )
     }
 }

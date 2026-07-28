@@ -1,5 +1,6 @@
 package com.animetv.app.ui.screens
 
+import android.view.KeyEvent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -13,6 +14,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.key.*
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -38,7 +40,10 @@ import kotlinx.coroutines.launch
 @Composable
 fun SearchScreen(
     onAnimeSelect: (AnimeItem) -> Unit,
-    onNavigateNav: (String) -> Unit
+    onNavigateNav: (String) -> Unit,
+    navFocusRequester: FocusRequester,
+    homeNavFocusRequester: FocusRequester,
+    myListNavFocusRequester: FocusRequester
 ) {
     var searchQuery by remember { mutableStateOf("") }
     var searchResults by remember { mutableStateOf<List<AnimeItem>>(emptyList()) }
@@ -148,7 +153,8 @@ fun SearchScreen(
                     onKeyClick = { key -> searchQuery += key },
                     onBackspace = { if (searchQuery.isNotEmpty()) searchQuery = searchQuery.dropLast(1) },
                     onClear = { searchQuery = "" },
-                    firstKeyFocusRequester = firstKeyFocusRequester
+                    firstKeyFocusRequester = firstKeyFocusRequester,
+                    navFocusRequester = navFocusRequester
                 )
             }
 
@@ -182,14 +188,25 @@ fun SearchScreen(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(330.dp)
-                                    .graphicsLayer { this.clip = false },
+                                    .graphicsLayer { clip = false },
                                 horizontalArrangement = Arrangement.spacedBy(14.dp),
                                 contentPadding = PaddingValues(top = 36.dp, bottom = 32.dp, end = 36.dp)
                             ) {
                                 items(displayList) { anime ->
+                                    val isFirst = anime == displayList.firstOrNull()
                                     TvAnimeCard(
                                         anime = anime,
-                                        onClick = { onAnimeSelect(anime) }
+                                        onClick = { onAnimeSelect(anime) },
+                                        modifier = if (isFirst) {
+                                            Modifier.onKeyEvent { keyEvent ->
+                                                if (keyEvent.type == KeyEventType.KeyDown && keyEvent.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
+                                                    navFocusRequester.requestFocus()
+                                                    true
+                                                } else {
+                                                    false
+                                                }
+                                            }
+                                        } else Modifier
                                     )
                                 }
                             }
@@ -210,6 +227,9 @@ fun SearchScreen(
                     e.printStackTrace()
                 }
             },
+            searchFocusRequester = navFocusRequester,
+            homeFocusRequester = homeNavFocusRequester,
+            myListFocusRequester = myListNavFocusRequester,
             modifier = Modifier.align(Alignment.CenterStart)
         )
     }

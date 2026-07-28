@@ -1,5 +1,6 @@
 package com.animetv.app.ui.components
 
+import android.view.KeyEvent
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -9,6 +10,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.*
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -22,6 +24,7 @@ fun TvKeyboard(
     onBackspace: () -> Unit,
     onClear: () -> Unit,
     firstKeyFocusRequester: FocusRequester? = null,
+    navFocusRequester: FocusRequester? = null,
     modifier: Modifier = Modifier
 ) {
     val row1 = listOf("A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M")
@@ -39,7 +42,8 @@ fun TvKeyboard(
                 KeyButton(
                     text = letter,
                     onClick = { onKeyClick(letter) },
-                    focusRequester = if (letter == "A") firstKeyFocusRequester else null
+                    focusRequester = if (letter == "A") firstKeyFocusRequester else null,
+                    onLeftDpad = if (letter == "A") { { navFocusRequester?.requestFocus() } } else null
                 )
             }
         }
@@ -47,20 +51,33 @@ fun TvKeyboard(
         // Row 2: N-Z
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             row2.forEach { letter ->
-                KeyButton(text = letter, onClick = { onKeyClick(letter) })
+                KeyButton(
+                    text = letter,
+                    onClick = { onKeyClick(letter) },
+                    onLeftDpad = if (letter == "N") { { navFocusRequester?.requestFocus() } } else null
+                )
             }
         }
 
         // Row 3: Numbers 0-9
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             row3.forEach { number ->
-                KeyButton(text = number, onClick = { onKeyClick(number) })
+                KeyButton(
+                    text = number,
+                    onClick = { onKeyClick(number) },
+                    onLeftDpad = if (number == "0") { { navFocusRequester?.requestFocus() } } else null
+                )
             }
         }
 
         // Row 4: Action Keys
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            KeyButton(text = "␣ ESPACIO", onClick = { onKeyClick(" ") }, width = 120.dp)
+            KeyButton(
+                text = "␣ ESPACIO",
+                onClick = { onKeyClick(" ") },
+                width = 120.dp,
+                onLeftDpad = { navFocusRequester?.requestFocus() }
+            )
             KeyButton(text = "⌫ BORRAR", onClick = onBackspace, width = 110.dp)
             KeyButton(text = "❌ LIMPIAR", onClick = onClear, width = 110.dp)
         }
@@ -73,12 +90,24 @@ private fun KeyButton(
     text: String,
     onClick: () -> Unit,
     width: androidx.compose.ui.unit.Dp = 34.dp,
-    focusRequester: FocusRequester? = null
+    focusRequester: FocusRequester? = null,
+    onLeftDpad: (() -> Unit)? = null
 ) {
-    val modifier = if (focusRequester != null) {
-        Modifier.width(width).height(38.dp).focusRequester(focusRequester)
-    } else {
-        Modifier.width(width).height(38.dp)
+    var modifier = Modifier.width(width).height(38.dp)
+
+    if (focusRequester != null) {
+        modifier = modifier.focusRequester(focusRequester)
+    }
+
+    if (onLeftDpad != null) {
+        modifier = modifier.onKeyEvent { keyEvent ->
+            if (keyEvent.type == KeyEventType.KeyDown && keyEvent.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
+                onLeftDpad()
+                true
+            } else {
+                false
+            }
+        }
     }
 
     Button(

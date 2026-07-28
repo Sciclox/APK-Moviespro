@@ -15,6 +15,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -35,6 +37,9 @@ fun NetflixSideNav(
     selectedId: String = "home",
     onSelect: (String) -> Unit,
     onRequestExitNav: (() -> Unit)? = null,
+    searchFocusRequester: FocusRequester? = null,
+    homeFocusRequester: FocusRequester? = null,
+    myListFocusRequester: FocusRequester? = null,
     modifier: Modifier = Modifier
 ) {
     val navItems = remember {
@@ -58,32 +63,48 @@ fun NetflixSideNav(
             val isSelected = item.id == selectedId
             var isFocused by remember { mutableStateOf(false) }
 
-            Box(
-                modifier = Modifier
-                    .onFocusChanged { focusState ->
-                        isFocused = focusState.isFocused
-                        // Auto-change screen on simply focusing up/down
-                        if (focusState.isFocused && selectedId != item.id) {
-                            onSelect(item.id)
-                        }
-                    }
-                    .focusable()
-                    .onKeyEvent { keyEvent ->
-                        // Pressing D-Pad RIGHT ➡️ exits the side navbar to the main page content
-                        if (keyEvent.type == KeyEventType.KeyDown && keyEvent.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
-                            onRequestExitNav?.invoke()
-                            true
-                        } else {
-                            false
-                        }
-                    }
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null
-                    ) {
+            val itemFocusRequester = when (item.id) {
+                "search" -> searchFocusRequester
+                "home" -> homeFocusRequester
+                "mylist" -> myListFocusRequester
+                else -> null
+            }
+
+            val boxModifier = Modifier
+                .onFocusChanged { focusState ->
+                    isFocused = focusState.isFocused
+                    // Auto-change screen on simply focusing up/down
+                    if (focusState.isFocused && selectedId != item.id) {
                         onSelect(item.id)
                     }
-                    .padding(vertical = 14.dp),
+                }
+                .run {
+                    if (itemFocusRequester != null) {
+                        this.focusRequester(itemFocusRequester)
+                    } else {
+                        this
+                    }
+                }
+                .focusable()
+                .onKeyEvent { keyEvent ->
+                    // Pressing D-Pad RIGHT ➡️ exits the side navbar to the main page content
+                    if (keyEvent.type == KeyEventType.KeyDown && keyEvent.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
+                        onRequestExitNav?.invoke()
+                        true
+                    } else {
+                        false
+                    }
+                }
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null
+                ) {
+                    onSelect(item.id)
+                }
+                .padding(vertical = 14.dp)
+
+            Box(
+                modifier = boxModifier,
                 contentAlignment = Alignment.Center
             ) {
                 Column(

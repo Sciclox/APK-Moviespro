@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
 import com.animetv.app.data.api.ApiClient
 import com.animetv.app.data.model.AnimeItem
 import com.animetv.app.data.model.EpisodeItem
@@ -39,6 +40,11 @@ class MainActivity : ComponentActivity() {
                 val currentScreen = screenStack.lastOrNull() ?: TvScreen.HOME
                 var selectedAnime by remember { mutableStateOf<AnimeItem?>(null) }
                 var selectedEpisode by remember { mutableStateOf<EpisodeItem?>(null) }
+
+                // D-Pad Menu Focus Requesters to lock targeted focus navigation
+                val searchNavFocusRequester = remember { FocusRequester() }
+                val homeNavFocusRequester = remember { FocusRequester() }
+                val myListNavFocusRequester = remember { FocusRequester() }
 
                 // Application-level Cache for Home Screen Catalog Data (Option A)
                 var homeHeroList by remember { mutableStateOf<List<AnimeItem>>(emptyList()) }
@@ -145,7 +151,10 @@ class MainActivity : ComponentActivity() {
                                         "search" -> pushScreen(TvScreen.SEARCH)
                                         "mylist" -> pushScreen(TvScreen.MYLIST)
                                     }
-                                }
+                                },
+                                navFocusRequester = homeNavFocusRequester,
+                                searchNavFocusRequester = searchNavFocusRequester,
+                                myListNavFocusRequester = myListNavFocusRequester
                             )
                         }
 
@@ -160,7 +169,10 @@ class MainActivity : ComponentActivity() {
                                         "home" -> pushScreen(TvScreen.HOME)
                                         "mylist" -> pushScreen(TvScreen.MYLIST)
                                     }
-                                }
+                                },
+                                navFocusRequester = searchNavFocusRequester,
+                                homeNavFocusRequester = homeNavFocusRequester,
+                                myListNavFocusRequester = myListNavFocusRequester
                             )
                         }
 
@@ -175,7 +187,10 @@ class MainActivity : ComponentActivity() {
                                         "home" -> pushScreen(TvScreen.HOME)
                                         "search" -> pushScreen(TvScreen.SEARCH)
                                     }
-                                }
+                                },
+                                navFocusRequester = myListNavFocusRequester,
+                                searchNavFocusRequester = searchNavFocusRequester,
+                                homeNavFocusRequester = homeNavFocusRequester
                             )
                         }
 

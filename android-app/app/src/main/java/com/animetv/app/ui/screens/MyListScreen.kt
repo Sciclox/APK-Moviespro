@@ -1,5 +1,6 @@
 package com.animetv.app.ui.screens
 
+import android.view.KeyEvent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -10,6 +11,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.*
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -33,7 +35,10 @@ import kotlinx.coroutines.launch
 @Composable
 fun MyListScreen(
     onAnimeSelect: (AnimeItem) -> Unit,
-    onNavigateNav: (String) -> Unit
+    onNavigateNav: (String) -> Unit,
+    navFocusRequester: FocusRequester,
+    searchNavFocusRequester: FocusRequester,
+    homeNavFocusRequester: FocusRequester
 ) {
     val context = LocalContext.current
     var myListAnimes by remember { mutableStateOf<List<AnimeItem>>(emptyList()) }
@@ -135,10 +140,23 @@ fun MyListScreen(
                         ) {
                             items(myListAnimes) { anime ->
                                 val isFirst = anime == myListAnimes.first()
+                                val cardModifier = if (isFirst) {
+                                    Modifier
+                                        .focusRequester(firstCardFocusRequester)
+                                        .onKeyEvent { keyEvent ->
+                                            if (keyEvent.type == KeyEventType.KeyDown && keyEvent.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
+                                                navFocusRequester.requestFocus()
+                                                true
+                                            } else {
+                                                false
+                                            }
+                                        }
+                                } else Modifier
+
                                 TvAnimeCard(
                                     anime = anime,
                                     onClick = { onAnimeSelect(anime) },
-                                    modifier = if (isFirst) Modifier.focusRequester(firstCardFocusRequester) else Modifier
+                                    modifier = cardModifier
                                 )
                             }
                         }
@@ -158,6 +176,9 @@ fun MyListScreen(
                     e.printStackTrace()
                 }
             },
+            searchFocusRequester = searchNavFocusRequester,
+            homeFocusRequester = homeNavFocusRequester,
+            myListFocusRequester = navFocusRequester,
             modifier = Modifier.align(Alignment.CenterStart)
         )
     }
