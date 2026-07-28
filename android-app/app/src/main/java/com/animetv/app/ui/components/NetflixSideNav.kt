@@ -16,6 +16,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
@@ -95,6 +96,10 @@ fun NetflixSideNav(
                 }
 
                 val boxModifier = Modifier
+                    .focusProperties {
+                        // Explicitly cancel 2D focus search to the left to prevent wrap-around jumps into page content
+                        left = FocusRequester.Cancel
+                    }
                     .onFocusChanged { focusState ->
                         isFocused = focusState.isFocused
                         if (focusState.isFocused) {
@@ -108,8 +113,7 @@ fun NetflixSideNav(
                             this
                         }
                     }
-                    .focusable()
-                    .onKeyEvent { keyEvent ->
+                    .onPreviewKeyEvent { keyEvent ->
                         val keyCode = keyEvent.nativeKeyEvent.keyCode
                         when (keyCode) {
                             KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
@@ -132,6 +136,7 @@ fun NetflixSideNav(
                             else -> false // Allow D-Pad Up and Down to move focus vertically through navbar options
                         }
                     }
+                    .focusable()
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null
