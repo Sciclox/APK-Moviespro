@@ -1,0 +1,4 @@
+- [x] Add `material-icons-extended` to `libs.versions.toml`
+- [x] Add dependency to `app/build.gradle.kts`
+- [x] Sync Gradle
+- [x] Run `app:assembleDebug` to verify fix
