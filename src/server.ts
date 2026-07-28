@@ -22,13 +22,13 @@ app.get('/', (_req, res) => {
   });
 });
 
-if (process.env.NODE_ENV !== 'production') {
-  app.listen(CONFIG.PORT, () => {
-    console.log(`==================================================`);
-    console.log(`📺 APK-AnimeTV API running at http://localhost:${CONFIG.PORT}`);
-    console.log(`🔗 Health Check: http://localhost:${CONFIG.PORT}/api/v1/health`);
-    console.log(`==================================================`);
-  });
-}
+const PORT = process.env.PORT || CONFIG.PORT || 3000;
+
+app.listen(PORT, () => {
+  console.log(`==================================================`);
+  console.log(`📺 APK-AnimeTV API running at port ${PORT}`);
+  console.log(`🔗 Health Check: /api/v1/health`);
+  console.log(`==================================================`);
+});
 
 export default app;
