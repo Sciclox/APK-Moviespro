@@ -226,16 +226,61 @@ export class ScraperService {
     const slug = cleanSlug(slugInput);
     const cleanTitleText = slug.replace(/-/g, ' ');
 
-    const [spanishMeta, meta] = await Promise.all([
+    const jkDataPromise = (async () => {
+      try {
+        const url = `${CONFIG.JKANIME_BASE_URL}/${slug}/`;
+        const { data: html } = await axios.get(url, {
+          headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
+          timeout: 4000,
+        });
+        const $ = cheerio.load(html);
+
+        let epCount = 0;
+        $('li').each((_, el) => {
+          const text = $(el).text().trim();
+          if (text.includes('Episodios:')) {
+            const numMatch = text.match(/Episodios:\s*(\d+)/i);
+            if (numMatch && numMatch[1]) {
+              epCount = parseInt(numMatch[1], 10);
+            }
+          }
+        });
+
+        let seasonCover: string | null = null;
+        const imgTag = $('.anime_pic img, img[src*="assets/images/animes/image/"]').first().attr('src');
+        if (imgTag) {
+          seasonCover = imgTag;
+        }
+
+        let seasonSynopsis: string | null = null;
+        const pText = $('.sinopsis, .sinop, p').first().text().trim();
+        if (pText && pText.length > 30 && !pText.includes('JKAnime')) {
+          seasonSynopsis = pText;
+        }
+
+        return { epCount, seasonCover, seasonSynopsis };
+      } catch (e) {
+        return { epCount: 0, seasonCover: null, seasonSynopsis: null };
+      }
+    })();
+
+    const [spanishMeta, meta, jkMeta] = await Promise.all([
       TMDBService.getSpanishMetadata(cleanTitleText),
       TMDBService.getAniListMetadata(cleanTitleText),
+      jkDataPromise,
     ]);
 
     const isMovie = meta?.format === 'MOVIE' || cleanTitleText.toLowerCase().includes('movie') || cleanTitleText.toLowerCase().includes('pelicula') || cleanTitleText.toLowerCase().includes('película');
     const mediaType = isMovie ? 'PELÍCULA' : (meta?.format === 'SPECIAL' || meta?.format === 'OVA' ? 'ESPECIAL' : 'SERIE');
 
-    const totalEpisodes = isMovie ? 1 : (meta?.episodes && meta.episodes > 0 ? meta.episodes : 25);
+    const totalEpisodes = isMovie
+      ? 1
+      : (jkMeta.epCount > 0
+          ? jkMeta.epCount
+          : (meta?.episodes && meta.episodes > 0 ? meta.episodes : 12));
+
     const stills = spanishMeta?.episodeStills || {};
+    const seasonFallbackImage = jkMeta.seasonCover || spanishMeta?.backdrop || spanishMeta?.image || meta?.coverImage?.extraLarge || 'https://cdn.animeav1.com/covers/222.jpg';
 
     const episodes: EpisodeItem[] = isMovie
       ? [
@@ -243,7 +288,7 @@ export class ScraperService {
             id: `${slug}-movie`,
             number: 1,
             title: 'Película Completa',
-            image: spanishMeta?.backdrop || meta?.bannerImage || 'https://image.tmdb.org/t/p/w780/wokec1ewZhYNMLcKuK01H09i2pB.jpg',
+            image: seasonFallbackImage,
             duration: '1 h 45 min',
             overview: `Disfruta de la película completa de ${cleanTitle(cleanTitleText, slug)} en calidad Full HD.`,
             slug: `${slug}/1`,
@@ -251,7 +296,7 @@ export class ScraperService {
         ]
       : Array.from({ length: totalEpisodes }, (_, i) => {
           const epNum = i + 1;
-          const stillImg = stills[epNum.toString()] || spanishMeta?.backdrop || meta?.bannerImage || 'https://image.tmdb.org/t/p/w780/wokec1ewZhYNMLcKuK01H09i2pB.jpg';
+          const stillImg = stills[epNum.toString()] || seasonFallbackImage;
           return {
             id: `${slug}-episode-${epNum}`,
             number: epNum,
