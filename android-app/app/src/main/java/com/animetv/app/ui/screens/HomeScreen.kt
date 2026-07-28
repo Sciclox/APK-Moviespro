@@ -52,18 +52,6 @@ fun HomeScreen(
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
 
-    // Auto-focus on REPRODUCIR button when screen finishes loading
-    LaunchedEffect(isLoading) {
-        if (!isLoading) {
-            delay(150)
-            try {
-                playButtonFocusRequester.requestFocus()
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }
-    }
-
     // Outer Box: Content extends 100% full width, SideNav overlays on top
     Box(
         modifier = Modifier
@@ -191,18 +179,14 @@ fun HomeScreen(
                                                 }
                                             }
                                             .onKeyEvent { keyEvent ->
-                                                if (keyEvent.type == KeyEventType.KeyDown) {
-                                                    when (keyEvent.nativeKeyEvent.keyCode) {
-                                                        KeyEvent.KEYCODE_DPAD_LEFT -> {
-                                                            navFocusRequester.requestFocus()
-                                                            true
-                                                        }
-                                                        KeyEvent.KEYCODE_DPAD_UP -> {
-                                                            // Consume event to block focus from jumping up to navbar
-                                                            true
-                                                        }
-                                                        else -> false
+                                                val keyCode = keyEvent.nativeKeyEvent.keyCode
+                                                if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
+                                                    if (keyEvent.type == KeyEventType.KeyDown) {
+                                                        navFocusRequester.requestFocus()
                                                     }
+                                                    true // Consume both KeyDown and KeyUp
+                                                } else if (keyCode == KeyEvent.KEYCODE_DPAD_UP) {
+                                                    true // Block D-Pad Up focus escape
                                                 } else {
                                                     false
                                                 }
@@ -239,9 +223,8 @@ fun HomeScreen(
                                                 }
                                             }
                                             .onKeyEvent { keyEvent ->
-                                                if (keyEvent.type == KeyEventType.KeyDown && keyEvent.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DPAD_UP) {
-                                                    // Consume event to block focus from jumping up to navbar
-                                                    true
+                                                if (keyEvent.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DPAD_UP) {
+                                                    true // Block D-Pad Up focus escape
                                                 } else {
                                                     false
                                                 }
@@ -294,9 +277,11 @@ fun HomeScreen(
                                     onClick = { onAnimeSelect(anime) },
                                     modifier = if (isFirst) {
                                         Modifier.onKeyEvent { keyEvent ->
-                                            if (keyEvent.type == KeyEventType.KeyDown && keyEvent.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
-                                                navFocusRequester.requestFocus()
-                                                true
+                                            if (keyEvent.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
+                                                if (keyEvent.type == KeyEventType.KeyDown) {
+                                                    navFocusRequester.requestFocus()
+                                                }
+                                                true // Consume both KeyDown and KeyUp
                                             } else {
                                                 false
                                             }
@@ -331,9 +316,11 @@ fun HomeScreen(
                                     onClick = { onAnimeSelect(anime) },
                                     modifier = if (isFirst) {
                                         Modifier.onKeyEvent { keyEvent ->
-                                            if (keyEvent.type == KeyEventType.KeyDown && keyEvent.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
-                                                navFocusRequester.requestFocus()
-                                                true
+                                            if (keyEvent.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
+                                                if (keyEvent.type == KeyEventType.KeyDown) {
+                                                    navFocusRequester.requestFocus()
+                                                }
+                                                true // Consume both KeyDown and KeyUp
                                             } else {
                                                 false
                                             }
@@ -368,9 +355,11 @@ fun HomeScreen(
                                     onClick = { onAnimeSelect(anime) },
                                     modifier = if (isFirst) {
                                         Modifier.onKeyEvent { keyEvent ->
-                                            if (keyEvent.type == KeyEventType.KeyDown && keyEvent.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
-                                                navFocusRequester.requestFocus()
-                                                true
+                                            if (keyEvent.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
+                                                if (keyEvent.type == KeyEventType.KeyDown) {
+                                                    navFocusRequester.requestFocus()
+                                                }
+                                                true // Consume both KeyDown and KeyUp
                                             } else {
                                                 false
                                             }

@@ -41,23 +41,9 @@ fun MyListScreen(
     homeNavFocusRequester: FocusRequester
 ) {
     val context = LocalContext.current
-    var myListAnimes by remember { mutableStateOf<List<AnimeItem>>(emptyList()) }
-    var isLoading by remember { mutableStateOf(true) }
-    val scope = rememberCoroutineScope()
+    var myListAnimes by remember { mutableStateOf(MyListManager.getSavedAnimes(context)) }
+    val isLoading = false
     val firstCardFocusRequester = remember { FocusRequester() }
-
-    LaunchedEffect(Unit) {
-        scope.launch {
-            try {
-                val saved = MyListManager.getSavedAnimes(context)
-                myListAnimes = saved
-            } catch (e: Exception) {
-                e.printStackTrace()
-            } finally {
-                isLoading = false
-            }
-        }
-    }
 
     Box(
         modifier = Modifier
@@ -113,12 +99,48 @@ fun MyListScreen(
                             .height(200.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            text = "Aún no has agregado animes a tu lista. Explora la app y presiona '+ MI LISTA' en cualquier anime para guardarlo.",
-                            color = NetflixLightGrey,
-                            fontSize = 15.sp,
-                            fontFamily = Inter
-                        )
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            Text(
+                                text = "Aún no has agregado animes a tu lista.",
+                                color = NetflixLightGrey,
+                                fontSize = 15.sp,
+                                fontFamily = Inter
+                            )
+                            Button(
+                                onClick = { onNavigateNav("home") },
+                                modifier = Modifier
+                                    .focusRequester(firstCardFocusRequester)
+                                    .onKeyEvent { keyEvent ->
+                                        if (keyEvent.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
+                                            if (keyEvent.type == KeyEventType.KeyDown) {
+                                                navFocusRequester.requestFocus()
+                                            }
+                                            true // Consume both KeyDown and KeyUp
+                                        } else {
+                                            false
+                                        }
+                                    },
+                                scale = ButtonDefaults.scale(focusedScale = 1.08f),
+                                colors = ButtonDefaults.colors(
+                                    containerColor = Color.White.copy(alpha = 0.2f),
+                                    contentColor = Color.White,
+                                    focusedContainerColor = Color.White,
+                                    focusedContentColor = Color.Black
+                                ),
+                                border = ButtonDefaults.border(
+                                    focusedBorder = Border(
+                                        border = BorderStroke(2.dp, Color.White),
+                                        shape = RoundedCornerShape(4.dp)
+                                    )
+                                ),
+                                shape = ButtonDefaults.shape(shape = RoundedCornerShape(4.dp))
+                            ) {
+                                Text("EXPLORAR CATÁLOGO", fontFamily = Inter, fontWeight = FontWeight.Bold)
+                            }
+                        }
                     }
                 } else {
                     Column(modifier = Modifier.fillMaxWidth()) {
@@ -144,9 +166,11 @@ fun MyListScreen(
                                     Modifier
                                         .focusRequester(firstCardFocusRequester)
                                         .onKeyEvent { keyEvent ->
-                                            if (keyEvent.type == KeyEventType.KeyDown && keyEvent.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
-                                                navFocusRequester.requestFocus()
-                                                true
+                                            if (keyEvent.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
+                                                if (keyEvent.type == KeyEventType.KeyDown) {
+                                                    navFocusRequester.requestFocus()
+                                                }
+                                                true // Consume both KeyDown and KeyUp
                                             } else {
                                                 false
                                             }

@@ -88,9 +88,11 @@ fun NetflixSideNav(
                 .focusable()
                 .onKeyEvent { keyEvent ->
                     // Pressing D-Pad RIGHT ➡️ exits the side navbar to the main page content
-                    if (keyEvent.type == KeyEventType.KeyDown && keyEvent.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
-                        onRequestExitNav?.invoke()
-                        true
+                    if (keyEvent.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
+                        if (keyEvent.type == KeyEventType.KeyDown) {
+                            onRequestExitNav?.invoke()
+                        }
+                        true // Consume both KeyDown and KeyUp to fully block default focus engine
                     } else {
                         false
                     }

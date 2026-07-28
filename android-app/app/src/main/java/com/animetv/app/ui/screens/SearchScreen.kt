@@ -199,9 +199,11 @@ fun SearchScreen(
                                         onClick = { onAnimeSelect(anime) },
                                         modifier = if (isFirst) {
                                             Modifier.onKeyEvent { keyEvent ->
-                                                if (keyEvent.type == KeyEventType.KeyDown && keyEvent.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
-                                                    navFocusRequester.requestFocus()
-                                                    true
+                                                if (keyEvent.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
+                                                    if (keyEvent.type == KeyEventType.KeyDown) {
+                                                        navFocusRequester.requestFocus()
+                                                    }
+                                                    true // Consume both KeyDown and KeyUp
                                                 } else {
                                                     false
                                                 }
