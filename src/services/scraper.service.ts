@@ -6,11 +6,14 @@ import { TMDBService } from './tmdb.service';
 
 function cleanSlug(rawSlug: string): string {
   if (!rawSlug) return 'anime';
-  if (rawSlug.startsWith('http://') || rawSlug.startsWith('https://')) {
-    const parts = rawSlug.replace(/\/$/, '').split('/');
-    return parts[parts.length - 1];
+  let s = rawSlug;
+  if (s.startsWith('http://') || s.startsWith('https://')) {
+    const parts = s.replace(/\/$/, '').split('/');
+    s = parts[parts.length - 1];
   }
-  return rawSlug;
+  // Normalize common slug variation mismatches (e.g. re-zero -> rezero)
+  s = s.replace(/re-zero/gi, 'rezero');
+  return s;
 }
 
 function cleanTitle(title: string, slug: string): string {
