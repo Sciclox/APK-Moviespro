@@ -480,18 +480,17 @@ fun DetailScreen(
                         val endIndex = ((seasonIndex + 1) * episodesPerSeason).coerceAtMost(allEpisodes.size)
                         allEpisodes.subList(startIndex, endIndex)
                     } else {
-                        // Fallback episodes for requested season
+                        // Fallback episodes for requested block
                         List(12) { i ->
-                            val localEpNum = i + 1
-                            val globalEpNum = (seasonIndex * 12) + localEpNum
+                            val epNum = startIndex + i + 1
                             EpisodeItem(
-                                id = "${anime.id}-s${selectedSeason}-ep-$globalEpNum",
-                                number = localEpNum,
-                                title = "T$selectedSeason: Ep. $localEpNum",
+                                id = "${anime.id}-ep-$epNum",
+                                number = epNum,
+                                title = "Episodio $epNum",
                                 image = anime.backdrop ?: anime.image,
                                 duration = "24 min",
-                                overview = "Capítulo $localEpNum de la Temporada $selectedSeason de ${anime.title}.",
-                                slug = "${anime.slug}/$globalEpNum"
+                                overview = "Capítulo $epNum de ${anime.title}.",
+                                slug = "${anime.slug}/$epNum"
                             )
                         }
                     }
