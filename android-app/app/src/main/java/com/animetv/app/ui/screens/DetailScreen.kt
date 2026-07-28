@@ -120,15 +120,7 @@ fun DetailScreen(
         }
     }
 
-    // Dynamic calculate real available seasons based on actual episode count
     val allEpisodes = if (detail?.episodes.isNullOrEmpty()) fallbackEpisodes else detail!!.episodes
-    val episodesPerSeason = 12
-    val seasonCount = remember(allEpisodes, isMovie) {
-        if (isMovie) 1 else maxOf(1, (allEpisodes.size + episodesPerSeason - 1) / episodesPerSeason)
-    }
-    val availableSeasons = remember(seasonCount) {
-        (1..seasonCount).toList()
-    }
 
     Box(
         modifier = Modifier
@@ -395,120 +387,39 @@ fun DetailScreen(
                     }
                 }
 
-                // Item 5: Season Selector + Episodios / Película Header
+                // Item 5: Episodios / Película Header
                 item {
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = if (isMovie) "Película" else "Episodios",
-                            color = Color.White,
-                            fontSize = 22.sp,
-                            fontWeight = FontWeight.Bold,
-                            fontFamily = BebasNeue
-                        )
-
-                        // Focusable Season Dropdown TV Button (Only shown for multi-season TV series)
-                        if (!isMovie && availableSeasons.size > 1) {
-                            Box {
-                                Button(
-                                    onClick = { expandedSeasonMenu = !expandedSeasonMenu },
-                                    scale = ButtonDefaults.scale(focusedScale = 1.08f),
-                                    colors = ButtonDefaults.colors(
-                                        containerColor = Color.White.copy(alpha = 0.25f),
-                                        contentColor = Color.White,
-                                        focusedContainerColor = Color.White,
-                                        focusedContentColor = Color.Black
-                                    ),
-                                    border = ButtonDefaults.border(
-                                        focusedBorder = Border(
-                                            border = BorderStroke(2.dp, Color.White),
-                                            shape = RoundedCornerShape(4.dp)
-                                        )
-                                    ),
-                                    shape = ButtonDefaults.shape(shape = RoundedCornerShape(4.dp)),
-                                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
-                                ) {
-                                    Text(
-                                        text = "Temporada $selectedSeason ▾",
-                                        fontFamily = Inter,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 13.sp
-                                    )
-                                }
-
-                                DropdownMenu(
-                                    expanded = expandedSeasonMenu,
-                                    onDismissRequest = { expandedSeasonMenu = false },
-                                    modifier = Modifier.background(Color(0xFF1F1F1F))
-                                ) {
-                                    availableSeasons.forEach { seasonNum ->
-                                        DropdownMenuItem(
-                                            text = {
-                                                Text(
-                                                    text = "Temporada $seasonNum",
-                                                    color = Color.White,
-                                                    fontFamily = Inter,
-                                                    fontSize = 13.sp,
-                                                    fontWeight = if (seasonNum == selectedSeason) FontWeight.Bold else FontWeight.Normal
-                                                )
-                                            },
-                                            onClick = {
-                                                selectedSeason = seasonNum
-                                                expandedSeasonMenu = false
-                                            }
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
+                    Text(
+                        text = if (isMovie) "Película" else "Episodios",
+                        color = Color.White,
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = BebasNeue
+                    )
                 }
 
                 // Item 6: Horizontal Episode List / Movie Item (TvLazyRow)
                 item {
-                    val seasonIndex = selectedSeason - 1
-                    val startIndex = seasonIndex * episodesPerSeason
-
-                    val currentSeasonEpisodes = if (isMovie) {
+                    val displayEpisodes = if (isMovie) {
                         allEpisodes.take(1)
-                    } else if (startIndex < allEpisodes.size) {
-                        val endIndex = ((seasonIndex + 1) * episodesPerSeason).coerceAtMost(allEpisodes.size)
-                        allEpisodes.subList(startIndex, endIndex)
                     } else {
-                        // Fallback episodes for requested block
-                        List(12) { i ->
-                            val epNum = startIndex + i + 1
-                            EpisodeItem(
-                                id = "${anime.id}-ep-$epNum",
-                                number = epNum,
-                                title = "Episodio $epNum",
-                                image = anime.backdrop ?: anime.image,
-                                duration = "24 min",
-                                overview = "Capítulo $epNum de ${anime.title}.",
-                                slug = "${anime.slug}/$epNum"
-                            )
-                        }
+                        allEpisodes
                     }
 
-                    key(selectedSeason) {
-                        TvLazyRow(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(185.dp),
-                            horizontalArrangement = Arrangement.spacedBy(14.dp),
-                            contentPadding = PaddingValues(top = 12.dp, bottom = 20.dp, end = 24.dp)
-                        ) {
-                            items(currentSeasonEpisodes) { ep ->
-                                TvEpisodeCard(
-                                    episode = ep,
-                                    onClick = { onPlayEpisode(ep) }
-                                )
-                            }
+                    TvLazyRow(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(185.dp),
+                        horizontalArrangement = Arrangement.spacedBy(14.dp),
+                        contentPadding = PaddingValues(top = 12.dp, bottom = 20.dp, end = 24.dp)
+                    ) {
+                        items(displayEpisodes) { ep ->
+                            TvEpisodeCard(
+                                episode = ep,
+                                onClick = { onPlayEpisode(ep) }
+                            )
                         }
                     }
                 }
