@@ -260,11 +260,26 @@ export class ScraperService {
           const text = $(el).text().trim();
           if (text.includes('Episodios:')) {
             const numMatch = text.match(/Episodios:\s*(\d+)/i);
-            if (numMatch && numMatch[1]) {
+            if (numMatch && numMatch[1] && numMatch[1] !== '0') {
               epCount = parseInt(numMatch[1], 10);
             }
           }
         });
+
+        // For long-running ongoing series (like One Piece) where "Episodios: 0" is printed,
+        // extract max episode number from episode links on the page (e.g. 1171)
+        if (epCount === 0) {
+          const epMatches = html.match(new RegExp(`jkanime\\.net\\/${slug}\\/(\\d+)\\/?`, 'g'));
+          if (epMatches) {
+            for (const mStr of epMatches) {
+              const numM = mStr.match(/\/(\d+)\/?$/);
+              if (numM && numM[1]) {
+                const parsed = parseInt(numM[1], 10);
+                if (parsed > epCount) epCount = parsed;
+              }
+            }
+          }
+        }
 
         let seasonCover: string | null = null;
         const imgTag = $('.anime_pic img, img[src*="assets/images/animes/image/"]').first().attr('src');
@@ -303,6 +318,7 @@ export class ScraperService {
     const seasonFallbackImage = jkMeta.seasonCover || spanishMeta?.backdrop || spanishMeta?.image || meta?.coverImage?.extraLarge || 'https://cdn.animeav1.com/covers/222.jpg';
 
     const isSequel = /(?:season|part|2nd|3rd|4th|ii|iii|iv)/i.test(slug);
+    const isLongRunning = totalEpisodes > 50 || slug.includes('one-piece') || slug.includes('naruto') || slug.includes('detective-conan') || slug.includes('dragon-ball');
 
     // Concurrently fetch real native episode preview stills directly from JKAnime episode pages
     const epCountToFetch = isMovie ? 1 : Math.min(totalEpisodes, 25);
@@ -329,8 +345,8 @@ export class ScraperService {
         const epNum = i + 1;
         const jkStill = jkStills[i];
 
-        // Stop adding ghost episodes if this episode does not exist yet on JKAnime
-        if (i > 0 && !jkStill && (isSequel || isReleasingStatus || jkMeta.epCount === 0)) {
+        // Stop adding ghost episodes if this episode does not exist yet on JKAnime for short releasing shows
+        if (i > 0 && !jkStill && (isSequel || isReleasingStatus || jkMeta.epCount === 0) && !isLongRunning) {
           break;
         }
 
