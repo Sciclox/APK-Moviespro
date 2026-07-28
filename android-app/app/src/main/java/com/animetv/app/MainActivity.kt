@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import com.animetv.app.data.api.ApiClient
 import com.animetv.app.data.model.AnimeItem
 import com.animetv.app.data.model.EpisodeItem
 import com.animetv.app.ui.screens.DetailScreen
@@ -38,6 +39,37 @@ class MainActivity : ComponentActivity() {
                 val currentScreen = screenStack.lastOrNull() ?: TvScreen.HOME
                 var selectedAnime by remember { mutableStateOf<AnimeItem?>(null) }
                 var selectedEpisode by remember { mutableStateOf<EpisodeItem?>(null) }
+
+                // Application-level Cache for Home Screen Catalog Data (Option A)
+                var homeHeroList by remember { mutableStateOf<List<AnimeItem>>(emptyList()) }
+                var homeCatalogList by remember { mutableStateOf<List<AnimeItem>>(emptyList()) }
+                var homeReleasingList by remember { mutableStateOf<List<AnimeItem>>(emptyList()) }
+                var homeIsLoading by remember { mutableStateOf(true) }
+
+                LaunchedEffect(Unit) {
+                    try {
+                        val heroRes = ApiClient.apiService.getHeroBanners()
+                        val catalogRes = ApiClient.apiService.getCatalog("Accion")
+                        val releasingRes = ApiClient.apiService.getLatest()
+
+                        if (heroRes.success && heroRes.data.isNotEmpty()) homeHeroList = heroRes.data
+                        if (catalogRes.success && catalogRes.data.isNotEmpty()) homeCatalogList = catalogRes.data
+                        if (releasingRes.success && releasingRes.data.isNotEmpty()) homeReleasingList = releasingRes.data
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    } finally {
+                        val defaultFallbackList = listOf(
+                            AnimeItem(id = "sword-art-online", title = "Sword Art Online", slug = "sword-art-online", image = "https://cdn.animeav1.com/covers/222.jpg", backdrop = "https://image.tmdb.org/t/p/w780/6A8IHWrtMLtadNXnMTjggvVY8cs.jpg", type = "TV", synopsis = "En el año 2022, el videojuego de realidad virtual Sword Art Online es lanzado."),
+                            AnimeItem(id = "frieren", title = "Frieren: Beyond Journey's End", slug = "frieren", image = "https://image.tmdb.org/t/p/w780/6A8IHWrtMLtadNXnMTjggvVY8cs.jpg", backdrop = "https://image.tmdb.org/t/p/w780/vIkH7fUQf8Olo8Apq56FQLGDXOo.jpg", type = "TV", synopsis = "La maga elfa Frieren emprende un viaje tras la muerte de su compañero héroe."),
+                            AnimeItem(id = "attack-on-titan", title = "Attack on Titan", slug = "attack-on-titan", image = "https://image.tmdb.org/t/p/w780/yFPQ4JhhirnCVe2UIKGMYX7TOGZ.jpg", backdrop = "https://image.tmdb.org/t/p/w780/yFPQ4JhhirnCVe2UIKGMYX7TOGZ.jpg", type = "TV", synopsis = "La humanidad vive atrapada tras enormes murallas para protegerse de los Titanes."),
+                            AnimeItem(id = "fullmetal-alchemist", title = "Fullmetal Alchemist", slug = "fullmetal-alchemist", image = "https://image.tmdb.org/t/p/w780/vIkH7fUQf8Olo8Apq56FQLGDXOo.jpg", backdrop = "https://image.tmdb.org/t/p/w780/vIkH7fUQf8Olo8Apq56FQLGDXOo.jpg", type = "TV", synopsis = "Dos hermanos buscan la piedra filosofal para recuperar sus cuerpos.")
+                        )
+                        if (homeHeroList.isEmpty()) homeHeroList = defaultFallbackList
+                        if (homeCatalogList.isEmpty()) homeCatalogList = defaultFallbackList
+                        if (homeReleasingList.isEmpty()) homeReleasingList = homeCatalogList
+                        homeIsLoading = false
+                    }
+                }
 
                 fun popBackStack() {
                     if (screenStack.size > 1) {
@@ -100,6 +132,10 @@ class MainActivity : ComponentActivity() {
 
                         TvScreen.HOME -> {
                             HomeScreen(
+                                heroList = homeHeroList,
+                                catalogList = homeCatalogList,
+                                releasingList = homeReleasingList,
+                                isLoading = homeIsLoading,
                                 onAnimeSelect = { anime ->
                                     selectedAnime = anime
                                     pushScreen(TvScreen.DETAIL)

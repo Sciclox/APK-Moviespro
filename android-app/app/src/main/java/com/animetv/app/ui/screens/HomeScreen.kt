@@ -39,47 +39,16 @@ import kotlinx.coroutines.launch
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 fun HomeScreen(
+    heroList: List<AnimeItem>,
+    catalogList: List<AnimeItem>,
+    releasingList: List<AnimeItem>,
+    isLoading: Boolean,
     onAnimeSelect: (AnimeItem) -> Unit,
     onNavigateNav: (String) -> Unit = {}
 ) {
-    var heroList by remember { mutableStateOf<List<AnimeItem>>(emptyList()) }
-    var catalogList by remember { mutableStateOf<List<AnimeItem>>(emptyList()) }
-    var releasingList by remember { mutableStateOf<List<AnimeItem>>(emptyList()) }
-    var isLoading by remember { mutableStateOf(true) }
     var currentNav by remember { mutableStateOf("home") }
-    val scope = rememberCoroutineScope()
     val playButtonFocusRequester = remember { FocusRequester() }
     val listState = rememberLazyListState()
-
-    val defaultFallbackList = remember {
-        listOf(
-            AnimeItem(id = "sword-art-online", title = "Sword Art Online", slug = "sword-art-online", image = "https://cdn.animeav1.com/covers/222.jpg", backdrop = "https://image.tmdb.org/t/p/w780/6A8IHWrtMLtadNXnMTjggvVY8cs.jpg", type = "TV", synopsis = "En el año 2022, el videojuego de realidad virtual Sword Art Online es lanzado."),
-            AnimeItem(id = "frieren", title = "Frieren: Beyond Journey's End", slug = "frieren", image = "https://image.tmdb.org/t/p/w780/6A8IHWrtMLtadNXnMTjggvVY8cs.jpg", backdrop = "https://image.tmdb.org/t/p/w780/vIkH7fUQf8Olo8Apq56FQLGDXOo.jpg", type = "TV", synopsis = "La maga elfa Frieren emprende un viaje tras la muerte de su compañero héroe."),
-            AnimeItem(id = "attack-on-titan", title = "Attack on Titan", slug = "attack-on-titan", image = "https://image.tmdb.org/t/p/w780/yFPQ4JhhirnCVe2UIKGMYX7TOGZ.jpg", backdrop = "https://image.tmdb.org/t/p/w780/yFPQ4JhhirnCVe2UIKGMYX7TOGZ.jpg", type = "TV", synopsis = "La humanidad vive atrapada tras enormes murallas para protegerse de los Titanes."),
-            AnimeItem(id = "fullmetal-alchemist", title = "Fullmetal Alchemist", slug = "fullmetal-alchemist", image = "https://image.tmdb.org/t/p/w780/vIkH7fUQf8Olo8Apq56FQLGDXOo.jpg", backdrop = "https://image.tmdb.org/t/p/w780/vIkH7fUQf8Olo8Apq56FQLGDXOo.jpg", type = "TV", synopsis = "Dos hermanos buscan la piedra filosofal para recuperar sus cuerpos.")
-        )
-    }
-
-    LaunchedEffect(Unit) {
-        scope.launch {
-            try {
-                val heroRes = ApiClient.apiService.getHeroBanners()
-                val catalogRes = ApiClient.apiService.getCatalog("Accion")
-                val releasingRes = ApiClient.apiService.getLatest()
-
-                if (heroRes.success && heroRes.data.isNotEmpty()) heroList = heroRes.data
-                if (catalogRes.success && catalogRes.data.isNotEmpty()) catalogList = catalogRes.data
-                if (releasingRes.success && releasingRes.data.isNotEmpty()) releasingList = releasingRes.data
-            } catch (e: Exception) {
-                e.printStackTrace()
-            } finally {
-                if (heroList.isEmpty()) heroList = defaultFallbackList
-                if (catalogList.isEmpty()) catalogList = defaultFallbackList
-                if (releasingList.isEmpty()) releasingList = catalogList
-                isLoading = false
-            }
-        }
-    }
 
     // Auto-focus on REPRODUCIR button when screen finishes loading
     LaunchedEffect(isLoading) {
