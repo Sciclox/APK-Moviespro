@@ -18,6 +18,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.*
@@ -50,90 +51,128 @@ fun NetflixSideNav(
         )
     }
 
-    Column(
+    var isAnyFocused by remember { mutableStateOf(false) }
+
+    Box(
         modifier = modifier
-            .width(56.dp)
+            .width(64.dp)
             .fillMaxHeight()
-            .background(Color.Transparent)
-            .padding(vertical = 16.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        navItems.forEach { item ->
-            val isSelected = item.id == selectedId
-            var isFocused by remember { mutableStateOf(false) }
-
-            val itemFocusRequester = when (item.id) {
-                "search" -> searchFocusRequester
-                "home" -> homeFocusRequester
-                "mylist" -> myListFocusRequester
-                else -> null
-            }
-
-            val boxModifier = Modifier
-                .onFocusChanged { focusState ->
-                    isFocused = focusState.isFocused
-                    // Auto-change screen on simply focusing up/down
-                    if (focusState.isFocused && selectedId != item.id) {
-                        onSelect(item.id)
-                    }
-                }
-                .run {
-                    if (itemFocusRequester != null) {
-                        this.focusRequester(itemFocusRequester)
-                    } else {
-                        this
-                    }
-                }
-                .focusable()
-                .onKeyEvent { keyEvent ->
-                    // Pressing D-Pad RIGHT ➡️ exits the side navbar to the main page content
-                    if (keyEvent.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
-                        if (keyEvent.type == KeyEventType.KeyDown) {
-                            onRequestExitNav?.invoke()
-                        }
-                        true // Consume both KeyDown and KeyUp to fully block default focus engine
-                    } else {
-                        false
-                    }
-                }
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null
-                ) {
-                    onSelect(item.id)
-                }
-                .padding(vertical = 14.dp)
-
-            Box(
-                modifier = boxModifier,
-                contentAlignment = Alignment.Center
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    // White Lucide Vector Icon
-                    Icon(
-                        imageVector = item.icon,
-                        contentDescription = item.contentDescription,
-                        tint = Color.White,
-                        modifier = Modifier.size(18.dp)
-                    )
-
-                    Spacer(modifier = Modifier.height(4.dp))
-
-                    // Red Line below the icon matching icon width (18.dp)
-                    if (isFocused || isSelected) {
-                        Box(
-                            modifier = Modifier
-                                .width(18.dp)
-                                .height(2.5.dp)
-                                .clip(RoundedCornerShape(1.25.dp))
-                                .background(NetflixRed)
+            .background(
+                if (isAnyFocused) {
+                    Brush.horizontalGradient(
+                        colors = listOf(
+                            Color.Black.copy(alpha = 0.95f),
+                            Color.Black.copy(alpha = 0.7f),
+                            Color.Transparent
                         )
-                    } else {
-                        Spacer(modifier = Modifier.height(2.5.dp))
+                    )
+                } else {
+                    Brush.horizontalGradient(
+                        colors = listOf(
+                            Color.Black.copy(alpha = 0.4f),
+                            Color.Transparent
+                        )
+                    )
+                }
+            )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(vertical = 16.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            navItems.forEach { item ->
+                val isSelected = item.id == selectedId
+                var isFocused by remember { mutableStateOf(false) }
+
+                val itemFocusRequester = when (item.id) {
+                    "search" -> searchFocusRequester
+                    "home" -> homeFocusRequester
+                    "mylist" -> myListFocusRequester
+                    else -> null
+                }
+
+                val boxModifier = Modifier
+                    .onFocusChanged { focusState ->
+                        isFocused = focusState.isFocused
+                        if (focusState.isFocused) {
+                            isAnyFocused = true
+                        }
+                    }
+                    .run {
+                        if (itemFocusRequester != null) {
+                            this.focusRequester(itemFocusRequester)
+                        } else {
+                            this
+                        }
+                    }
+                    .focusable()
+                    .onKeyEvent { keyEvent ->
+                        val keyCode = keyEvent.nativeKeyEvent.keyCode
+                        // Confirm selection & exit menu on D-Pad RIGHT ➡️ or OK/ENTER
+                        if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT || keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER) {
+                            if (keyEvent.type == KeyEventType.KeyDown) {
+                                if (selectedId != item.id) {
+                                    onSelect(item.id)
+                                }
+                                onRequestExitNav?.invoke()
+                            }
+                            true // Consume both KeyDown and KeyUp
+                        } else {
+                            false
+                        }
+                    }
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) {
+                        if (selectedId != item.id) {
+                            onSelect(item.id)
+                        }
+                        onRequestExitNav?.invoke()
+                    }
+                    .padding(vertical = 14.dp)
+
+                Box(
+                    modifier = boxModifier,
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        // White Vector Icon
+                        Icon(
+                            imageVector = item.icon,
+                            contentDescription = item.contentDescription,
+                            tint = if (isFocused || isSelected) Color.White else Color.White.copy(alpha = 0.5f),
+                            modifier = Modifier.size(20.dp)
+                        )
+
+                        Spacer(modifier = Modifier.height(5.dp))
+
+                        // Netflix Red Line Indicator when Focused or White Line when Selected
+                        if (isFocused) {
+                            Box(
+                                modifier = Modifier
+                                    .width(20.dp)
+                                    .height(3.dp)
+                                    .clip(RoundedCornerShape(1.5.dp))
+                                    .background(NetflixRed)
+                            )
+                        } else if (isSelected) {
+                            Box(
+                                modifier = Modifier
+                                    .width(20.dp)
+                                    .height(3.dp)
+                                    .clip(RoundedCornerShape(1.5.dp))
+                                    .background(Color.White.copy(alpha = 0.7f))
+                            )
+                        } else {
+                            Spacer(modifier = Modifier.height(3.dp))
+                        }
                     }
                 }
             }
