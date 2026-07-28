@@ -220,6 +220,26 @@ export class ScraperService {
   }
 
   /**
+   * Helper to fetch real native episode thumbnail preview directly from JKAnime episode page
+   */
+  static async fetchJkEpisodeStill(slug: string, epNum: number): Promise<string | null> {
+    try {
+      const url = `${CONFIG.JKANIME_BASE_URL}/${slug}/${epNum}/`;
+      const { data: html } = await axios.get(url, {
+        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
+        timeout: 2500,
+      });
+      const m = html.match(/(https:\/\/cdn\.jkdesa\.com\/assets\/images\/animes\/video\/image(?:_thumb)?\/[^"'\s>]+)/);
+      if (m && m[1]) {
+        return m[1];
+      }
+    } catch {
+      // ignore
+    }
+    return null;
+  }
+
+  /**
    * Get Anime Detail, Spanish Synopsis, Episode Stills and Metadata
    */
   static async getAnimeDetails(slugInput: string): Promise<AnimeDetail> {
@@ -284,13 +304,20 @@ export class ScraperService {
 
     const isSequel = /(?:season|part|2nd|3rd|4th|ii|iii|iv)/i.test(slug);
 
+    // Concurrently fetch real native episode preview stills directly from JKAnime episode pages
+    const epCountToFetch = isMovie ? 1 : Math.min(totalEpisodes, 25);
+    const jkStillsPromises = Array.from({ length: epCountToFetch }, (_, i) =>
+      ScraperService.fetchJkEpisodeStill(slug, i + 1)
+    );
+    const jkStills = await Promise.all(jkStillsPromises);
+
     const episodes: EpisodeItem[] = isMovie
       ? [
           {
             id: `${slug}-movie`,
             number: 1,
             title: 'Película Completa',
-            image: seasonFallbackImage,
+            image: jkStills[0] || seasonFallbackImage,
             duration: '1 h 45 min',
             overview: `Disfruta de la película completa de ${cleanTitle(cleanTitleText, slug)} en calidad Full HD.`,
             slug: `${slug}/1`,
@@ -298,7 +325,8 @@ export class ScraperService {
         ]
       : Array.from({ length: totalEpisodes }, (_, i) => {
           const epNum = i + 1;
-          const stillImg = (!isSequel && stills[epNum.toString()]) ? stills[epNum.toString()] : seasonFallbackImage;
+          const jkStill = jkStills[i];
+          const stillImg = jkStill || (!isSequel && stills[epNum.toString()]) || seasonFallbackImage;
           return {
             id: `${slug}-episode-${epNum}`,
             number: epNum,
