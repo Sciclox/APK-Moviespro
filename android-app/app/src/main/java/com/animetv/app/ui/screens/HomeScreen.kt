@@ -52,6 +52,16 @@ fun HomeScreen(
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
 
+    // Land initial focus on the "Inicio" (Home) icon in SideNav upon app launch
+    LaunchedEffect(Unit) {
+        delay(200)
+        try {
+            navFocusRequester.requestFocus()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
     // Outer Box: Content extends 100% full width, SideNav overlays on top
     Box(
         modifier = Modifier
