@@ -191,10 +191,18 @@ fun HomeScreen(
                                                 }
                                             }
                                             .onKeyEvent { keyEvent ->
-                                                // Pressing Left D-pad ⬅️ targets the active navbar icon
-                                                if (keyEvent.type == KeyEventType.KeyDown && keyEvent.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
-                                                    navFocusRequester.requestFocus()
-                                                    true
+                                                if (keyEvent.type == KeyEventType.KeyDown) {
+                                                    when (keyEvent.nativeKeyEvent.keyCode) {
+                                                        KeyEvent.KEYCODE_DPAD_LEFT -> {
+                                                            navFocusRequester.requestFocus()
+                                                            true
+                                                        }
+                                                        KeyEvent.KEYCODE_DPAD_UP -> {
+                                                            // Consume event to block focus from jumping up to navbar
+                                                            true
+                                                        }
+                                                        else -> false
+                                                    }
                                                 } else {
                                                     false
                                                 }
@@ -221,14 +229,23 @@ fun HomeScreen(
                                     // MAS INFORMACION Button
                                     Button(
                                         onClick = { onAnimeSelect(firstHero) },
-                                        modifier = Modifier.onFocusChanged { focusState ->
-                                            if (focusState.isFocused) {
-                                                scope.launch {
-                                                    delay(60)
-                                                    listState.animateScrollToItem(0, 0)
+                                        modifier = Modifier
+                                            .onFocusChanged { focusState ->
+                                                if (focusState.isFocused) {
+                                                    scope.launch {
+                                                        delay(60)
+                                                        listState.animateScrollToItem(0, 0)
+                                                    }
                                                 }
                                             }
-                                        },
+                                            .onKeyEvent { keyEvent ->
+                                                if (keyEvent.type == KeyEventType.KeyDown && keyEvent.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DPAD_UP) {
+                                                    // Consume event to block focus from jumping up to navbar
+                                                    true
+                                                } else {
+                                                    false
+                                                }
+                                            },
                                         scale = ButtonDefaults.scale(focusedScale = 1.08f),
                                         colors = ButtonDefaults.colors(
                                             containerColor = Color.White.copy(alpha = 0.25f),
