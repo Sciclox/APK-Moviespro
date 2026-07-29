@@ -292,9 +292,10 @@ export class ScraperService {
    * Universal automatic slug resolver for JKAnime
    */
   static async resolveJkSlug(slugInput: string): Promise<string> {
-    const slug = cleanSlug(slugInput);
+    let slug = cleanSlug(slugInput);
+    slug = slug.replace(/-(episode|episodio)-\d+$/i, '').replace(/\/\d+$/, '');
 
-    // 1. Try direct slug
+    // 1. Check if direct slug exists on JKAnime
     try {
       await axios.head(`${CONFIG.JKANIME_BASE_URL}/${slug}/`, {
         headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
@@ -621,9 +622,18 @@ export class ScraperService {
    */
   static async getStreamSources(episodeSlug: string): Promise<WatchResponse> {
     const parts = episodeSlug.split('/');
-    const rawAnimeSlug = parts[0] || 'anime';
+    let rawAnimeSlug = parts[0] || 'anime';
+    let epNum = parseInt(parts[1] || '1', 10);
+
+    if (rawAnimeSlug.includes('-episode-')) {
+      const m = rawAnimeSlug.match(/^(.*?)-episode-(\d+)$/i);
+      if (m) {
+        rawAnimeSlug = m[1];
+        if (isNaN(epNum) || epNum === 1) epNum = parseInt(m[2], 10);
+      }
+    }
+
     const animeSlug = await ScraperService.resolveJkSlug(rawAnimeSlug);
-    const epNum = parseInt(parts[1] || '1', 10);
 
     const servers: StreamSource[] = [];
 
