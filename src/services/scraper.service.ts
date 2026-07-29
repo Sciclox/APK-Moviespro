@@ -179,15 +179,16 @@ export class ScraperService {
     return [];
   }
 
-  /**
-   * Search animes by query string
-   */
   static async searchAnime(query: string): Promise<AnimeItem[]> {
-    try {
-      const url = `${CONFIG.ANIMEVERSE_BASE_URL}/api/v1/anime/search?q=${encodeURIComponent(query)}`;
-      const { data } = await axios.get(url, { timeout: 6000 });
+    if (!query || query.trim().length === 0) return [];
+    const cleanQ = query.trim();
 
-      if (data && data.success && data.data?.results) {
+    // 1. Try AnimeVerse search with 4.5s timeout
+    try {
+      const url = `${CONFIG.ANIMEVERSE_BASE_URL}/api/v1/anime/search?q=${encodeURIComponent(cleanQ)}`;
+      const { data } = await axios.get(url, { timeout: 4500 });
+
+      if (data && data.success && Array.isArray(data.data?.results) && data.data.results.length > 0) {
         return data.data.results.map((item: any) => {
           const rawSlug = item.slug || item.id || item.title;
           const slug = cleanSlug(rawSlug);
@@ -197,7 +198,7 @@ export class ScraperService {
             id: slug,
             title: title,
             slug: slug,
-            image: item.image,
+            image: item.image || `https://cdn.jkdesa.com/assets/images/animes/image/${slug}.jpg`,
             backdrop: item.backdrop || null,
             type: item.type || 'TV Anime',
             provider: item.provider || 'AnimeVerse',
@@ -205,8 +206,54 @@ export class ScraperService {
         });
       }
     } catch (e) {
-      console.error('Search error:', e);
+      console.warn('AnimeVerse search timed out/failed, falling back to JKAnime direct search...');
     }
+
+    // 2. Direct Fallback: Scrape JKAnime search page directly
+    try {
+      const searchUrl = `${CONFIG.JKANIME_BASE_URL}/buscar/${encodeURIComponent(cleanQ)}/`;
+      const { data: html } = await axios.get(searchUrl, {
+        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
+        timeout: 4500,
+      });
+      const $ = cheerio.load(html);
+      const items: AnimeItem[] = [];
+
+      $('.anime__item').each((_, el) => {
+        const a = $(el).find('a').first();
+        const href = a.attr('href') || '';
+        if (href.includes('jkanime.net/')) {
+          const parts = href.replace(/\/$/, '').split('/');
+          const slug = parts[parts.length - 1];
+          const systemPaths = ['buscar', 'animes', 'directorio', 'genero', 'emision', 'usuario', 'perfil', 'editar-perfil', 'login', 'registro'];
+
+          if (slug && !systemPaths.includes(slug.toLowerCase()) && !items.some((i) => i.slug === slug)) {
+            const picDiv = $(el).find('.anime__item__pic, .set-bg').first();
+            let img = picDiv.attr('data-setbg') || picDiv.find('img').attr('src') || '';
+            if (!img) {
+              img = `https://cdn.jkdesa.com/assets/images/animes/image/${slug}.jpg`;
+            }
+
+            const titleText = $(el).find('h5, .title, .tituloblanco, h2, h3').text().trim() || cleanTitle('', slug);
+
+            items.push({
+              id: slug,
+              title: cleanTitle(titleText, slug),
+              slug: slug,
+              image: img,
+              backdrop: null,
+              type: 'TV Anime',
+              provider: 'JKAnime',
+            });
+          }
+        }
+      });
+
+      if (items.length > 0) return items;
+    } catch (e) {
+      console.error('JKAnime direct search fallback error:', e);
+    }
+
     return [];
   }
 
