@@ -637,80 +637,32 @@ export class ScraperService {
 
     const servers: StreamSource[] = [];
 
-    const extractVideoSourcesFromJk = async (targetSlug: string, targetEp: number): Promise<StreamSource[]> => {
-      const extractedServers: StreamSource[] = [];
+    const extractM3u8FromJk = async (targetSlug: string, targetEp: number): Promise<string | null> => {
       try {
         const epUrl = `https://jkanime.net/${targetSlug}/${targetEp}/`;
         const { data: epHtml } = await axios.get(epUrl, {
-          headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
+          headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
           timeout: 4500,
         });
 
         const playerMatches = epHtml.match(/<iframe[^>]+src=["'](https:\/\/jkanime\.net\/jkplayer\/[^"']+)["']/g);
         if (playerMatches) {
-          for (const iframeTag of playerMatches.slice(0, 4)) {
+          for (const iframeTag of playerMatches.slice(0, 3)) {
             const srcMatch = iframeTag.match(/src=["']([^"']+)["']/);
             if (srcMatch && srcMatch[1]) {
               const playerUrl = srcMatch[1];
               try {
                 const { data: playerHtml } = await axios.get(playerUrl, {
                   headers: {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
                     Referer: epUrl,
                   },
                   timeout: 3500,
                 });
 
-                // 1. Check for Amazon Cloud HD direct stream (jkplayers.com)
-                const jkPlayersMatch = playerHtml.match(/url:\s*["'](https:\/\/jkplayers\.com\/stream\/[^"']+)["']/);
-                if (jkPlayersMatch && jkPlayersMatch[1]) {
-                  const rawJkUrl = jkPlayersMatch[1];
-                  try {
-                    const streamRes = await axios.get(rawJkUrl, {
-                      headers: {
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                        Referer: playerUrl,
-                      },
-                      maxRedirects: 0,
-                      validateStatus: (status) => status >= 200 && status < 400,
-                      timeout: 4000,
-                    });
-                    const finalLocation = streamRes.headers['location'];
-                    if (finalLocation) {
-                      extractedServers.push({
-                        server: 'JKAnime HD (Amazon Cloud)',
-                        title: `Servidor Principal HD ${targetEp} (MP4)`,
-                        url: finalLocation,
-                        format: 'mp4',
-                        audio: 'sub',
-                        isDirect: true,
-                      });
-                    }
-                  } catch {
-                    // Fallback to raw jkplayers URL
-                    extractedServers.push({
-                      server: 'JKAnime HD (Direct)',
-                      title: `Servidor Principal ${targetEp} (MP4)`,
-                      url: rawJkUrl,
-                      format: 'mp4',
-                      audio: 'sub',
-                      isDirect: true,
-                    });
-                  }
-                }
-
-                // 2. Check for HLS stream (.m3u8)
                 const m3u8Match = playerHtml.match(/(https?:\/\/[^\s"'<>]+\.m3u8[^\s"'<>]*)/);
                 if (m3u8Match && m3u8Match[1]) {
-                  const proxyUrl = `${backendBase}/api/v1/proxy/m3u8?url=${encodeURIComponent(m3u8Match[1])}`;
-                  extractedServers.push({
-                    server: 'JKAnime HLS Direct',
-                    title: `Servidor HLS ${targetEp} (SUB)`,
-                    url: proxyUrl,
-                    format: 'hls',
-                    audio: 'sub',
-                    isDirect: true,
-                  });
+                  return m3u8Match[1];
                 }
               } catch {
                 // continue
@@ -721,19 +673,19 @@ export class ScraperService {
       } catch {
         // continue
       }
-      return extractedServers;
+      return null;
     };
 
     // 1. Try direct slug first
-    let foundServers = await extractVideoSourcesFromJk(animeSlug, epNum);
+    let streamUrl = await extractM3u8FromJk(animeSlug, epNum);
 
-    // 2. If direct slug failed to yield servers, search provider by title keyword
-    if (foundServers.length === 0) {
+    // 2. If direct slug failed, search provider by title keyword to resolve exact provider slug
+    if (!streamUrl) {
       const cleanTitleText = animeSlug.replace(/-/g, ' ');
       try {
         const searchUrl = `${CONFIG.JKANIME_BASE_URL}/buscar/${encodeURIComponent(cleanTitleText)}/1/`;
         const { data: searchHtml } = await axios.get(searchUrl, {
-          headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
+          headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
           timeout: 4000,
         });
         const $ = cheerio.load(searchHtml);
@@ -751,9 +703,9 @@ export class ScraperService {
         });
 
         for (const candidate of candidateSlugs.slice(0, 3)) {
-          const res = await extractVideoSourcesFromJk(candidate, epNum);
-          if (res.length > 0) {
-            foundServers = res;
+          const found = await extractM3u8FromJk(candidate, epNum);
+          if (found) {
+            streamUrl = found;
             break;
           }
         }
@@ -762,26 +714,24 @@ export class ScraperService {
       }
     }
 
-    if (foundServers.length > 0) {
-      // Prioritize MP4 Amazon Cloud HD streams first, then unique HLS streams
-      const mp4Servers = foundServers.filter((s) => s.format === 'mp4');
-      const hlsServers = foundServers.filter((s) => s.format === 'hls');
-
-      // Deduplicate by URL
-      const uniqueMap = new Map<string, StreamSource>();
-      [...mp4Servers, ...hlsServers].forEach((s) => {
-        if (!uniqueMap.has(s.url)) {
-          uniqueMap.set(s.url, s);
-        }
+    if (streamUrl) {
+      // Proxy the m3u8 through our backend to rewrite dead CDN domains and add headers
+      const proxyUrl = `${backendBase}/api/v1/proxy/m3u8?url=${encodeURIComponent(streamUrl)}`;
+      servers.push({
+        server: 'JKAnime HLS Direct',
+        title: `Servidor Principal ${epNum} (SUB)`,
+        url: proxyUrl,
+        format: 'hls',
+        audio: 'sub',
+        isDirect: true,
       });
-      servers.push(...Array.from(uniqueMap.values()));
     } else {
       // Reliable fallback stream
       servers.push({
         server: 'AnimeTV HLS CDN',
         title: `Servidor HLS HD ${epNum}`,
-        url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
-        format: 'mp4',
+        url: 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8',
+        format: 'hls',
         audio: 'sub',
         isDirect: true,
       });
