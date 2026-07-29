@@ -259,7 +259,9 @@ export class ScraperService {
         'buscar', 'animes', 'directorio', 'genero', 'emision', 'usuario', 'top',
         'letra', 'ajax', 'assets', 'assets3', 'perfil', 'editar-perfil', 'login',
         'registro', 'logout', 'privacidad', 'dmca', 'contacto', 'horario', 'politicas',
-        'politica-de-privacidad', 'terminos-y-condiciones', 'panel', 'home'
+        'politica-de-privacidad', 'terminos-y-condiciones', 'panel', 'home', 'dash',
+        'comentarios', 'solicitudes', 'listas', 'guardado', 'historial', 'notificaciones',
+        'estrenos', 'comunidad', 'aplicacion'
       ];
 
       $('.anime__item a, .portada a, .box a, .portadas a, .list a, .anime_pic a, a.box, a').each((_, el) => {
@@ -270,6 +272,7 @@ export class ScraperService {
           if (
             candidate &&
             !systemPaths.includes(candidate.toLowerCase()) &&
+            !href.includes('/dash/') &&
             !candidate.includes('perfil') &&
             !candidate.includes('user') &&
             !candidate.includes('login')
@@ -282,6 +285,18 @@ export class ScraperService {
       });
 
       if (candidates.length > 0) {
+        const cleanWords = slug.toLowerCase().replace(/[^a-z0-9]+/g, ' ').split(' ').filter(w => w.length > 2);
+
+        // 1. First check if any candidate matches ALL key words of original slug
+        if (cleanWords.length > 0) {
+          const exactWordMatch = candidates.find(c => {
+            const cClean = c.toLowerCase().replace(/[^a-z0-9]+/g, ' ');
+            return cleanWords.every(word => cClean.includes(word));
+          });
+          if (exactWordMatch) return exactWordMatch;
+        }
+
+        // 2. Check for season matches
         const hasSeason4 = slug.includes('4th') || slug.includes('season-4') || slug.includes('iv');
         const hasSeason3 = slug.includes('3rd') || slug.includes('season-3') || slug.includes('iii');
         const hasSeason2 = slug.includes('2nd') || slug.includes('season-2') || slug.includes('ii');
@@ -298,7 +313,20 @@ export class ScraperService {
           const m = candidates.find((c) => c.includes('2nd') || c.includes('season-2') || c.includes('ii'));
           if (m) return m;
         }
-        return candidates[0];
+
+        // 3. Select candidate with maximum overlapping words
+        let bestCandidate = candidates[0];
+        let maxOverlap = 0;
+        for (const c of candidates) {
+          const cClean = c.toLowerCase().replace(/[^a-z0-9]+/g, ' ');
+          const overlap = cleanWords.filter(w => cClean.includes(w)).length;
+          if (overlap > maxOverlap) {
+            maxOverlap = overlap;
+            bestCandidate = c;
+          }
+        }
+
+        return bestCandidate;
       }
     } catch {
       // ignore
