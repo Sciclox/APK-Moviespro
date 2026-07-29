@@ -127,21 +127,10 @@ router.get('/proxy/m3u8', async (req: Request, res: Response) => {
       responseType: 'text',
     });
 
-    // Rewrite dead CDN domains to working ones
-    let fixed = manifest
+    // Rewrite dead CDN domains to working ones (cdn3 and cdn4 accept requests without special headers)
+    const fixed = manifest
       .replace(/https?:\/\/cdn1\.ducvomes\.com/g, 'https://cdn3.ducvomes.com')
       .replace(/https?:\/\/cdn2\.ducvomes\.com/g, 'https://cdn4.ducvomes.com');
-
-    // Get the backend's own base URL for proxying TS segments
-    const protocol = req.headers['x-forwarded-proto'] || req.protocol;
-    const host = req.headers['x-forwarded-host'] || req.get('host');
-    const backendBase = `${protocol}://${host}`;
-
-    // Proxy all TS segment URLs through our backend to add required headers
-    fixed = fixed.replace(
-      /https?:\/\/cdn[34]\.ducvomes\.com\/([^\s\n]+\.ts)/g,
-      (match: string) => `${backendBase}/api/v1/proxy/ts?url=${encodeURIComponent(match)}`
-    );
 
     res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
     res.setHeader('Access-Control-Allow-Origin', '*');
