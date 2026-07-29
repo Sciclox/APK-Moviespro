@@ -127,10 +127,17 @@ router.get('/proxy/m3u8', async (req: Request, res: Response) => {
       responseType: 'text',
     });
 
-    // Rewrite dead CDN domains to working ones (cdn3 and cdn4 accept requests without special headers)
-    const fixed = manifest
-      .replace(/https?:\/\/cdn1\.ducvomes\.com/g, 'https://cdn3.ducvomes.com')
-      .replace(/https?:\/\/cdn2\.ducvomes\.com/g, 'https://cdn4.ducvomes.com');
+    // Smart CDN rewrite: test if cdn1 is responsive. If online, keep fast original CDNs. If offline/timing out, apply fallback to cdn3/cdn4.
+    let fixed = manifest;
+    if (manifest.includes('cdn1.ducvomes.com') || manifest.includes('cdn2.ducvomes.com')) {
+      try {
+        await axios.head('https://cdn1.ducvomes.com/', { timeout: 1200 });
+      } catch {
+        fixed = manifest
+          .replace(/https?:\/\/cdn1\.ducvomes\.com/g, 'https://cdn3.ducvomes.com')
+          .replace(/https?:\/\/cdn2\.ducvomes\.com/g, 'https://cdn4.ducvomes.com');
+      }
+    }
 
     res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
     res.setHeader('Access-Control-Allow-Origin', '*');

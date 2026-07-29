@@ -637,7 +637,8 @@ export class ScraperService {
 
     const servers: StreamSource[] = [];
 
-    const extractM3u8FromJk = async (targetSlug: string, targetEp: number): Promise<string | null> => {
+    const extractM3u8FromJk = async (targetSlug: string, targetEp: number): Promise<string[]> => {
+      const urls: string[] = [];
       try {
         const epUrl = `https://jkanime.net/${targetSlug}/${targetEp}/`;
         const { data: epHtml } = await axios.get(epUrl, {
@@ -661,8 +662,8 @@ export class ScraperService {
                 });
 
                 const m3u8Match = playerHtml.match(/(https?:\/\/[^\s"'<>]+\.m3u8[^\s"'<>]*)/);
-                if (m3u8Match && m3u8Match[1]) {
-                  return m3u8Match[1];
+                if (m3u8Match && m3u8Match[1] && !urls.includes(m3u8Match[1])) {
+                  urls.push(m3u8Match[1]);
                 }
               } catch {
                 // continue
@@ -673,14 +674,14 @@ export class ScraperService {
       } catch {
         // continue
       }
-      return null;
+      return urls;
     };
 
     // 1. Try direct slug first
-    let streamUrl = await extractM3u8FromJk(animeSlug, epNum);
+    let streamUrls = await extractM3u8FromJk(animeSlug, epNum);
 
     // 2. If direct slug failed, search provider by title keyword to resolve exact provider slug
-    if (!streamUrl) {
+    if (streamUrls.length === 0) {
       const cleanTitleText = animeSlug.replace(/-/g, ' ');
       try {
         const searchUrl = `${CONFIG.JKANIME_BASE_URL}/buscar/${encodeURIComponent(cleanTitleText)}/1/`;
@@ -703,9 +704,9 @@ export class ScraperService {
         });
 
         for (const candidate of candidateSlugs.slice(0, 3)) {
-          const found = await extractM3u8FromJk(candidate, epNum);
-          if (found) {
-            streamUrl = found;
+          const foundList = await extractM3u8FromJk(candidate, epNum);
+          if (foundList.length > 0) {
+            streamUrls = foundList;
             break;
           }
         }
@@ -714,16 +715,17 @@ export class ScraperService {
       }
     }
 
-    if (streamUrl) {
-      // Proxy the m3u8 through our backend to rewrite dead CDN domains and add headers
-      const proxyUrl = `${backendBase}/api/v1/proxy/m3u8?url=${encodeURIComponent(streamUrl)}`;
-      servers.push({
-        server: 'JKAnime HLS Direct',
-        title: `Servidor Principal ${epNum} (SUB)`,
-        url: proxyUrl,
-        format: 'hls',
-        audio: 'sub',
-        isDirect: true,
+    if (streamUrls.length > 0) {
+      streamUrls.forEach((u, index) => {
+        const proxyUrl = `${backendBase}/api/v1/proxy/m3u8?url=${encodeURIComponent(u)}`;
+        servers.push({
+          server: `JKAnime HLS ${index + 1}`,
+          title: `Servidor Principal ${epNum}${index > 0 ? ` (Opción ${index + 1})` : ''}`,
+          url: proxyUrl,
+          format: 'hls',
+          audio: 'sub',
+          isDirect: true,
+        });
       });
     } else {
       // Reliable fallback stream
