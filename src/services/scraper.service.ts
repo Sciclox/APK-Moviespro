@@ -423,6 +423,9 @@ export class ScraperService {
       jkDataPromise,
     ]);
 
+    // Sanitize spanishMeta to prevent loose TMDB mismatches (e.g. Nihon Animator Mihonichi)
+    const validSpanishMeta = (spanishMeta && spanishMeta.synopsis && !spanishMeta.synopsis.includes('Japan Anima') && !spanishMeta.synopsis.includes('Exhibition')) ? spanishMeta : null;
+
     const isMovie = meta?.format === 'MOVIE' || cleanTitleText.toLowerCase().includes('movie') || cleanTitleText.toLowerCase().includes('pelicula') || cleanTitleText.toLowerCase().includes('película');
     const mediaType = isMovie ? 'PELÍCULA' : (meta?.format === 'SPECIAL' || meta?.format === 'OVA' ? 'ESPECIAL' : 'SERIE');
 
@@ -432,8 +435,8 @@ export class ScraperService {
           ? jkMeta.epCount
           : (meta?.episodes && meta.episodes > 0 ? meta.episodes : 12));
 
-    const stills = spanishMeta?.episodeStills || {};
-    const seasonFallbackImage = jkMeta.seasonCover || meta?.bannerImage || meta?.coverImage?.extraLarge || spanishMeta?.backdrop || spanishMeta?.image || 'https://cdn.animeav1.com/covers/222.jpg';
+    const stills = validSpanishMeta?.episodeStills || {};
+    const seasonFallbackImage = jkMeta.seasonCover || meta?.bannerImage || meta?.coverImage?.extraLarge || validSpanishMeta?.backdrop || validSpanishMeta?.image || 'https://cdn.animeav1.com/covers/222.jpg';
 
     const isSequel = /(?:season|part|2nd|3rd|4th|ii|iii|iv)/i.test(slug);
     const isLongRunning = totalEpisodes > 50 || slug.includes('one-piece') || slug.includes('naruto') || slug.includes('detective-conan') || slug.includes('dragon-ball');
@@ -468,7 +471,7 @@ export class ScraperService {
           break;
         }
 
-        const stillImg = jkStill || (!isSequel && stills[epNum.toString()]) || seasonFallbackImage;
+        const stillImg = jkStill || seasonFallbackImage;
         episodes.push({
           id: `${slug}-episode-${epNum}`,
           number: epNum,
@@ -492,8 +495,8 @@ export class ScraperService {
       }
     }
 
-    if (!rawSynopsis && spanishMeta?.synopsis) {
-      rawSynopsis = spanishMeta.synopsis;
+    if (!rawSynopsis && validSpanishMeta?.synopsis) {
+      rawSynopsis = validSpanishMeta.synopsis;
     }
 
     const finalSynopsis = rawSynopsis || `${cleanTitle(cleanTitleText, slug)} es una aclamada serie de animación japonesa con increíbles batallas e historia envolvente.`;
@@ -501,18 +504,20 @@ export class ScraperService {
     const rawStatus = meta?.status || 'FINISHED';
     const formattedStatus = rawStatus === 'RELEASING' ? '🟢 EN EMISIÓN' : '🔴 FINALIZADO';
 
+    const displayTitle = meta?.title?.english || meta?.title?.romaji || cleanTitle(cleanTitleText, slug);
+
     return {
       id: slug,
-      title: meta?.title?.romaji || meta?.title?.english || cleanTitle(cleanTitleText, slug),
+      title: displayTitle,
       japaneseTitle: meta?.title?.native || '',
       slug: slug,
       synopsis: finalSynopsis,
-      image: jkMeta.seasonCover || meta?.coverImage?.extraLarge || spanishMeta?.image || 'https://cdn.animeav1.com/covers/222.jpg',
-      backdrop: meta?.bannerImage || jkMeta.seasonCover || spanishMeta?.backdrop || meta?.coverImage?.extraLarge || null,
+      image: jkMeta.seasonCover || meta?.coverImage?.extraLarge || validSpanishMeta?.image || 'https://cdn.animeav1.com/covers/222.jpg',
+      backdrop: meta?.bannerImage || jkMeta.seasonCover || validSpanishMeta?.backdrop || meta?.coverImage?.extraLarge || null,
       genres: meta?.genres || ['Acción', 'Aventura', 'Fantasía'],
       status: formattedStatus,
-      score: spanishMeta?.score || (meta?.averageScore ? meta.averageScore / 10 : 8.5),
-      year: spanishMeta?.year || 2024,
+      score: validSpanishMeta?.score || (meta?.averageScore ? meta.averageScore / 10 : 8.5),
+      year: validSpanishMeta?.year || 2024,
       type: mediaType,
       episodes: episodes,
     };
