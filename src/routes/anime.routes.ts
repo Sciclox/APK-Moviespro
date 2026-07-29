@@ -94,10 +94,92 @@ router.get('/anime/details/:slug', async (req: Request, res: Response) => {
 router.get('/anime/watch/*', async (req: Request, res: Response) => {
   try {
     const episodeSlug = Array.isArray(req.params[0]) ? req.params[0].join('/') : (req.params[0] || '');
-    const stream = await ScraperService.getStreamSources(episodeSlug);
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+    const host = req.headers['x-forwarded-host'] || req.get('host');
+    const backendBase = `${protocol}://${host}`;
+    const stream = await ScraperService.getStreamSources(episodeSlug, backendBase);
     res.json({ success: true, data: stream });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * @route GET /api/v1/proxy/m3u8
+ * @desc Proxy HLS manifest and rewrite dead CDN domains to working ones
+ */
+router.get('/proxy/m3u8', async (req: Request, res: Response) => {
+  try {
+    const url = req.query.url as string;
+    if (!url) {
+      res.status(400).json({ success: false, error: 'Missing url parameter' });
+      return;
+    }
+
+    const axios = (await import('axios')).default;
+    const { data: manifest } = await axios.get(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Referer': 'https://jkanime.net/',
+        'Origin': 'https://jkanime.net',
+      },
+      timeout: 8000,
+      responseType: 'text',
+    });
+
+    // Rewrite dead CDN domains to working ones
+    let fixed = manifest
+      .replace(/https?:\/\/cdn1\.ducvomes\.com/g, 'https://cdn3.ducvomes.com')
+      .replace(/https?:\/\/cdn2\.ducvomes\.com/g, 'https://cdn4.ducvomes.com');
+
+    // Get the backend's own base URL for proxying TS segments
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+    const host = req.headers['x-forwarded-host'] || req.get('host');
+    const backendBase = `${protocol}://${host}`;
+
+    // Proxy all TS segment URLs through our backend to add required headers
+    fixed = fixed.replace(
+      /https?:\/\/cdn[34]\.ducvomes\.com\/([^\s\n]+\.ts)/g,
+      (match: string) => `${backendBase}/api/v1/proxy/ts?url=${encodeURIComponent(match)}`
+    );
+
+    res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.send(fixed);
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * @route GET /api/v1/proxy/ts
+ * @desc Proxy TS video segments with required headers
+ */
+router.get('/proxy/ts', async (req: Request, res: Response) => {
+  try {
+    const url = req.query.url as string;
+    if (!url) {
+      res.status(400).json({ success: false, error: 'Missing url parameter' });
+      return;
+    }
+
+    const axios = (await import('axios')).default;
+    const response = await axios.get(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Referer': 'https://jkanime.net/',
+        'Origin': 'https://jkanime.net',
+      },
+      timeout: 15000,
+      responseType: 'arraybuffer',
+    });
+
+    res.setHeader('Content-Type', 'video/mp2t');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.send(Buffer.from(response.data));
+  } catch (error: any) {
+    res.status(502).json({ success: false, error: 'Segment fetch failed' });
   }
 });
 

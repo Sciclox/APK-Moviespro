@@ -620,7 +620,7 @@ export class ScraperService {
   /**
    * Scrape Real Video Stream Links for Specified Anime & Episode with Smart Slug Resolution
    */
-  static async getStreamSources(episodeSlug: string): Promise<WatchResponse> {
+  static async getStreamSources(episodeSlug: string, backendBase: string = 'https://apk-animetv-backend.onrender.com'): Promise<WatchResponse> {
     const parts = episodeSlug.split('/');
     let rawAnimeSlug = parts[0] || 'anime';
     let epNum = parseInt(parts[1] || '1', 10);
@@ -715,10 +715,12 @@ export class ScraperService {
     }
 
     if (streamUrl) {
+      // Proxy the m3u8 through our backend to rewrite dead CDN domains and add headers
+      const proxyUrl = `${backendBase}/api/v1/proxy/m3u8?url=${encodeURIComponent(streamUrl)}`;
       servers.push({
         server: 'JKAnime HLS Direct',
         title: `Servidor Principal ${epNum} (SUB)`,
-        url: streamUrl,
+        url: proxyUrl,
         format: 'hls',
         audio: 'sub',
         isDirect: true,
