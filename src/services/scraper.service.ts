@@ -35,9 +35,14 @@ export class ScraperService {
 
       if (data && data.success && Array.isArray(data.data)) {
         return data.data.map((item: any) => {
+          const titleName = item.tmdb?.name || item.title || '';
+          const titleSlug = titleName ? cleanSlug(titleName) : '';
           const rawSlug = item.slug || item.title || '';
-          const slug = cleanSlug(rawSlug);
-          const title = cleanTitle(item.tmdb?.name || item.title, slug);
+          const baseSlug = cleanSlug(rawSlug);
+          
+          // Use longer title slug if it contains specific subtitle details (e.g. road-to-the-top)
+          const slug = (titleSlug.length > baseSlug.length && titleSlug.includes(baseSlug)) ? titleSlug : baseSlug;
+          const title = cleanTitle(titleName || item.title, slug);
           const backdrop = item.tmdb?.backdrop_path
             ? `${CONFIG.TMDB_IMAGE_BASE}${item.tmdb.backdrop_path}`
             : item.image;
@@ -236,20 +241,45 @@ export class ScraperService {
   static async resolveJkSlug(slugInput: string): Promise<string> {
     const slug = cleanSlug(slugInput);
 
+    // 1. Try direct slug
     try {
       await axios.head(`${CONFIG.JKANIME_BASE_URL}/${slug}/`, {
         headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
         timeout: 1500,
       });
       return slug;
-    } catch {
-      // Direct slug returned 404, fallback to automatic JKAnime search
+    } catch {}
+
+    // 2. Try common JKAnime slug variations (e.g. -tv, -ii, -iii, -2024, -season-2)
+    const variations = [
+      `${slug}-tv`,
+      `${slug}-2024`,
+      `${slug}-ii`,
+      `${slug}-iii`,
+      `${slug}-season-2`,
+      `${slug}-season-3`,
+      slug.replace(/-20\d\d$/, ''),
+      slug.replace(/-season-\d+$/, ''),
+      slug.replace(/-2$/, '-ii').replace(/-3$/, '-iii').replace(/-4$/, '-iv')
+    ];
+
+    for (const v of variations) {
+      if (v !== slug) {
+        try {
+          await axios.head(`${CONFIG.JKANIME_BASE_URL}/${v}/`, {
+            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
+            timeout: 1200,
+          });
+          return v;
+        } catch {}
+      }
     }
 
+    // 3. Fallback to scraping JKAnime search results with strict system path filters
     try {
       const cleanTitleText = slug.replace(/-/g, ' ');
       const words = cleanTitleText.split(' ').filter((w) => w.length > 2);
-      const query = words.slice(0, 3).join(' ');
+      const query = words.slice(0, 3).join('_');
       const searchUrl = `${CONFIG.JKANIME_BASE_URL}/buscar/${encodeURIComponent(query)}/`;
       const { data: html } = await axios.get(searchUrl, {
         headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
@@ -263,18 +293,21 @@ export class ScraperService {
         'registro', 'logout', 'privacidad', 'dmca', 'contacto', 'horario', 'politicas',
         'politica-de-privacidad', 'terminos-y-condiciones', 'panel', 'home', 'dash',
         'comentarios', 'solicitudes', 'listas', 'guardado', 'historial', 'notificaciones',
-        'estrenos', 'comunidad', 'aplicacion'
+        'estrenos', 'comunidad', 'aplicacion', '$me', 'reset', 'google', 'discord',
+        'facebook', 'twitter', 'instagram', 'auth', 'password', 'user'
       ];
 
-      $('.anime__item a, .portada a, .box a, .portadas a, .list a, .anime_pic a, a.box, a').each((_: number, el: any) => {
+      $('.anime__item a, .portada a, .box a, .portadas a, .list a, .anime_pic a').each((_: number, el: any) => {
         const href = $(el).attr('href') || '';
         if (href.includes('jkanime.net/')) {
           const parts = href.replace(/\/$/, '').split('/');
           const candidate = parts[parts.length - 1];
           if (
             candidate &&
+            /^[a-z0-9-]+$/i.test(candidate) &&
             !systemPaths.includes(candidate.toLowerCase()) &&
             !href.includes('/dash/') &&
+            !href.includes('/buscar/') &&
             !candidate.includes('perfil') &&
             !candidate.includes('user') &&
             !candidate.includes('login')
@@ -289,7 +322,7 @@ export class ScraperService {
       if (candidates.length > 0) {
         const cleanWords = slug.toLowerCase().replace(/[^a-z0-9]+/g, ' ').split(' ').filter((w: string) => w.length > 2);
 
-        // 1. First check if any candidate matches ALL key words of original slug
+        // First check if any candidate matches ALL key words of original slug
         if (cleanWords.length > 0) {
           const exactWordMatch = candidates.find((c: string) => {
             const cClean = c.toLowerCase().replace(/[^a-z0-9]+/g, ' ');
@@ -298,25 +331,7 @@ export class ScraperService {
           if (exactWordMatch) return exactWordMatch;
         }
 
-        // 2. Check for season matches
-        const hasSeason4 = slug.includes('4th') || slug.includes('season-4') || slug.includes('iv');
-        const hasSeason3 = slug.includes('3rd') || slug.includes('season-3') || slug.includes('iii');
-        const hasSeason2 = slug.includes('2nd') || slug.includes('season-2') || slug.includes('ii');
-
-        if (hasSeason4) {
-          const m = candidates.find((c: string) => c.includes('4th') || c.includes('season-4') || c.includes('iv'));
-          if (m) return m;
-        }
-        if (hasSeason3) {
-          const m = candidates.find((c: string) => c.includes('3rd') || c.includes('season-3') || c.includes('iii'));
-          if (m) return m;
-        }
-        if (hasSeason2) {
-          const m = candidates.find((c: string) => c.includes('2nd') || c.includes('season-2') || c.includes('ii'));
-          if (m) return m;
-        }
-
-        // 3. Select candidate with maximum overlapping words
+        // Select candidate with maximum overlapping words
         let bestCandidate = candidates[0];
         let maxOverlap = 0;
         for (const c of candidates) {
