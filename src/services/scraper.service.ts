@@ -426,15 +426,23 @@ export class ScraperService {
           seasonCover = imgTag;
         }
 
+        let seasonTitle: string | null = null;
+        const pageTitle = $('title').text().trim();
+        if (pageTitle && pageTitle.includes(' - anime ')) {
+          seasonTitle = pageTitle.split(' - anime ')[0].trim();
+        } else if (pageTitle && pageTitle.includes(' online JkAnime')) {
+          seasonTitle = pageTitle.split(' online JkAnime')[0].split(' - ')[0].trim();
+        }
+
         let seasonSynopsis: string | null = null;
         const pText = $('.sinopsis, .sinop, p').first().text().trim();
-        if (pText && pText.length > 30 && !pText.includes('JKAnime')) {
+        if (pText && pText.length > 20 && !pText.includes('JKAnime') && !pText.includes('Sesi') && !pText.includes('cuenta')) {
           seasonSynopsis = pText;
         }
 
-        return { epCount, seasonCover, seasonSynopsis };
+        return { epCount, seasonCover, seasonSynopsis, seasonTitle };
       } catch (e) {
-        return { epCount: 0, seasonCover: null, seasonSynopsis: null };
+        return { epCount: 0, seasonCover: null, seasonSynopsis: null, seasonTitle: null };
       }
     })();
 
@@ -507,6 +515,10 @@ export class ScraperService {
 
     let rawSynopsis = jkMeta.seasonSynopsis || null;
 
+    if (rawSynopsis && rawSynopsis.length < 120 && validSpanishMeta?.synopsis) {
+      rawSynopsis = `${rawSynopsis}\n\n${validSpanishMeta.synopsis}`;
+    }
+
     if (!rawSynopsis && meta?.description) {
       const translated = await TMDBService.translateToSpanish(meta.description);
       if (translated) {
@@ -525,7 +537,12 @@ export class ScraperService {
     const rawStatus = meta?.status || 'FINISHED';
     const formattedStatus = rawStatus === 'RELEASING' ? '🟢 EN EMISIÓN' : '🔴 FINALIZADO';
 
-    const displayTitle = meta?.title?.english || meta?.title?.romaji || cleanTitle(cleanTitleText, slug);
+    const baseTitle = jkMeta.seasonTitle || meta?.title?.english || meta?.title?.romaji || cleanTitle(cleanTitleText, slug);
+    const displayTitle = baseTitle
+      .replace(/([a-zA-Z])(\d+)/g, '$1 $2')
+      .replace(/Season(\d+)/i, 'Season $1')
+      .replace(/\s{2,}/g, ' ')
+      .trim();
 
     return {
       id: slug,
