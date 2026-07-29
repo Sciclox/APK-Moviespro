@@ -11,6 +11,8 @@ function cleanSlug(rawSlug: string): string {
     const parts = s.replace(/\/$/, '').split('/');
     s = parts[parts.length - 1];
   }
+  // Strip artificial prefixes like "slug-", "anime-", "id-"
+  s = s.replace(/^(slug|anime|id)-/gi, '');
   // Normalize common slug variation mismatches (e.g. re-zero -> rezero)
   s = s.replace(/re-zero/gi, 'rezero');
   return s;
@@ -138,7 +140,13 @@ export class ScraperService {
         const parts = href.replace(/\/$/, '').split('/');
         if (parts.length >= 4) {
           const slug = parts[parts.length - 2] || parts[parts.length - 1];
-          if (slug && !items.some((i) => i.slug === slug)) {
+          if (
+            slug &&
+            !['buscar', 'animes', 'directorio', 'genero', 'emision', 'usuario', 'perfil', 'editar-perfil', 'login', 'registro'].includes(slug.toLowerCase()) &&
+            !slug.includes('perfil') &&
+            !slug.includes('user') &&
+            !items.some((i) => i.slug === slug)
+          ) {
             items.push({
               id: slug,
               title: cleanTitle(title, slug),
@@ -247,17 +255,24 @@ export class ScraperService {
         headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
         timeout: 3000,
       });
-      const $ = cheerio.load(html);
-      const candidates: string[] = [];
+      const systemPaths = [
+        'buscar', 'animes', 'directorio', 'genero', 'emision', 'usuario', 'top',
+        'letra', 'ajax', 'assets', 'assets3', 'perfil', 'editar-perfil', 'login',
+        'registro', 'logout', 'privacidad', 'dmca', 'contacto', 'horario', 'politicas',
+        'politica-de-privacidad', 'terminos-y-condiciones', 'panel', 'home'
+      ];
 
-      $('a').each((_, el) => {
+      $('.anime__item a, .portada a, .box a, .portadas a, .list a, .anime_pic a, a.box, a').each((_, el) => {
         const href = $(el).attr('href') || '';
         if (href.includes('jkanime.net/')) {
           const parts = href.replace(/\/$/, '').split('/');
           const candidate = parts[parts.length - 1];
           if (
             candidate &&
-            !['buscar', 'animes', 'directorio', 'genero', 'emision', 'usuario', 'top', 'letra', 'ajax', 'assets', 'assets3'].includes(candidate)
+            !systemPaths.includes(candidate.toLowerCase()) &&
+            !candidate.includes('perfil') &&
+            !candidate.includes('user') &&
+            !candidate.includes('login')
           ) {
             if (!candidates.includes(candidate)) {
               candidates.push(candidate);
