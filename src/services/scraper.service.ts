@@ -35,14 +35,20 @@ export class ScraperService {
 
       if (data && data.success && Array.isArray(data.data)) {
         return data.data.map((item: any) => {
-          const titleName = item.tmdb?.name || item.title || '';
-          const titleSlug = titleName ? cleanSlug(titleName) : '';
+          const itemTitleSlug = item.title ? cleanSlug(item.title) : '';
+          const tmdbNameSlug = item.tmdb?.name ? cleanSlug(item.tmdb.name) : '';
           const rawSlug = item.slug || item.title || '';
           const baseSlug = cleanSlug(rawSlug);
           
-          // Use longer title slug if it contains specific subtitle details (e.g. road-to-the-top)
-          const slug = (titleSlug.length > baseSlug.length && titleSlug.includes(baseSlug)) ? titleSlug : baseSlug;
-          const title = cleanTitle(titleName || item.title, slug);
+          // Prioritize specific item.title slug if it contains extra subtitle words (e.g. road-to-the-top)
+          let slug = baseSlug;
+          if (itemTitleSlug.length > baseSlug.length) {
+            slug = itemTitleSlug;
+          } else if (tmdbNameSlug.length > baseSlug.length && tmdbNameSlug.includes(baseSlug)) {
+            slug = tmdbNameSlug;
+          }
+
+          const title = cleanTitle(item.title || item.tmdb?.name, slug);
           const backdrop = item.tmdb?.backdrop_path
             ? `${CONFIG.TMDB_IMAGE_BASE}${item.tmdb.backdrop_path}`
             : item.image;
