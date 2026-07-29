@@ -433,7 +433,7 @@ export class ScraperService {
           : (meta?.episodes && meta.episodes > 0 ? meta.episodes : 12));
 
     const stills = spanishMeta?.episodeStills || {};
-    const seasonFallbackImage = jkMeta.seasonCover || spanishMeta?.backdrop || spanishMeta?.image || meta?.coverImage?.extraLarge || 'https://cdn.animeav1.com/covers/222.jpg';
+    const seasonFallbackImage = jkMeta.seasonCover || meta?.bannerImage || meta?.coverImage?.extraLarge || spanishMeta?.backdrop || spanishMeta?.image || 'https://cdn.animeav1.com/covers/222.jpg';
 
     const isSequel = /(?:season|part|2nd|3rd|4th|ii|iii|iv)/i.test(slug);
     const isLongRunning = totalEpisodes > 50 || slug.includes('one-piece') || slug.includes('naruto') || slug.includes('detective-conan') || slug.includes('dragon-ball');
@@ -481,7 +481,7 @@ export class ScraperService {
       }
     }
 
-    let rawSynopsis = spanishMeta?.synopsis || null;
+    let rawSynopsis = jkMeta.seasonSynopsis || null;
 
     if (!rawSynopsis && meta?.description) {
       const translated = await TMDBService.translateToSpanish(meta.description);
@@ -492,6 +492,10 @@ export class ScraperService {
       }
     }
 
+    if (!rawSynopsis && spanishMeta?.synopsis) {
+      rawSynopsis = spanishMeta.synopsis;
+    }
+
     const finalSynopsis = rawSynopsis || `${cleanTitle(cleanTitleText, slug)} es una aclamada serie de animación japonesa con increíbles batallas e historia envolvente.`;
 
     const rawStatus = meta?.status || 'FINISHED';
@@ -499,12 +503,12 @@ export class ScraperService {
 
     return {
       id: slug,
-      title: meta?.title?.romaji || cleanTitle(cleanTitleText, slug),
+      title: meta?.title?.romaji || meta?.title?.english || cleanTitle(cleanTitleText, slug),
       japaneseTitle: meta?.title?.native || '',
       slug: slug,
       synopsis: finalSynopsis,
-      image: spanishMeta?.image || meta?.coverImage?.extraLarge || 'https://cdn.animeav1.com/covers/222.jpg',
-      backdrop: spanishMeta?.backdrop || meta?.bannerImage || null,
+      image: jkMeta.seasonCover || meta?.coverImage?.extraLarge || spanishMeta?.image || 'https://cdn.animeav1.com/covers/222.jpg',
+      backdrop: meta?.bannerImage || jkMeta.seasonCover || spanishMeta?.backdrop || meta?.coverImage?.extraLarge || null,
       genres: meta?.genres || ['Acción', 'Aventura', 'Fantasía'],
       status: formattedStatus,
       score: spanishMeta?.score || (meta?.averageScore ? meta.averageScore / 10 : 8.5),
