@@ -26,6 +26,7 @@ export interface AnimeDetail {
   id: string;
   title: string;
   slug: string;
+  englishTitle?: string | null;
   japaneseTitle?: string;
   synopsis: string;
   image: string;

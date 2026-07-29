@@ -542,11 +542,19 @@ export class ScraperService {
       .replace(/([a-zA-Z])(\d+)/g, '$1 $2')
       .replace(/Season(\d+)/i, 'Season $1')
       .replace(/\s{2,}/g, ' ')
-      .trim();
+    const rawEnglishTitle = meta?.title?.english || null;
+    const formattedEnglishTitle = rawEnglishTitle
+      ? rawEnglishTitle
+          .replace(/([a-zA-Z])(\d+)/g, '$1 $2')
+          .replace(/Season(\d+)/i, 'Season $1')
+          .replace(/\s{2,}/g, ' ')
+          .trim()
+      : null;
 
     return {
       id: slug,
       title: displayTitle,
+      englishTitle: formattedEnglishTitle,
       japaneseTitle: meta?.title?.native || '',
       slug: slug,
       synopsis: finalSynopsis,
