@@ -215,7 +215,7 @@ export class ScraperService {
     const cached = apiCache.get<AnimeItem[]>(cacheKey);
     if (cached) return cached;
     if (!query || query.trim().length === 0) return [];
-    const cleanQ = query.trim();
+    const cleanQ = query.replace(/[:!?#,._-]/g, ' ').replace(/\s+/g, ' ').trim();
 
     // 1. Try AnimeVerse search with 4.5s timeout
     try {
@@ -369,7 +369,7 @@ export class ScraperService {
     // 3. Fallback to scraping JKAnime search results with strict system path filters
     try {
       const cleanTitleText = slug.replace(/-/g, ' ');
-      const words = cleanTitleText.split(' ').filter((w) => w.length > 2);
+      const words = cleanTitleText.split(' ').filter((w) => w.length >= 1);
       const query = words.slice(0, 3).join('_');
       const searchUrl = `${CONFIG.JKANIME_BASE_URL}/buscar/${encodeURIComponent(query)}/`;
       const { data: html } = await axios.get(searchUrl, {
@@ -411,7 +411,7 @@ export class ScraperService {
       });
 
       if (candidates.length > 0) {
-        const cleanWords = slug.toLowerCase().replace(/[^a-z0-9]+/g, ' ').split(' ').filter((w: string) => w.length > 2);
+        const cleanWords = slug.toLowerCase().replace(/[^a-z0-9]+/g, ' ').split(' ').filter((w: string) => w.length >= 1);
 
         // First check if any candidate matches ALL key words of original slug
         if (cleanWords.length > 0) {
