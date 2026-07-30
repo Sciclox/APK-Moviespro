@@ -658,7 +658,7 @@ export class ScraperService {
    * Scrape Real Video Stream Links for Specified Anime & Episode with Smart Slug Resolution
    */
   static async getStreamSources(episodeSlug: string, backendBase: string = 'https://apk-animetv-backend.onrender.com'): Promise<WatchResponse> {
-    const cacheKey = `stream_v8_${episodeSlug}`;
+    const cacheKey = `stream_v9_${episodeSlug}`;
     const cached = apiCache.get<WatchResponse>(cacheKey);
     if (cached) {
       return cached;
@@ -786,15 +786,32 @@ export class ScraperService {
                 const decodedUrl = Buffer.from(b64, 'base64').toString('utf-8');
                 const cleanName = sName.toUpperCase();
 
-                const proxyUrl = `${backendBase}/api/v1/proxy/video?url=${encodeURIComponent(decodedUrl)}`;
-                secServers.push({
-                  server: `AnimeFLV / ${cleanName}`,
-                  title: `Servidor AnimeFLV ${targetEp} (${cleanName})`,
-                  url: proxyUrl,
-                  format: 'mp4',
-                  audio: 'sub',
-                  isDirect: true,
-                });
+                const SUPPORTED_HOSTS = ['yourupload', 'mp4upload', 'ok.ru'];
+                const isSupportedProxy = SUPPORTED_HOSTS.some(h => decodedUrl.toLowerCase().includes(h));
+
+                if (decodedUrl.includes('.m3u8') || decodedUrl.includes('.mp4')) {
+                  // Direct playable stream — no proxy needed
+                  secServers.push({
+                    server: `AnimeFLV / ${cleanName}`,
+                    title: `Servidor AnimeFLV ${targetEp} (${cleanName})`,
+                    url: decodedUrl,
+                    format: decodedUrl.includes('.m3u8') ? 'hls' : 'mp4',
+                    audio: 'sub',
+                    isDirect: true,
+                  });
+                } else if (isSupportedProxy) {
+                  // Embed page with a working proxy extractor
+                  const proxyUrl = `${backendBase}/api/v1/proxy/video?url=${encodeURIComponent(decodedUrl)}`;
+                  secServers.push({
+                    server: `AnimeFLV / ${cleanName}`,
+                    title: `Servidor AnimeFLV ${targetEp} (${cleanName})`,
+                    url: proxyUrl,
+                    format: 'mp4',
+                    audio: 'sub',
+                    isDirect: true,
+                  });
+                }
+                // else: unsupported host — skip to avoid black screen
               } catch {
                 // ignore
               }
