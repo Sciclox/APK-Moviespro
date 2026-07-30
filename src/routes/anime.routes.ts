@@ -183,10 +183,10 @@ router.get('/proxy/ts', async (req: Request, res: Response) => {
 });
 
 /**
- * @route GET /api/v1/proxy/stream
- * @desc Dynamically resolve embed page URL to direct video stream (.m3u8 / .mp4) and redirect ExoPlayer
+ * @route GET /api/v1/proxy/video
+ * @desc Stream direct MP4/HLS video bytes directly to ExoPlayer/Browser (Tokianime architecture)
  */
-router.get('/proxy/stream', async (req: Request, res: Response) => {
+router.get('/proxy/video', async (req: Request, res: Response) => {
   try {
     const embedUrl = req.query.url as string;
     if (!embedUrl) {
@@ -200,10 +200,37 @@ router.get('/proxy/stream', async (req: Request, res: Response) => {
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
     };
 
-    // 1. Filemoon unpacking
-    if (embedUrl.includes('filemoon')) {
+    let directUrl: string | null = null;
+    let refererHeader = 'https://google.com/';
+
+    // 1. YourUpload
+    if (embedUrl.includes('yourupload')) {
       try {
-        const { data: html } = await axios.get(embedUrl, { headers: DEFAULT_HEADERS, timeout: 5000 });
+        const { data: html } = await axios.get(embedUrl, { headers: DEFAULT_HEADERS, timeout: 4000 });
+        const m = html.match(/jwplayer\("[^"]+"\)\.setup\(\{\s*file:\s*["']([^"']+\.mp4[^"']*)["']/i) || html.match(/(https?:\/\/[^\s"'<>]+\.mp4[^\s"'<>]*)/i);
+        if (m && m[1]) {
+          directUrl = m[1];
+          refererHeader = 'https://www.yourupload.com/';
+        }
+      } catch {}
+    }
+
+    // 2. Mp4Upload
+    if (!directUrl && embedUrl.includes('mp4upload')) {
+      try {
+        const { data: html } = await axios.get(embedUrl, { headers: DEFAULT_HEADERS, timeout: 4000 });
+        const m = html.match(/src:\s*["'](https?:\/\/[^"']+\.mp4[^"']*)["']/i) || html.match(/(https?:\/\/[^\s"'<>]+\.mp4[^\s"'<>]*)/i);
+        if (m && m[1]) {
+          directUrl = m[1];
+          refererHeader = 'https://www.mp4upload.com/';
+        }
+      } catch {}
+    }
+
+    // 3. Filemoon
+    if (!directUrl && embedUrl.includes('filemoon')) {
+      try {
+        const { data: html } = await axios.get(embedUrl, { headers: DEFAULT_HEADERS, timeout: 4000 });
         const packedMatch = html.match(/eval\(function\(p,a,c,k,e,d\)\{.*\}\('(.+?)',(\d+),(\d+),'(.+?)'\.split\('\|'\)/s);
         if (packedMatch) {
           const p = packedMatch[1];
@@ -219,20 +246,18 @@ router.get('/proxy/stream', async (req: Request, res: Response) => {
           }
           const m3u8 = result.match(/(https?:\/\/[^\s"'<>]+\.m3u8[^\s"'<>]*)/i);
           if (m3u8 && m3u8[1]) {
-            res.redirect(302, m3u8[1]);
-            return;
+            directUrl = m3u8[1];
+            refererHeader = 'https://filemoon.sx/';
           }
         }
-      } catch {
-        // ignore
-      }
+      } catch {}
     }
 
-    // 2. OK.ru metadata
-    if (embedUrl.includes('ok.ru')) {
+    // 4. OK.ru
+    if (!directUrl && embedUrl.includes('ok.ru')) {
       try {
         const secureUrl = embedUrl.replace('http://', 'https://');
-        const { data: html } = await axios.get(secureUrl, { headers: DEFAULT_HEADERS, timeout: 5000 });
+        const { data: html } = await axios.get(secureUrl, { headers: DEFAULT_HEADERS, timeout: 4000 });
         const optionsAttr = cheerio.load(html)('div[data-options]').attr('data-options');
         if (optionsAttr) {
           const decoded = optionsAttr.replace(/&quot;/g, '"').replace(/&amp;/g, '&');
@@ -241,32 +266,58 @@ router.get('/proxy/stream', async (req: Request, res: Response) => {
           if (flashvars.videos && flashvars.videos.length > 0) {
             const preferred = flashvars.videos.find((v: any) => v.name === 'hd') || flashvars.videos.find((v: any) => v.name === 'sd') || flashvars.videos[0];
             if (preferred && preferred.url) {
-              res.redirect(302, preferred.url);
-              return;
+              directUrl = preferred.url;
+              refererHeader = 'https://ok.ru/';
             }
           }
         }
-      } catch {
-        // ignore
-      }
+      } catch {}
     }
 
-    // 3. Fallback direct match for mp4/m3u8 in embed HTML
-    try {
-      const { data: html } = await axios.get(embedUrl, { headers: DEFAULT_HEADERS, timeout: 5000 });
-      const directMatch = html.match(/(https?:\/\/[^\s"'<>]+\.(?:mp4|m3u8)[^\s"'<>]*)/i);
-      if (directMatch && directMatch[1]) {
-        res.redirect(302, directMatch[1]);
+    // Fallback if directUrl wasn't extracted
+    if (!directUrl) {
+      if (embedUrl.includes('.mp4') || embedUrl.includes('.m3u8')) {
+        directUrl = embedUrl;
+      } else {
+        res.redirect(302, embedUrl);
         return;
       }
-    } catch {
-      // ignore
     }
 
-    // Fallback redirect to original embed URL
-    res.redirect(302, embedUrl);
+    // Stream video bytes back to client with range headers support
+    const streamHeaders: Record<string, string> = {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+      'Referer': refererHeader,
+    };
+    if (req.headers.range) {
+      streamHeaders['Range'] = req.headers.range as string;
+    }
+
+    const streamResponse = await axios.get(directUrl, {
+      headers: streamHeaders,
+      responseType: 'stream',
+      timeout: 15000,
+    });
+
+    const contentType = streamResponse.headers['content-type'] ? String(streamResponse.headers['content-type']) : 'video/mp4';
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Accept-Ranges', 'bytes');
+    if (streamResponse.headers['content-range']) {
+      res.setHeader('Content-Range', String(streamResponse.headers['content-range']));
+      res.status(206);
+    } else {
+      res.status(streamResponse.status);
+    }
+    if (streamResponse.headers['content-length']) {
+      res.setHeader('Content-Length', String(streamResponse.headers['content-length']));
+    }
+
+    streamResponse.data.pipe(res);
   } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
+    if (!res.headersSent) {
+      res.status(502).json({ success: false, error: 'Video stream proxy failed' });
+    }
   }
 });
 
