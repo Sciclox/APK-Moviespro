@@ -658,7 +658,7 @@ export class ScraperService {
    * Scrape Real Video Stream Links for Specified Anime & Episode with Smart Slug Resolution
    */
   static async getStreamSources(episodeSlug: string, backendBase: string = 'https://apk-animetv-backend.onrender.com'): Promise<WatchResponse> {
-    const cacheKey = `stream_v10_${episodeSlug}`;
+    const cacheKey = `stream_v12_${episodeSlug}`;
     const cached = apiCache.get<WatchResponse>(cacheKey);
     if (cached) {
       return cached;
@@ -686,8 +686,8 @@ export class ScraperService {
       'Accept-Language': 'es-ES,es;q=0.9,en-US;q=0.8,en;q=0.7',
     };
 
-    const extractM3u8FromJk = async (targetSlug: string, targetEp: number): Promise<string[]> => {
-      const urls: string[] = [];
+    const extractJkServers = async (targetSlug: string, targetEp: number): Promise<StreamSource[]> => {
+      const results: StreamSource[] = [];
       try {
         const epUrl = `https://jkanime.net/${targetSlug}/${targetEp}/`;
         const { data: epHtml } = await axios.get(epUrl, {
@@ -696,7 +696,8 @@ export class ScraperService {
         });
 
         const playerUrls = epHtml.match(/https?:\/\/jkanime\.net\/jkplayer\/[^"'\s<>]+/g) || [];
-        for (const playerUrl of playerUrls.slice(0, 5)) {
+        for (let i = 0; i < Math.min(playerUrls.length, 6); i++) {
+          const playerUrl = playerUrls[i];
           try {
             const { data: playerHtml } = await axios.get(playerUrl, {
               headers: {
@@ -706,9 +707,34 @@ export class ScraperService {
               timeout: 3500,
             });
 
-            const m3u8Match = playerHtml.match(/(https?:\/\/[^\s"'<>]+\.m3u8[^\s"'<>]*)/);
-            if (m3u8Match && m3u8Match[1] && !urls.includes(m3u8Match[1])) {
-              urls.push(m3u8Match[1]);
+            const m3u8Match = playerHtml.match(/(https?:\/\/[^\s"'<>]+\.m3u8[^\s"'<>]*)/i);
+            const mp4Match = playerHtml.match(/url:\s*['"](https?:\/\/[^'"]+\.mp4[^'"]*)['"]/i) || playerHtml.match(/(https?:\/\/jkplayers\.com\/stream\/[^\s"'<>]+)/i);
+
+            if (m3u8Match && m3u8Match[1]) {
+              const proxyUrl = `${backendBase}/api/v1/proxy/m3u8?url=${encodeURIComponent(m3u8Match[1])}`;
+              if (!results.some(s => s.url === proxyUrl)) {
+                results.push({
+                  server: `JKAnime HLS ${results.length + 1}`,
+                  title: `Servidor Principal ${results.length + 1} (HLS)`,
+                  url: proxyUrl,
+                  format: 'hls',
+                  audio: 'sub',
+                  isDirect: true,
+                });
+              }
+            } else if (mp4Match && mp4Match[1]) {
+              const rawMp4 = mp4Match[1];
+              const proxyUrl = `${backendBase}/api/v1/proxy/video?url=${encodeURIComponent(rawMp4)}`;
+              if (!results.some(s => s.url === proxyUrl)) {
+                results.push({
+                  server: `JKAnime MP4 Direct`,
+                  title: `Servidor Principal MP4 Direct`,
+                  url: proxyUrl,
+                  format: 'mp4',
+                  audio: 'sub',
+                  isDirect: true,
+                });
+              }
             }
           } catch {
             // continue
@@ -717,7 +743,7 @@ export class ScraperService {
       } catch {
         // continue
       }
-      return urls;
+      return results;
     };
 
     const resolveEmbedToDirectStream = async (embedUrl: string): Promise<string | null> => {
@@ -786,7 +812,7 @@ export class ScraperService {
                 const decodedUrl = Buffer.from(b64, 'base64').toString('utf-8');
                 const cleanName = sName.toUpperCase();
 
-                const SUPPORTED_HOSTS = ['yourupload', 'mp4upload'];
+                const SUPPORTED_HOSTS = ['yourupload'];
                 const isSupportedProxy = SUPPORTED_HOSTS.some(h => decodedUrl.toLowerCase().includes(h));
 
                 if (decodedUrl.includes('.m3u8') || decodedUrl.includes('.mp4')) {
@@ -861,17 +887,17 @@ export class ScraperService {
 
     // Run JKAnime and AnimeFLV/Secondary scrapers in parallel
     const [jkResult, secResult] = await Promise.allSettled([
-      extractM3u8FromJk(animeSlug, epNum),
+      extractJkServers(animeSlug, epNum),
       extractSecondaryProvider(animeSlug, epNum),
     ]);
 
-    let streamUrls: string[] = [];
+    let jkServers: StreamSource[] = [];
     if (jkResult.status === 'fulfilled') {
-      streamUrls = jkResult.value;
+      jkServers = jkResult.value;
     }
 
     // If direct JKAnime slug failed, search by title keyword
-    if (streamUrls.length === 0) {
+    if (jkServers.length === 0) {
       const cleanTitleText = animeSlug.replace(/-/g, ' ');
       try {
         const searchUrl = `${CONFIG.JKANIME_BASE_URL}/buscar/${encodeURIComponent(cleanTitleText)}/1/`;
@@ -894,9 +920,9 @@ export class ScraperService {
         });
 
         for (const candidate of candidateSlugs.slice(0, 3)) {
-          const foundList = await extractM3u8FromJk(candidate, epNum);
+          const foundList = await extractJkServers(candidate, epNum);
           if (foundList.length > 0) {
-            streamUrls = foundList;
+            jkServers = foundList;
             break;
           }
         }
@@ -905,18 +931,8 @@ export class ScraperService {
       }
     }
 
-    if (streamUrls.length > 0) {
-      streamUrls.forEach((u, index) => {
-        const proxyUrl = `${backendBase}/api/v1/proxy/m3u8?url=${encodeURIComponent(u)}`;
-        servers.push({
-          server: `JKAnime HLS ${index + 1}`,
-          title: `Servidor Principal ${epNum}${index > 0 ? ` (Opción ${index + 1})` : ''}`,
-          url: proxyUrl,
-          format: 'hls',
-          audio: 'sub',
-          isDirect: true,
-        });
-      });
+    if (jkServers.length > 0) {
+      servers.push(...jkServers);
     }
 
     // Add secondary provider (AnimeFLV) servers
