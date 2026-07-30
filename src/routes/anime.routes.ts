@@ -111,13 +111,24 @@ router.get('/anime/watch/*', async (req: Request, res: Response) => {
   }
 });
 
+function extractFullTargetUrl(req: Request): string | null {
+  const rawIndex = req.originalUrl.indexOf('url=');
+  if (rawIndex === -1) return (req.query.url as string) || null;
+  const rawParam = req.originalUrl.substring(rawIndex + 4);
+  try {
+    return decodeURIComponent(rawParam);
+  } catch {
+    return rawParam;
+  }
+}
+
 /**
  * @route GET /api/v1/proxy/m3u8
  * @desc Proxy HLS manifest and rewrite dead CDN domains to working ones
  */
 router.get('/proxy/m3u8', async (req: Request, res: Response) => {
   try {
-    const url = req.query.url as string;
+    const url = extractFullTargetUrl(req);
     if (!url) {
       res.status(400).json({ success: false, error: 'Missing url parameter' });
       return;
@@ -166,7 +177,7 @@ router.get('/proxy/m3u8', async (req: Request, res: Response) => {
  */
 router.get('/proxy/ts', async (req: Request, res: Response) => {
   try {
-    const url = req.query.url as string;
+    const url = extractFullTargetUrl(req);
     if (!url) {
       res.status(400).json({ success: false, error: 'Missing url parameter' });
       return;
@@ -205,7 +216,7 @@ const resolvedStreamCache = new Map<string, CachedStream>();
  */
 router.get('/proxy/video', async (req: Request, res: Response) => {
   try {
-    const embedUrl = req.query.url as string;
+    const embedUrl = extractFullTargetUrl(req);
     if (!embedUrl) {
       res.status(400).json({ success: false, error: 'Missing url parameter' });
       return;
