@@ -87,6 +87,15 @@ router.get('/anime/details/:slug', async (req: Request, res: Response) => {
   }
 });
 
+function getBackendBase(req: Request): string {
+  const host = (req.headers['x-forwarded-host'] as string) || req.get('host') || 'apk-animetv-backend.onrender.com';
+  if (host.includes('onrender.com') || !host.includes('localhost')) {
+    return `https://${host}`;
+  }
+  const proto = (req.headers['x-forwarded-proto'] as string) || req.protocol || 'https';
+  return `${proto}://${host}`;
+}
+
 /**
  * @route GET /api/v1/anime/watch/*
  * @desc Get episode streaming sources for ExoPlayer
@@ -94,9 +103,7 @@ router.get('/anime/details/:slug', async (req: Request, res: Response) => {
 router.get('/anime/watch/*', async (req: Request, res: Response) => {
   try {
     const episodeSlug = Array.isArray(req.params[0]) ? req.params[0].join('/') : (req.params[0] || '');
-    const protocol = req.headers['x-forwarded-proto'] || req.protocol;
-    const host = req.headers['x-forwarded-host'] || req.get('host');
-    const backendBase = `${protocol}://${host}`;
+    const backendBase = getBackendBase(req);
     const stream = await ScraperService.getStreamSources(episodeSlug, backendBase);
     res.json({ success: true, data: stream });
   } catch (error: any) {
@@ -127,9 +134,7 @@ router.get('/proxy/m3u8', async (req: Request, res: Response) => {
       responseType: 'text',
     });
 
-    const protocol = req.headers['x-forwarded-proto'] || req.protocol;
-    const host = req.headers['x-forwarded-host'] || req.get('host');
-    const backendBase = `${protocol}://${host}`;
+    const backendBase = getBackendBase(req);
 
     const baseUrlObj = new URL(url);
     const lines = manifest.split('\n');
