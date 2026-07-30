@@ -720,7 +720,43 @@ export class ScraperService {
       return urls;
     };
 
-    // 1. Try direct slug first
+    const extractSecondaryProvider = async (targetSlug: string, targetEp: number): Promise<StreamSource[]> => {
+      const secServers: StreamSource[] = [];
+      try {
+        const url = `https://monoschinos2.com/ver/${targetSlug}-episodio-${targetEp}`;
+        const { data: html } = await axios.get(url, {
+          headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
+          timeout: 4500,
+        });
+        const $ = cheerio.load(html);
+
+        $('button[data-player], a[data-player]').each((_, el) => {
+          const sName = $(el).text().trim() || 'Servidor';
+          const b64 = $(el).attr('data-player');
+          if (b64) {
+            try {
+              const decodedUrl = Buffer.from(b64, 'base64').toString('utf-8');
+              const cleanName = sName.toUpperCase();
+              secServers.push({
+                server: `AnimeFLV / ${cleanName}`,
+                title: `Servidor AnimeFLV ${targetEp} (${cleanName})`,
+                url: decodedUrl,
+                format: decodedUrl.includes('.m3u8') ? 'hls' : 'mp4',
+                audio: 'sub',
+                isDirect: false,
+              });
+            } catch {
+              // ignore
+            }
+          }
+        });
+      } catch {
+        // ignore
+      }
+      return secServers;
+    };
+
+    // 1. Try direct slug first for JKAnime
     let streamUrls = await extractM3u8FromJk(animeSlug, epNum);
 
     // 2. If direct slug failed, search provider by title keyword to resolve exact provider slug
@@ -770,8 +806,16 @@ export class ScraperService {
           isDirect: true,
         });
       });
-    } else {
-      // Reliable fallback stream
+    }
+
+    // 3. Extract AnimeFLV / Secondary provider servers
+    const secondaryServers = await extractSecondaryProvider(animeSlug, epNum);
+    if (secondaryServers.length > 0) {
+      servers.push(...secondaryServers);
+    }
+
+    // Fallback if no servers found anywhere
+    if (servers.length === 0) {
       servers.push({
         server: 'AnimeTV HLS CDN',
         title: `Servidor HLS HD ${epNum}`,
