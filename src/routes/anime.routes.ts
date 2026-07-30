@@ -131,7 +131,10 @@ router.get('/proxy/m3u8', async (req: Request, res: Response) => {
     let fixed = manifest;
     if (manifest.includes('cdn1.ducvomes.com') || manifest.includes('cdn2.ducvomes.com')) {
       try {
-        await axios.head('https://cdn1.ducvomes.com/', { timeout: 1200 });
+        await axios.head('https://cdn1.ducvomes.com/', {
+          timeout: 1500,
+          validateStatus: (status) => status < 500,
+        });
       } catch {
         fixed = manifest
           .replace(/https?:\/\/cdn1\.ducvomes\.com/g, 'https://cdn3.ducvomes.com')
