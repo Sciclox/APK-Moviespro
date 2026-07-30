@@ -658,7 +658,7 @@ export class ScraperService {
    * Scrape Real Video Stream Links for Specified Anime & Episode with Smart Slug Resolution
    */
   static async getStreamSources(episodeSlug: string, backendBase: string = 'https://apk-animetv-backend.onrender.com'): Promise<WatchResponse> {
-    const cacheKey = `stream_v6_${episodeSlug}`;
+    const cacheKey = `stream_v7_${episodeSlug}`;
     const cached = apiCache.get<WatchResponse>(cacheKey);
     if (cached) {
       return cached;
@@ -740,6 +740,11 @@ export class ScraperService {
             const m3u8 = result.match(/(https?:\/\/[^\s"'<>]+\.m3u8[^\s"'<>]*)/i);
             if (m3u8) return m3u8[1];
           }
+        }
+        if (embedUrl.includes('mp4upload')) {
+          const { data: html } = await axios.get(embedUrl, { headers: DEFAULT_HEADERS, timeout: 3500 });
+          const mp4Match = html.match(/src:\s*["'](https?:\/\/[^"']+\.mp4[^"']*)["']/i) || html.match(/(https?:\/\/[^\s"'<>]+\.mp4[^\s"'<>]*)/i);
+          if (mp4Match && mp4Match[1]) return mp4Match[1];
         }
         if (embedUrl.includes('ok.ru')) {
           const secureUrl = embedUrl.replace('http://', 'https://');
