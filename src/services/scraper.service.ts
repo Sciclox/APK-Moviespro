@@ -647,7 +647,7 @@ export class ScraperService {
     const rawStatus = meta?.status || 'FINISHED';
     const formattedStatus = rawStatus === 'RELEASING' ? '🟢 EN EMISIÓN' : '🔴 FINALIZADO';
 
-    const baseTitle = jkMeta.seasonTitle || meta?.title?.english || meta?.title?.romaji || cleanTitle(cleanTitleText, slug);
+    const baseTitle = jkMeta.seasonTitle || cleanTitle(cleanTitleText, slug);
     const displayTitle = baseTitle
       .replace(/([a-zA-Z])(\d+)/g, '$1 $2')
       .replace(/Season(\d+)/i, 'Season $1')
