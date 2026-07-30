@@ -31,28 +31,7 @@ export interface EnrichedMetadata {
 }
 
 export class TMDBService {
-  /**
-   * Translate English text to Spanish using MyMemory API
-   */
-  static async translateToSpanish(text: string): Promise<string | null> {
-    if (!text || text.trim().length === 0) return null;
-    const cleanText = text.replace(/<[^>]*>?/gm, '').trim();
-    if (cleanText.length === 0) return null;
 
-    try {
-      const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(cleanText.substring(0, 400))}&langpair=en|es`;
-      const { data } = await axios.get(url, { timeout: 3500 });
-      if (data && data.responseData && data.responseData.translatedText) {
-        const translated = data.responseData.translatedText;
-        if (translated && !translated.startsWith('QUERY LENGTH LIMIT')) {
-          return translated;
-        }
-      }
-    } catch {
-      // ignore
-    }
-    return null;
-  }
 
   /**
    * Fetch metadata enriched with 100% Spanish synopsis & episode stills from TMDB / AnimeVerse

@@ -520,9 +520,38 @@ export class ScraperService {
         }
 
         let seasonSynopsis: string | null = null;
-        const pText = $('.sinopsis, .sinop, p').first().text().trim();
-        if (pText && pText.length > 20 && !pText.includes('JKAnime') && !pText.includes('Sesi') && !pText.includes('cuenta')) {
-          seasonSynopsis = pText;
+        $('.sinopsis p, .sinop p, .sinopsis, .sinop, div.sinopsis, p').each((_, el) => {
+          const t = $(el).text().trim();
+          if (
+            t.length > 40 &&
+            !seasonSynopsis &&
+            !t.includes('JKAnime') &&
+            !t.includes('Votar') &&
+            !t.includes('redes sociales') &&
+            !t.includes('Sesi') &&
+            !t.includes('cuenta') &&
+            !t.includes('alojado')
+          ) {
+            seasonSynopsis = t;
+          }
+        });
+
+        // Fallback: Scrape AnimeFLV directly for native Spanish synopsis if JKAnime paragraph is missing
+        if (!seasonSynopsis) {
+          try {
+            const flvUrl = `https://animeflv.net/anime/${slug}`;
+            const flvRes = await axios.get(flvUrl, {
+              headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
+              timeout: 3000,
+            });
+            const $flv = cheerio.load(flvRes.data);
+            const flvText = $flv('div.Description p').text().trim() || $flv('.sinopsis').text().trim();
+            if (flvText && flvText.length > 30) {
+              seasonSynopsis = flvText;
+            }
+          } catch {
+            // ignore
+          }
         }
 
         return { epCount, seasonCover, seasonSynopsis, seasonTitle };
