@@ -24,23 +24,52 @@ function cleanTitle(title: string, slug: string): string {
   return slugClean.replace(/-/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
 }
 
+interface CacheEntry<T> {
+  data: T;
+  expiresAt: number;
+}
+
+class MemoryCache {
+  private cache = new Map<string, CacheEntry<any>>();
+
+  get<T>(key: string): T | null {
+    const entry = this.cache.get(key);
+    if (!entry) return null;
+    if (Date.now() > entry.expiresAt) {
+      this.cache.delete(key);
+      return null;
+    }
+    return entry.data as T;
+  }
+
+  set<T>(key: string, data: T, ttlSeconds: number): void {
+    this.cache.set(key, {
+      data,
+      expiresAt: Date.now() + ttlSeconds * 1000,
+    });
+  }
+}
+
+const apiCache = new MemoryCache();
+
 export class ScraperService {
   /**
    * Fetch Hero Banners for TV Home Screen
    */
   static async getHeroBanners(): Promise<AnimeItem[]> {
+    const cached = apiCache.get<AnimeItem[]>('hero_banners');
+    if (cached) return cached;
     try {
       const url = `${CONFIG.ANIMEVERSE_BASE_URL}/api/v1/anime/hero`;
       const { data } = await axios.get(url, { timeout: 6000 });
 
       if (data && data.success && Array.isArray(data.data)) {
-        return data.data.map((item: any) => {
+        const result = data.data.map((item: any) => {
           const itemTitleSlug = item.title ? cleanSlug(item.title) : '';
           const tmdbNameSlug = item.tmdb?.name ? cleanSlug(item.tmdb.name) : '';
           const rawSlug = item.slug || item.title || '';
           const baseSlug = cleanSlug(rawSlug);
           
-          // Prioritize specific item.title slug if it contains extra subtitle words (e.g. road-to-the-top)
           let slug = baseSlug;
           if (itemTitleSlug.length > baseSlug.length) {
             slug = itemTitleSlug;
@@ -63,6 +92,8 @@ export class ScraperService {
             provider: 'AnimeVerse',
           };
         });
+        apiCache.set('hero_banners', result, 900); // 15-min cache
+        return result;
       }
     } catch (e) {
       console.error('Error fetching hero banners:', e);
@@ -180,6 +211,9 @@ export class ScraperService {
   }
 
   static async searchAnime(query: string): Promise<AnimeItem[]> {
+    const cacheKey = `search_${query.trim().toLowerCase()}`;
+    const cached = apiCache.get<AnimeItem[]>(cacheKey);
+    if (cached) return cached;
     if (!query || query.trim().length === 0) return [];
     const cleanQ = query.trim();
 
@@ -249,7 +283,10 @@ export class ScraperService {
         }
       });
 
-      if (items.length > 0) return items;
+      if (items.length > 0) {
+        apiCache.set(cacheKey, items, 1800); // 30-min cache
+        return items;
+      }
     } catch (e) {
       console.error('JKAnime direct search fallback error:', e);
     }
@@ -621,6 +658,12 @@ export class ScraperService {
    * Scrape Real Video Stream Links for Specified Anime & Episode with Smart Slug Resolution
    */
   static async getStreamSources(episodeSlug: string, backendBase: string = 'https://apk-animetv-backend.onrender.com'): Promise<WatchResponse> {
+    const cacheKey = `stream_${episodeSlug}`;
+    const cached = apiCache.get<WatchResponse>(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
     const parts = episodeSlug.split('/');
     let rawAnimeSlug = parts[0] || 'anime';
     let epNum = parseInt(parts[1] || '1', 10);
@@ -739,10 +782,16 @@ export class ScraperService {
       });
     }
 
-    return {
+    const response: WatchResponse = {
       animeTitle: animeSlug,
       episodeNumber: epNum,
       servers: servers,
     };
+
+    if (servers.length > 0 && !servers[0].url.includes('mux.dev')) {
+      apiCache.set(cacheKey, response, 7200); // 2-hour TTL cache
+    }
+
+    return response;
   }
 }
