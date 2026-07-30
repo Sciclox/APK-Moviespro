@@ -658,7 +658,7 @@ export class ScraperService {
    * Scrape Real Video Stream Links for Specified Anime & Episode with Smart Slug Resolution
    */
   static async getStreamSources(episodeSlug: string, backendBase: string = 'https://apk-animetv-backend.onrender.com'): Promise<WatchResponse> {
-    const cacheKey = `stream_v2_${episodeSlug}`;
+    const cacheKey = `stream_v3_${episodeSlug}`;
     const cached = apiCache.get<WatchResponse>(cacheKey);
     if (cached) {
       return cached;
@@ -726,6 +726,47 @@ export class ScraperService {
       return urls;
     };
 
+    const resolveEmbedToDirectStream = async (embedUrl: string): Promise<string | null> => {
+      try {
+        if (embedUrl.includes('filemoon')) {
+          const { data: html } = await axios.get(embedUrl, { headers: DEFAULT_HEADERS, timeout: 3500 });
+          const packedMatch = html.match(/eval\(function\(p,a,c,k,e,d\)\{.*\}\('(.+?)',(\d+),(\d+),'(.+?)'\.split\('\|'\)/s);
+          if (packedMatch) {
+            const p = packedMatch[1];
+            const a = parseInt(packedMatch[2], 10);
+            const c = parseInt(packedMatch[3], 10);
+            const k = packedMatch[4].split('|');
+            let currentC = c;
+            let result = p;
+            while (currentC--) {
+              if (k[currentC]) {
+                result = result.replace(new RegExp('\\b' + currentC.toString(a) + '\\b', 'g'), k[currentC]);
+              }
+            }
+            const m3u8 = result.match(/(https?:\/\/[^\s"'<>]+\.m3u8[^\s"'<>]*)/i);
+            if (m3u8) return m3u8[1];
+          }
+        }
+        if (embedUrl.includes('ok.ru')) {
+          const secureUrl = embedUrl.replace('http://', 'https://');
+          const { data: html } = await axios.get(secureUrl, { headers: DEFAULT_HEADERS, timeout: 3500 });
+          const optionsAttr = cheerio.load(html)('div[data-options]').attr('data-options');
+          if (optionsAttr) {
+            const decoded = optionsAttr.replace(/&quot;/g, '"').replace(/&amp;/g, '&');
+            const json = JSON.parse(decoded);
+            const flashvars = JSON.parse(json.flashvars.metadata);
+            if (flashvars.videos && flashvars.videos.length > 0) {
+              const preferred = flashvars.videos.find((v: any) => v.name === 'hd') || flashvars.videos.find((v: any) => v.name === 'sd') || flashvars.videos[0];
+              if (preferred && preferred.url) return preferred.url;
+            }
+          }
+        }
+      } catch {
+        // ignore
+      }
+      return null;
+    };
+
     const extractSecondaryProvider = async (targetSlug: string, targetEp: number): Promise<StreamSource[]> => {
       const secServers: StreamSource[] = [];
 
@@ -737,26 +778,42 @@ export class ScraperService {
           });
           const $ = cheerio.load(html);
 
-          $('button[data-player], a[data-player]').each((_, el) => {
+          const elements = $('button[data-player], a[data-player]').toArray();
+          for (const el of elements) {
             const sName = $(el).text().trim() || 'Servidor';
             const b64 = $(el).attr('data-player');
             if (b64) {
               try {
                 const decodedUrl = Buffer.from(b64, 'base64').toString('utf-8');
                 const cleanName = sName.toUpperCase();
-                secServers.push({
-                  server: `AnimeFLV / ${cleanName}`,
-                  title: `Servidor AnimeFLV ${targetEp} (${cleanName})`,
-                  url: decodedUrl,
-                  format: decodedUrl.includes('.m3u8') ? 'hls' : 'mp4',
-                  audio: 'sub',
-                  isDirect: false,
-                });
+
+                if (decodedUrl.includes('.m3u8') || decodedUrl.includes('.mp4')) {
+                  secServers.push({
+                    server: `AnimeFLV / ${cleanName}`,
+                    title: `Servidor AnimeFLV ${targetEp} (${cleanName})`,
+                    url: decodedUrl,
+                    format: decodedUrl.includes('.m3u8') ? 'hls' : 'mp4',
+                    audio: 'sub',
+                    isDirect: true,
+                  });
+                } else {
+                  const directUrl = await resolveEmbedToDirectStream(decodedUrl);
+                  if (directUrl) {
+                    secServers.push({
+                      server: `AnimeFLV / ${cleanName}`,
+                      title: `Servidor AnimeFLV ${targetEp} (${cleanName})`,
+                      url: directUrl,
+                      format: directUrl.includes('.m3u8') ? 'hls' : 'mp4',
+                      audio: 'sub',
+                      isDirect: true,
+                    });
+                  }
+                }
               } catch {
                 // ignore
               }
             }
-          });
+          }
         } catch {
           // ignore
         }
