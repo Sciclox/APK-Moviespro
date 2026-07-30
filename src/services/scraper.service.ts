@@ -558,9 +558,10 @@ export class ScraperService {
       }
     })();
 
-    const [spanishMeta, meta, jkMeta] = await Promise.all([
+    const [spanishMeta, meta, kitsuMeta, jkMeta] = await Promise.all([
       TMDBService.getSpanishMetadata(cleanTitleText),
       TMDBService.getAniListMetadata(cleanTitleText),
+      TMDBService.getKitsuMetadata(cleanTitleText),
       jkDataPromise,
     ]);
 
@@ -667,7 +668,7 @@ export class ScraperService {
       slug: slug,
       synopsis: finalSynopsis,
       image: jkMeta.seasonCover || meta?.coverImage?.extraLarge || validSpanishMeta?.image || 'https://cdn.animeav1.com/covers/222.jpg',
-      backdrop: meta?.bannerImage || jkMeta.seasonCover || validSpanishMeta?.backdrop || meta?.coverImage?.extraLarge || null,
+      backdrop: validSpanishMeta?.backdrop || kitsuMeta || meta?.bannerImage || jkMeta.seasonCover || meta?.coverImage?.extraLarge || null,
       genres: meta?.genres || ['Acción', 'Aventura', 'Fantasía'],
       status: formattedStatus,
       score: validSpanishMeta?.score || (meta?.averageScore ? meta.averageScore / 10 : 8.5),

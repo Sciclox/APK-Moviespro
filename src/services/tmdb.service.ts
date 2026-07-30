@@ -110,6 +110,30 @@ export class TMDBService {
   }
 
   /**
+   * Fetch Kitsu cover image banner
+   */
+  static async getKitsuMetadata(title: string): Promise<string | null> {
+    try {
+      const url = `https://kitsu.io/api/edge/anime?filter[text]=${encodeURIComponent(title)}`;
+      const { data } = await axios.get(url, {
+        headers: {
+          'Accept': 'application/vnd.api+json',
+          'Content-Type': 'application/vnd.api+json',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+        },
+        timeout: 4000,
+      });
+      if (data && Array.isArray(data.data) && data.data.length > 0) {
+        const coverImage = data.data[0].attributes?.coverImage;
+        return coverImage?.original || coverImage?.large || coverImage?.small || null;
+      }
+    } catch {
+      // ignore
+    }
+    return null;
+  }
+
+  /**
    * Translate English text to Spanish using Google Translate API
    */
   static async translateToSpanish(text: string): Promise<string | null> {
