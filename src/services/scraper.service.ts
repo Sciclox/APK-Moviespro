@@ -658,7 +658,7 @@ export class ScraperService {
    * Scrape Real Video Stream Links for Specified Anime & Episode with Smart Slug Resolution
    */
   static async getStreamSources(episodeSlug: string, backendBase: string = 'https://apk-animetv-backend.onrender.com'): Promise<WatchResponse> {
-    const cacheKey = `stream_v5_${episodeSlug}`;
+    const cacheKey = `stream_v6_${episodeSlug}`;
     const cached = apiCache.get<WatchResponse>(cacheKey);
     if (cached) {
       return cached;
@@ -695,29 +695,23 @@ export class ScraperService {
           timeout: 4500,
         });
 
-        const playerMatches = epHtml.match(/<iframe[^>]+src=["'](https:\/\/jkanime\.net\/jkplayer\/[^"']+)["']/g);
-        if (playerMatches) {
-          for (const iframeTag of playerMatches.slice(0, 3)) {
-            const srcMatch = iframeTag.match(/src=["']([^"']+)["']/);
-            if (srcMatch && srcMatch[1]) {
-              const playerUrl = srcMatch[1];
-              try {
-                const { data: playerHtml } = await axios.get(playerUrl, {
-                  headers: {
-                    ...DEFAULT_HEADERS,
-                    Referer: epUrl,
-                  },
-                  timeout: 3500,
-                });
+        const playerUrls = epHtml.match(/https?:\/\/jkanime\.net\/jkplayer\/[^"'\s<>]+/g) || [];
+        for (const playerUrl of playerUrls.slice(0, 5)) {
+          try {
+            const { data: playerHtml } = await axios.get(playerUrl, {
+              headers: {
+                ...DEFAULT_HEADERS,
+                Referer: epUrl,
+              },
+              timeout: 3500,
+            });
 
-                const m3u8Match = playerHtml.match(/(https?:\/\/[^\s"'<>]+\.m3u8[^\s"'<>]*)/);
-                if (m3u8Match && m3u8Match[1] && !urls.includes(m3u8Match[1])) {
-                  urls.push(m3u8Match[1]);
-                }
-              } catch {
-                // continue
-              }
+            const m3u8Match = playerHtml.match(/(https?:\/\/[^\s"'<>]+\.m3u8[^\s"'<>]*)/);
+            if (m3u8Match && m3u8Match[1] && !urls.includes(m3u8Match[1])) {
+              urls.push(m3u8Match[1]);
             }
+          } catch {
+            // continue
           }
         }
       } catch {
