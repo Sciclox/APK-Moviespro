@@ -182,6 +182,13 @@ router.get('/proxy/ts', async (req: Request, res: Response) => {
   }
 });
 
+interface CachedStream {
+  directUrl: string;
+  refererHeader: string;
+  timestamp: number;
+}
+const resolvedStreamCache = new Map<string, CachedStream>();
+
 /**
  * @route GET /api/v1/proxy/video
  * @desc Stream direct MP4/HLS video bytes directly to ExoPlayer/Browser (Tokianime architecture)
@@ -203,84 +210,102 @@ router.get('/proxy/video', async (req: Request, res: Response) => {
     let directUrl: string | null = null;
     let refererHeader = 'https://google.com/';
 
-    // 1. YourUpload
-    if (embedUrl.includes('yourupload')) {
-      try {
-        const { data: html } = await axios.get(embedUrl, { headers: DEFAULT_HEADERS, timeout: 4000 });
-        const m = html.match(/jwplayer\("[^"]+"\)\.setup\(\{\s*file:\s*["']([^"']+\.mp4[^"']*)["']/i) || html.match(/(https?:\/\/[^\s"'<>]+\.mp4[^\s"'<>]*)/i);
-        if (m && m[1]) {
-          directUrl = m[1];
-          refererHeader = 'https://www.yourupload.com/';
-        }
-      } catch {}
+    // 0. Check in-memory stream resolution cache for Range requests
+    const cachedStream = resolvedStreamCache.get(embedUrl);
+    if (cachedStream && (Date.now() - cachedStream.timestamp < 30 * 60 * 1000)) {
+      directUrl = cachedStream.directUrl;
+      refererHeader = cachedStream.refererHeader;
     }
 
-    // 2. Mp4Upload
-    if (!directUrl && embedUrl.includes('mp4upload')) {
-      try {
-        const { data: html } = await axios.get(embedUrl, { headers: DEFAULT_HEADERS, timeout: 4000 });
-        const m = html.match(/src:\s*["'](https?:\/\/[^"']+\.mp4[^"']*)["']/i) || html.match(/(https?:\/\/[^\s"'<>]+\.mp4[^\s"'<>]*)/i);
-        if (m && m[1]) {
-          directUrl = m[1];
-          refererHeader = 'https://www.mp4upload.com/';
-        }
-      } catch {}
-    }
-
-    // 3. Filemoon
-    if (!directUrl && embedUrl.includes('filemoon')) {
-      try {
-        const { data: html } = await axios.get(embedUrl, { headers: DEFAULT_HEADERS, timeout: 4000 });
-        const packedMatch = html.match(/eval\(function\(p,a,c,k,e,d\)\{.*\}\('(.+?)',(\d+),(\d+),'(.+?)'\.split\('\|'\)/s);
-        if (packedMatch) {
-          const p = packedMatch[1];
-          const a = parseInt(packedMatch[2], 10);
-          const c = parseInt(packedMatch[3], 10);
-          const k = packedMatch[4].split('|');
-          let currentC = c;
-          let result = p;
-          while (currentC--) {
-            if (k[currentC]) {
-              result = result.replace(new RegExp('\\b' + currentC.toString(a) + '\\b', 'g'), k[currentC]);
-            }
-          }
-          const m3u8 = result.match(/(https?:\/\/[^\s"'<>]+\.m3u8[^\s"'<>]*)/i);
-          if (m3u8 && m3u8[1]) {
-            directUrl = m3u8[1];
-            refererHeader = 'https://filemoon.sx/';
-          }
-        }
-      } catch {}
-    }
-
-    // 4. OK.ru
-    if (!directUrl && embedUrl.includes('ok.ru')) {
-      try {
-        const secureUrl = embedUrl.replace('http://', 'https://');
-        const { data: html } = await axios.get(secureUrl, { headers: DEFAULT_HEADERS, timeout: 4000 });
-        const optionsAttr = cheerio.load(html)('div[data-options]').attr('data-options');
-        if (optionsAttr) {
-          const decoded = optionsAttr.replace(/&quot;/g, '"').replace(/&amp;/g, '&');
-          const json = JSON.parse(decoded);
-          const flashvars = JSON.parse(json.flashvars.metadata);
-          if (flashvars.videos && flashvars.videos.length > 0) {
-            const preferred = flashvars.videos.find((v: any) => v.name === 'hd') || flashvars.videos.find((v: any) => v.name === 'sd') || flashvars.videos[0];
-            if (preferred && preferred.url) {
-              directUrl = preferred.url;
-              refererHeader = 'https://ok.ru/';
-            }
-          }
-        }
-      } catch {}
-    }
-
-    // Fallback if directUrl wasn't extracted
     if (!directUrl) {
-      if (embedUrl.includes('.mp4') || embedUrl.includes('.m3u8')) {
-        directUrl = embedUrl;
-      } else {
-        res.redirect(302, embedUrl);
-        return;
+      // 1. YourUpload
+      if (embedUrl.includes('yourupload')) {
+        try {
+          const { data: html } = await axios.get(embedUrl, { headers: DEFAULT_HEADERS, timeout: 4000 });
+          const m = html.match(/jwplayer\("[^"]+"\)\.setup\(\{\s*file:\s*["']([^"']+\.mp4[^"']*)["']/i) || html.match(/(https?:\/\/[^\s"'<>]+\.mp4[^\s"'<>]*)/i);
+          if (m && m[1]) {
+            directUrl = m[1];
+            refererHeader = 'https://www.yourupload.com/';
+          }
+        } catch {}
+      }
+
+      // 2. Mp4Upload
+      if (!directUrl && embedUrl.includes('mp4upload')) {
+        try {
+          const { data: html } = await axios.get(embedUrl, { headers: DEFAULT_HEADERS, timeout: 4000 });
+          const m = html.match(/src:\s*["'](https?:\/\/[^"']+\.mp4[^"']*)["']/i) || html.match(/(https?:\/\/[^\s"'<>]+\.mp4[^\s"'<>]*)/i);
+          if (m && m[1]) {
+            directUrl = m[1];
+            refererHeader = 'https://www.mp4upload.com/';
+          }
+        } catch {}
+      }
+
+      // 3. Filemoon
+      if (!directUrl && embedUrl.includes('filemoon')) {
+        try {
+          const { data: html } = await axios.get(embedUrl, { headers: DEFAULT_HEADERS, timeout: 4000 });
+          const packedMatch = html.match(/eval\(function\(p,a,c,k,e,d\)\{.*\}\('(.+?)',(\d+),(\d+),'(.+?)'\.split\('\|'\)/s);
+          if (packedMatch) {
+            const p = packedMatch[1];
+            const a = parseInt(packedMatch[2], 10);
+            const c = parseInt(packedMatch[3], 10);
+            const k = packedMatch[4].split('|');
+            let currentC = c;
+            let result = p;
+            while (currentC--) {
+              if (k[currentC]) {
+                result = result.replace(new RegExp('\\b' + currentC.toString(a) + '\\b', 'g'), k[currentC]);
+              }
+            }
+            const m3u8 = result.match(/(https?:\/\/[^\s"'<>]+\.m3u8[^\s"'<>]*)/i);
+            if (m3u8 && m3u8[1]) {
+              directUrl = m3u8[1];
+              refererHeader = 'https://filemoon.sx/';
+            }
+          }
+        } catch {}
+      }
+
+      // 4. OK.ru
+      if (!directUrl && embedUrl.includes('ok.ru')) {
+        try {
+          const secureUrl = embedUrl.replace('http://', 'https://');
+          const { data: html } = await axios.get(secureUrl, { headers: DEFAULT_HEADERS, timeout: 4000 });
+          const optionsAttr = cheerio.load(html)('div[data-options]').attr('data-options');
+          if (optionsAttr) {
+            const decoded = optionsAttr.replace(/&quot;/g, '"').replace(/&amp;/g, '&');
+            const json = JSON.parse(decoded);
+            const flashvars = JSON.parse(json.flashvars.metadata);
+            if (flashvars.videos && flashvars.videos.length > 0) {
+              const preferred = flashvars.videos.find((v: any) => v.name === 'hd') || flashvars.videos.find((v: any) => v.name === 'sd') || flashvars.videos[0];
+              if (preferred && preferred.url) {
+                directUrl = preferred.url;
+                refererHeader = 'https://ok.ru/';
+              }
+            }
+          }
+        } catch {}
+      }
+
+      // Fallback if directUrl wasn't extracted
+      if (!directUrl) {
+        if (embedUrl.includes('.mp4') || embedUrl.includes('.m3u8')) {
+          directUrl = embedUrl;
+        } else {
+          res.redirect(302, embedUrl);
+          return;
+        }
+      }
+
+      // Cache extracted directUrl for future Range requests
+      if (directUrl) {
+        resolvedStreamCache.set(embedUrl, {
+          directUrl,
+          refererHeader,
+          timestamp: Date.now()
+        });
       }
     }
 
