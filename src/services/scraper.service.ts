@@ -676,7 +676,7 @@ export class ScraperService {
       }
     }
 
-    const animeSlug = await ScraperService.resolveJkSlug(rawAnimeSlug);
+    const animeSlug = cleanSlug(rawAnimeSlug);
 
     const servers: StreamSource[] = [];
 
