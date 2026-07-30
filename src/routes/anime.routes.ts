@@ -210,40 +210,46 @@ router.get('/proxy/video', async (req: Request, res: Response) => {
     let directUrl: string | null = null;
     let refererHeader = 'https://google.com/';
 
-    // 0. Check in-memory stream resolution cache for Range requests
-    const cachedStream = resolvedStreamCache.get(embedUrl);
-    if (cachedStream && (Date.now() - cachedStream.timestamp < 30 * 60 * 1000)) {
-      directUrl = cachedStream.directUrl;
-      refererHeader = cachedStream.refererHeader;
-    }
+    // Helper to resolve direct stream URL from embed
+    const getOrResolveDirectUrl = async (forceRefresh = false): Promise<{ directUrl: string; refererHeader: string } | null> => {
+      if (forceRefresh) {
+        resolvedStreamCache.delete(embedUrl);
+      }
+      
+      const cached = resolvedStreamCache.get(embedUrl);
+      if (cached && (Date.now() - cached.timestamp < 30 * 60 * 1000) && !forceRefresh) {
+        return { directUrl: cached.directUrl, refererHeader: cached.refererHeader };
+      }
 
-    if (!directUrl) {
+      let extractedUrl: string | null = null;
+      let referer = 'https://google.com/';
+
       // 1. YourUpload
       if (embedUrl.includes('yourupload')) {
         try {
           const { data: html } = await axios.get(embedUrl, { headers: DEFAULT_HEADERS, timeout: 4000 });
           const m = html.match(/jwplayer\("[^"]+"\)\.setup\(\{\s*file:\s*["']([^"']+\.mp4[^"']*)["']/i) || html.match(/(https?:\/\/[^\s"'<>]+\.mp4[^\s"'<>]*)/i);
           if (m && m[1]) {
-            directUrl = m[1];
-            refererHeader = 'https://www.yourupload.com/';
+            extractedUrl = m[1];
+            referer = 'https://www.yourupload.com/';
           }
         } catch {}
       }
 
       // 2. Mp4Upload
-      if (!directUrl && embedUrl.includes('mp4upload')) {
+      if (!extractedUrl && embedUrl.includes('mp4upload')) {
         try {
           const { data: html } = await axios.get(embedUrl, { headers: DEFAULT_HEADERS, timeout: 4000 });
           const m = html.match(/src:\s*["'](https?:\/\/[^"']+\.mp4[^"']*)["']/i) || html.match(/(https?:\/\/[^\s"'<>]+\.mp4[^\s"'<>]*)/i);
           if (m && m[1]) {
-            directUrl = m[1];
-            refererHeader = 'https://www.mp4upload.com/';
+            extractedUrl = m[1];
+            referer = 'https://www.mp4upload.com/';
           }
         } catch {}
       }
 
       // 3. Filemoon
-      if (!directUrl && embedUrl.includes('filemoon')) {
+      if (!extractedUrl && embedUrl.includes('filemoon')) {
         try {
           const { data: html } = await axios.get(embedUrl, { headers: DEFAULT_HEADERS, timeout: 4000 });
           const packedMatch = html.match(/eval\(function\(p,a,c,k,e,d\)\{.*\}\('(.+?)',(\d+),(\d+),'(.+?)'\.split\('\|'\)/s);
@@ -261,15 +267,15 @@ router.get('/proxy/video', async (req: Request, res: Response) => {
             }
             const m3u8 = result.match(/(https?:\/\/[^\s"'<>]+\.m3u8[^\s"'<>]*)/i);
             if (m3u8 && m3u8[1]) {
-              directUrl = m3u8[1];
-              refererHeader = 'https://filemoon.sx/';
+              extractedUrl = m3u8[1];
+              referer = 'https://filemoon.sx/';
             }
           }
         } catch {}
       }
 
       // 4. OK.ru
-      if (!directUrl && embedUrl.includes('ok.ru')) {
+      if (!extractedUrl && embedUrl.includes('ok.ru')) {
         try {
           const secureUrl = embedUrl.replace('http://', 'https://');
           const { data: html } = await axios.get(secureUrl, { headers: DEFAULT_HEADERS, timeout: 4000 });
@@ -281,51 +287,72 @@ router.get('/proxy/video', async (req: Request, res: Response) => {
             if (flashvars.videos && flashvars.videos.length > 0) {
               const preferred = flashvars.videos.find((v: any) => v.name === 'hd') || flashvars.videos.find((v: any) => v.name === 'sd') || flashvars.videos[0];
               if (preferred && preferred.url) {
-                directUrl = preferred.url;
-                refererHeader = 'https://ok.ru/';
+                extractedUrl = preferred.url;
+                referer = 'https://ok.ru/';
               }
             }
           }
         } catch {}
       }
 
-      // Fallback if directUrl wasn't extracted
-      if (!directUrl) {
+      if (!extractedUrl) {
         if (embedUrl.includes('.mp4') || embedUrl.includes('.m3u8')) {
-          directUrl = embedUrl;
-        } else {
-          res.redirect(302, embedUrl);
-          return;
+          extractedUrl = embedUrl;
         }
       }
 
-      // Cache extracted directUrl for future Range requests
-      if (directUrl) {
+      if (extractedUrl) {
         resolvedStreamCache.set(embedUrl, {
-          directUrl,
-          refererHeader,
-          timestamp: Date.now()
+          directUrl: extractedUrl,
+          refererHeader: referer,
+          timestamp: Date.now(),
         });
+        return { directUrl: extractedUrl, refererHeader: referer };
+      }
+
+      return null;
+    };
+
+    let resolved = await getOrResolveDirectUrl(false);
+    if (!resolved) {
+      res.redirect(302, embedUrl);
+      return;
+    }
+
+    const buildStreamHeaders = (ref: string): Record<string, string> => {
+      const h: Record<string, string> = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Referer': ref,
+      };
+      if (req.headers.range) {
+        h['Range'] = req.headers.range as string;
+      }
+      return h;
+    };
+
+    let streamResponse: any = null;
+    try {
+      streamResponse = await axios.get(resolved.directUrl, {
+        headers: buildStreamHeaders(resolved.refererHeader),
+        responseType: 'stream',
+        timeout: 15000,
+      });
+    } catch (fetchErr) {
+      // Token expired or link dead — force fresh resolution and retry once
+      resolved = await getOrResolveDirectUrl(true);
+      if (resolved) {
+        streamResponse = await axios.get(resolved.directUrl, {
+          headers: buildStreamHeaders(resolved.refererHeader),
+          responseType: 'stream',
+          timeout: 15000,
+        });
+      } else {
+        throw fetchErr;
       }
     }
 
-    // Stream video bytes back to client with range headers support
-    const streamHeaders: Record<string, string> = {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-      'Referer': refererHeader,
-    };
-    if (req.headers.range) {
-      streamHeaders['Range'] = req.headers.range as string;
-    }
-
-    const streamResponse = await axios.get(directUrl, {
-      headers: streamHeaders,
-      responseType: 'stream',
-      timeout: 15000,
-    });
-
     const rawContentType = streamResponse.headers['content-type'] ? String(streamResponse.headers['content-type']) : '';
-    const isMp4 = directUrl.includes('.mp4') || rawContentType.includes('octet-stream') || rawContentType.includes('mp4');
+    const isMp4 = resolved.directUrl.includes('.mp4') || rawContentType.includes('octet-stream') || rawContentType.includes('mp4');
     const contentType = isMp4 ? 'video/mp4' : (rawContentType || 'video/mp4');
 
     res.setHeader('Content-Type', contentType);
