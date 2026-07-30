@@ -658,7 +658,7 @@ export class ScraperService {
    * Scrape Real Video Stream Links for Specified Anime & Episode with Smart Slug Resolution
    */
   static async getStreamSources(episodeSlug: string, backendBase: string = 'https://apk-animetv-backend.onrender.com'): Promise<WatchResponse> {
-    const cacheKey = `stream_${episodeSlug}`;
+    const cacheKey = `stream_v2_${episodeSlug}`;
     const cached = apiCache.get<WatchResponse>(cacheKey);
     if (cached) {
       return cached;
