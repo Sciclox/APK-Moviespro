@@ -125,8 +125,27 @@ export class TMDBService {
       );
 
       return response.data?.data?.Media || null;
+  /**
+   * Translate English text to Spanish using MyMemory free API
+   */
+  static async translateToSpanish(text: string): Promise<string | null> {
+    if (!text) return null;
+    const cleanText = text.replace(/<[^>]*>?/gm, '').trim();
+    if (!cleanText) return null;
+    try {
+      const res = await axios.get(
+        `https://api.mymemory.translated.net/get?q=${encodeURIComponent(cleanText.slice(0, 500))}&langpair=en|es`,
+        { timeout: 3500 }
+      );
+      if (res.data && res.data.responseData && res.data.responseData.translatedText) {
+        const result = res.data.responseData.translatedText;
+        if (!result.includes('MYMEMORY WARNING') && !result.includes('QUERY LENGTH LIMIT EXCEEDED')) {
+          return result;
+        }
+      }
     } catch {
-      return null;
+      // silent fallback
     }
+    return null;
   }
 }

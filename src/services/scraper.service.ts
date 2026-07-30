@@ -598,23 +598,26 @@ export class ScraperService {
       }
     }
 
-    let rawSynopsis = jkMeta.seasonSynopsis || null;
+    let rawSynopsis: string | null = null;
 
-    if (rawSynopsis && rawSynopsis.length < 120 && validSpanishMeta?.synopsis) {
-      rawSynopsis = `${rawSynopsis}\n\n${validSpanishMeta.synopsis}`;
+    // 1. Primary Choice: Official TMDB Spanish Synopsis
+    if (validSpanishMeta?.synopsis && validSpanishMeta.synopsis.trim().length > 20) {
+      rawSynopsis = validSpanishMeta.synopsis.trim();
+    } 
+    // 2. Secondary Choice: JKAnime Scraped Spanish Synopsis
+    else if (jkMeta.seasonSynopsis && jkMeta.seasonSynopsis.trim().length > 20) {
+      rawSynopsis = jkMeta.seasonSynopsis.trim();
     }
 
+    // 3. Tertiary Choice: Translate AniList English description to Spanish
     if (!rawSynopsis && meta?.description) {
-      const translated = await TMDBService.translateToSpanish(meta.description);
-      if (translated) {
-        rawSynopsis = translated;
-      } else {
-        rawSynopsis = meta.description.replace(/<[^>]*>?/gm, '');
+      const cleanDesc = meta.description.replace(/<[^>]*>?/gm, '').trim();
+      if (cleanDesc) {
+        const translated = await TMDBService.translateToSpanish(cleanDesc);
+        if (translated) {
+          rawSynopsis = translated;
+        }
       }
-    }
-
-    if (!rawSynopsis && validSpanishMeta?.synopsis) {
-      rawSynopsis = validSpanishMeta.synopsis;
     }
 
     const finalSynopsis = rawSynopsis || `${cleanTitle(cleanTitleText, slug)} es una aclamada serie de animación japonesa con increíbles batallas e historia envolvente.`;
