@@ -680,12 +680,18 @@ export class ScraperService {
 
     const servers: StreamSource[] = [];
 
+    const DEFAULT_HEADERS = {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+      'Accept-Language': 'es-ES,es;q=0.9,en-US;q=0.8,en;q=0.7',
+    };
+
     const extractM3u8FromJk = async (targetSlug: string, targetEp: number): Promise<string[]> => {
       const urls: string[] = [];
       try {
         const epUrl = `https://jkanime.net/${targetSlug}/${targetEp}/`;
         const { data: epHtml } = await axios.get(epUrl, {
-          headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
+          headers: DEFAULT_HEADERS,
           timeout: 4500,
         });
 
@@ -698,7 +704,7 @@ export class ScraperService {
               try {
                 const { data: playerHtml } = await axios.get(playerUrl, {
                   headers: {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+                    ...DEFAULT_HEADERS,
                     Referer: epUrl,
                   },
                   timeout: 3500,
@@ -726,7 +732,7 @@ export class ScraperService {
       const parsePage = async (url: string) => {
         try {
           const { data: html } = await axios.get(url, {
-            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
+            headers: DEFAULT_HEADERS,
             timeout: 4500,
           });
           const $ = cheerio.load(html);
@@ -765,7 +771,7 @@ export class ScraperService {
           const cleanQuery = targetSlug.replace(/-/g, ' ');
           const searchUrl = `https://monoschinos2.com/buscar?q=${encodeURIComponent(cleanQuery)}`;
           const { data: searchHtml } = await axios.get(searchUrl, {
-            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
+            headers: DEFAULT_HEADERS,
             timeout: 4000,
           });
           const $ = cheerio.load(searchHtml);
