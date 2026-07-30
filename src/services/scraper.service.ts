@@ -19,7 +19,12 @@ function cleanSlug(rawSlug: string): string {
 }
 
 function cleanTitle(title: string, slug: string): string {
-  if (title && !title.startsWith('http')) return title;
+  if (title && !title.startsWith('http')) {
+    return title
+      .replace(/[\u00a0\r\n\t]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
   const slugClean = cleanSlug(slug);
   return slugClean.replace(/-/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
 }
