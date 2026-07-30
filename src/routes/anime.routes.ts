@@ -182,4 +182,92 @@ router.get('/proxy/ts', async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * @route GET /api/v1/proxy/stream
+ * @desc Dynamically resolve embed page URL to direct video stream (.m3u8 / .mp4) and redirect ExoPlayer
+ */
+router.get('/proxy/stream', async (req: Request, res: Response) => {
+  try {
+    const embedUrl = req.query.url as string;
+    if (!embedUrl) {
+      res.status(400).json({ success: false, error: 'Missing url parameter' });
+      return;
+    }
+
+    const axios = (await import('axios')).default;
+    const cheerio = (await import('cheerio')).default;
+    const DEFAULT_HEADERS = {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+    };
+
+    // 1. Filemoon unpacking
+    if (embedUrl.includes('filemoon')) {
+      try {
+        const { data: html } = await axios.get(embedUrl, { headers: DEFAULT_HEADERS, timeout: 5000 });
+        const packedMatch = html.match(/eval\(function\(p,a,c,k,e,d\)\{.*\}\('(.+?)',(\d+),(\d+),'(.+?)'\.split\('\|'\)/s);
+        if (packedMatch) {
+          const p = packedMatch[1];
+          const a = parseInt(packedMatch[2], 10);
+          const c = parseInt(packedMatch[3], 10);
+          const k = packedMatch[4].split('|');
+          let currentC = c;
+          let result = p;
+          while (currentC--) {
+            if (k[currentC]) {
+              result = result.replace(new RegExp('\\b' + currentC.toString(a) + '\\b', 'g'), k[currentC]);
+            }
+          }
+          const m3u8 = result.match(/(https?:\/\/[^\s"'<>]+\.m3u8[^\s"'<>]*)/i);
+          if (m3u8 && m3u8[1]) {
+            res.redirect(302, m3u8[1]);
+            return;
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    // 2. OK.ru metadata
+    if (embedUrl.includes('ok.ru')) {
+      try {
+        const secureUrl = embedUrl.replace('http://', 'https://');
+        const { data: html } = await axios.get(secureUrl, { headers: DEFAULT_HEADERS, timeout: 5000 });
+        const optionsAttr = cheerio.load(html)('div[data-options]').attr('data-options');
+        if (optionsAttr) {
+          const decoded = optionsAttr.replace(/&quot;/g, '"').replace(/&amp;/g, '&');
+          const json = JSON.parse(decoded);
+          const flashvars = JSON.parse(json.flashvars.metadata);
+          if (flashvars.videos && flashvars.videos.length > 0) {
+            const preferred = flashvars.videos.find((v: any) => v.name === 'hd') || flashvars.videos.find((v: any) => v.name === 'sd') || flashvars.videos[0];
+            if (preferred && preferred.url) {
+              res.redirect(302, preferred.url);
+              return;
+            }
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    // 3. Fallback direct match for mp4/m3u8 in embed HTML
+    try {
+      const { data: html } = await axios.get(embedUrl, { headers: DEFAULT_HEADERS, timeout: 5000 });
+      const directMatch = html.match(/(https?:\/\/[^\s"'<>]+\.(?:mp4|m3u8)[^\s"'<>]*)/i);
+      if (directMatch && directMatch[1]) {
+        res.redirect(302, directMatch[1]);
+        return;
+      }
+    } catch {
+      // ignore
+    }
+
+    // Fallback redirect to original embed URL
+    res.redirect(302, embedUrl);
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 export default router;

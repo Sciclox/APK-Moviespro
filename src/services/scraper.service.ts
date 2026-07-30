@@ -658,7 +658,7 @@ export class ScraperService {
    * Scrape Real Video Stream Links for Specified Anime & Episode with Smart Slug Resolution
    */
   static async getStreamSources(episodeSlug: string, backendBase: string = 'https://apk-animetv-backend.onrender.com'): Promise<WatchResponse> {
-    const cacheKey = `stream_v3_${episodeSlug}`;
+    const cacheKey = `stream_v4_${episodeSlug}`;
     const cached = apiCache.get<WatchResponse>(cacheKey);
     if (cached) {
       return cached;
@@ -787,28 +787,15 @@ export class ScraperService {
                 const decodedUrl = Buffer.from(b64, 'base64').toString('utf-8');
                 const cleanName = sName.toUpperCase();
 
-                if (decodedUrl.includes('.m3u8') || decodedUrl.includes('.mp4')) {
-                  secServers.push({
-                    server: `AnimeFLV / ${cleanName}`,
-                    title: `Servidor AnimeFLV ${targetEp} (${cleanName})`,
-                    url: decodedUrl,
-                    format: decodedUrl.includes('.m3u8') ? 'hls' : 'mp4',
-                    audio: 'sub',
-                    isDirect: true,
-                  });
-                } else {
-                  const directUrl = await resolveEmbedToDirectStream(decodedUrl);
-                  if (directUrl) {
-                    secServers.push({
-                      server: `AnimeFLV / ${cleanName}`,
-                      title: `Servidor AnimeFLV ${targetEp} (${cleanName})`,
-                      url: directUrl,
-                      format: directUrl.includes('.m3u8') ? 'hls' : 'mp4',
-                      audio: 'sub',
-                      isDirect: true,
-                    });
-                  }
-                }
+                const proxyUrl = `${backendBase}/api/v1/proxy/stream?url=${encodeURIComponent(decodedUrl)}`;
+                secServers.push({
+                  server: `AnimeFLV / ${cleanName}`,
+                  title: `Servidor AnimeFLV ${targetEp} (${cleanName})`,
+                  url: proxyUrl,
+                  format: 'hls',
+                  audio: 'sub',
+                  isDirect: true,
+                });
               } catch {
                 // ignore
               }
