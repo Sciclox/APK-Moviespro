@@ -7,7 +7,7 @@ import { TMDBService } from './tmdb.service';
 function cleanSlug(rawSlug: string): string {
   if (!rawSlug) return 'anime';
   let s = rawSlug;
-  if (s.startsWith('http://') || s.startsWith('https://')) {
+  if (s.includes('/')) {
     const parts = s.replace(/\/$/, '').split('/');
     s = parts[parts.length - 1];
   }
@@ -21,7 +21,7 @@ function cleanSlug(rawSlug: string): string {
 function cleanTitle(title: string, slug: string): string {
   if (title && !title.startsWith('http')) {
     return title
-      .replace(/[\u00a0\r\n\t]+/g, ' ')
+      .replace(/[\u00a0\u2423\r\n\t_]+/g, ' ')
       .replace(/\s+/g, ' ')
       .trim();
   }
@@ -70,17 +70,8 @@ export class ScraperService {
 
       if (data && data.success && Array.isArray(data.data)) {
         const result = data.data.map((item: any) => {
-          const itemTitleSlug = item.title ? cleanSlug(item.title) : '';
-          const tmdbNameSlug = item.tmdb?.name ? cleanSlug(item.tmdb.name) : '';
           const rawSlug = item.slug || item.title || '';
-          const baseSlug = cleanSlug(rawSlug);
-          
-          let slug = baseSlug;
-          if (itemTitleSlug.length > baseSlug.length) {
-            slug = itemTitleSlug;
-          } else if (tmdbNameSlug.length > baseSlug.length && tmdbNameSlug.includes(baseSlug)) {
-            slug = tmdbNameSlug;
-          }
+          const slug = cleanSlug(rawSlug);
 
           const title = cleanTitle(item.title || item.tmdb?.name, slug);
           const backdrop = item.tmdb?.backdrop_path
