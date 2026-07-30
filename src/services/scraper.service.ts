@@ -799,17 +799,25 @@ export class ScraperService {
       return secServers;
     };
 
-    // 1. Try direct slug first for JKAnime
-    let streamUrls = await extractM3u8FromJk(animeSlug, epNum);
+    // Run JKAnime and AnimeFLV/Secondary scrapers in parallel
+    const [jkResult, secResult] = await Promise.allSettled([
+      extractM3u8FromJk(animeSlug, epNum),
+      extractSecondaryProvider(animeSlug, epNum),
+    ]);
 
-    // 2. If direct slug failed, search provider by title keyword to resolve exact provider slug
+    let streamUrls: string[] = [];
+    if (jkResult.status === 'fulfilled') {
+      streamUrls = jkResult.value;
+    }
+
+    // If direct JKAnime slug failed, search by title keyword
     if (streamUrls.length === 0) {
       const cleanTitleText = animeSlug.replace(/-/g, ' ');
       try {
         const searchUrl = `${CONFIG.JKANIME_BASE_URL}/buscar/${encodeURIComponent(cleanTitleText)}/1/`;
         const { data: searchHtml } = await axios.get(searchUrl, {
-          headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
-          timeout: 4000,
+          headers: DEFAULT_HEADERS,
+          timeout: 3500,
         });
         const $ = cheerio.load(searchHtml);
         const candidateSlugs: string[] = [];
@@ -851,10 +859,9 @@ export class ScraperService {
       });
     }
 
-    // 3. Extract AnimeFLV / Secondary provider servers
-    const secondaryServers = await extractSecondaryProvider(animeSlug, epNum);
-    if (secondaryServers.length > 0) {
-      servers.push(...secondaryServers);
+    // Add secondary provider (AnimeFLV) servers
+    if (secResult.status === 'fulfilled' && secResult.value.length > 0) {
+      servers.push(...secResult.value);
     }
 
     // Fallback if no servers found anywhere
