@@ -127,7 +127,25 @@ router.get('/proxy/m3u8', async (req: Request, res: Response) => {
       responseType: 'text',
     });
 
-    const fixed = manifest;
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+    const host = req.headers['x-forwarded-host'] || req.get('host');
+    const backendBase = `${protocol}://${host}`;
+
+    const baseUrlObj = new URL(url);
+    const lines = manifest.split('\n');
+    const rewrittenLines = lines.map((line: string) => {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) {
+        return line;
+      }
+      let fullSegmentUrl = trimmed;
+      if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) {
+        fullSegmentUrl = new URL(trimmed, baseUrlObj.href).href;
+      }
+      return `${backendBase}/api/v1/proxy/ts?url=${encodeURIComponent(fullSegmentUrl)}`;
+    });
+
+    const fixed = rewrittenLines.join('\n');
 
     res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
     res.setHeader('Access-Control-Allow-Origin', '*');
