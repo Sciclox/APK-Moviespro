@@ -299,7 +299,10 @@ router.get('/proxy/video', async (req: Request, res: Response) => {
       timeout: 15000,
     });
 
-    const contentType = streamResponse.headers['content-type'] ? String(streamResponse.headers['content-type']) : 'video/mp4';
+    const rawContentType = streamResponse.headers['content-type'] ? String(streamResponse.headers['content-type']) : '';
+    const isMp4 = directUrl.includes('.mp4') || rawContentType.includes('octet-stream') || rawContentType.includes('mp4');
+    const contentType = isMp4 ? 'video/mp4' : (rawContentType || 'video/mp4');
+
     res.setHeader('Content-Type', contentType);
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Accept-Ranges', 'bytes');

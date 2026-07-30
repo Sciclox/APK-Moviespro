@@ -658,7 +658,7 @@ export class ScraperService {
    * Scrape Real Video Stream Links for Specified Anime & Episode with Smart Slug Resolution
    */
   static async getStreamSources(episodeSlug: string, backendBase: string = 'https://apk-animetv-backend.onrender.com'): Promise<WatchResponse> {
-    const cacheKey = `stream_v9_${episodeSlug}`;
+    const cacheKey = `stream_v10_${episodeSlug}`;
     const cached = apiCache.get<WatchResponse>(cacheKey);
     if (cached) {
       return cached;
@@ -786,7 +786,7 @@ export class ScraperService {
                 const decodedUrl = Buffer.from(b64, 'base64').toString('utf-8');
                 const cleanName = sName.toUpperCase();
 
-                const SUPPORTED_HOSTS = ['yourupload', 'mp4upload', 'ok.ru'];
+                const SUPPORTED_HOSTS = ['yourupload', 'mp4upload'];
                 const isSupportedProxy = SUPPORTED_HOSTS.some(h => decodedUrl.toLowerCase().includes(h));
 
                 if (decodedUrl.includes('.m3u8') || decodedUrl.includes('.mp4')) {
