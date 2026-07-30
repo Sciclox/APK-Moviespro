@@ -722,37 +722,74 @@ export class ScraperService {
 
     const extractSecondaryProvider = async (targetSlug: string, targetEp: number): Promise<StreamSource[]> => {
       const secServers: StreamSource[] = [];
-      try {
-        const url = `https://monoschinos2.com/ver/${targetSlug}-episodio-${targetEp}`;
-        const { data: html } = await axios.get(url, {
-          headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
-          timeout: 4500,
-        });
-        const $ = cheerio.load(html);
 
-        $('button[data-player], a[data-player]').each((_, el) => {
-          const sName = $(el).text().trim() || 'Servidor';
-          const b64 = $(el).attr('data-player');
-          if (b64) {
-            try {
-              const decodedUrl = Buffer.from(b64, 'base64').toString('utf-8');
-              const cleanName = sName.toUpperCase();
-              secServers.push({
-                server: `AnimeFLV / ${cleanName}`,
-                title: `Servidor AnimeFLV ${targetEp} (${cleanName})`,
-                url: decodedUrl,
-                format: decodedUrl.includes('.m3u8') ? 'hls' : 'mp4',
-                audio: 'sub',
-                isDirect: false,
-              });
-            } catch {
-              // ignore
+      const parsePage = async (url: string) => {
+        try {
+          const { data: html } = await axios.get(url, {
+            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
+            timeout: 4500,
+          });
+          const $ = cheerio.load(html);
+
+          $('button[data-player], a[data-player]').each((_, el) => {
+            const sName = $(el).text().trim() || 'Servidor';
+            const b64 = $(el).attr('data-player');
+            if (b64) {
+              try {
+                const decodedUrl = Buffer.from(b64, 'base64').toString('utf-8');
+                const cleanName = sName.toUpperCase();
+                secServers.push({
+                  server: `AnimeFLV / ${cleanName}`,
+                  title: `Servidor AnimeFLV ${targetEp} (${cleanName})`,
+                  url: decodedUrl,
+                  format: decodedUrl.includes('.m3u8') ? 'hls' : 'mp4',
+                  audio: 'sub',
+                  isDirect: false,
+                });
+              } catch {
+                // ignore
+              }
             }
+          });
+        } catch {
+          // ignore
+        }
+      };
+
+      // 1. Direct slug try
+      await parsePage(`https://monoschinos2.com/ver/${targetSlug}-episodio-${targetEp}`);
+
+      // 2. Candidate search fallback if direct slug yielded 0 servers
+      if (secServers.length === 0) {
+        try {
+          const cleanQuery = targetSlug.replace(/-/g, ' ');
+          const searchUrl = `https://monoschinos2.com/buscar?q=${encodeURIComponent(cleanQuery)}`;
+          const { data: searchHtml } = await axios.get(searchUrl, {
+            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
+            timeout: 4000,
+          });
+          const $ = cheerio.load(searchHtml);
+          const candidateSlugs: string[] = [];
+
+          $('a').each((_, el) => {
+            const href = $(el).attr('href') || '';
+            if (href.includes('/anime/') || href.includes('/ver/')) {
+              const cleaned = href.replace(/https?:\/\/[^\/]+/g, '').replace('/anime/', '').replace('/ver/', '').replace(/-episodio-\d+$/g, '');
+              if (cleaned && !candidateSlugs.includes(cleaned)) {
+                candidateSlugs.push(cleaned);
+              }
+            }
+          });
+
+          for (const cand of candidateSlugs.slice(0, 3)) {
+            await parsePage(`https://monoschinos2.com/ver/${cand}-episodio-${targetEp}`);
+            if (secServers.length > 0) break;
           }
-        });
-      } catch {
-        // ignore
+        } catch {
+          // ignore
+        }
       }
+
       return secServers;
     };
 
