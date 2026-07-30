@@ -216,39 +216,13 @@ export class ScraperService {
   }
 
   static async searchAnime(query: string): Promise<AnimeItem[]> {
-    const cacheKey = `search_${query.trim().toLowerCase()}`;
-    const cached = apiCache.get<AnimeItem[]>(cacheKey);
-    if (cached) return cached;
     if (!query || query.trim().length === 0) return [];
     const cleanQ = query.replace(/[:!?#,._-]/g, ' ').replace(/\s+/g, ' ').trim();
+    const cacheKey = `search_jka_${cleanQ.toLowerCase()}`;
+    const cached = apiCache.get<AnimeItem[]>(cacheKey);
+    if (cached) return cached;
 
-    // 1. Try AnimeVerse search with 4.5s timeout
-    try {
-      const url = `${CONFIG.ANIMEVERSE_BASE_URL}/api/v1/anime/search?q=${encodeURIComponent(cleanQ)}`;
-      const { data } = await axios.get(url, { timeout: 4500 });
-
-      if (data && data.success && Array.isArray(data.data?.results) && data.data.results.length > 0) {
-        return data.data.results.map((item: any) => {
-          const rawSlug = item.slug || item.id || item.title;
-          const slug = cleanSlug(rawSlug);
-          const title = cleanTitle(item.title, slug);
-
-          return {
-            id: slug,
-            title: title,
-            slug: slug,
-            image: item.image || `https://cdn.jkdesa.com/assets/images/animes/image/${slug}.jpg`,
-            backdrop: item.backdrop || null,
-            type: item.type || 'TV Anime',
-            provider: item.provider || 'AnimeVerse',
-          };
-        });
-      }
-    } catch (e) {
-      console.warn('AnimeVerse search timed out/failed, falling back to JKAnime direct search...');
-    }
-
-    // 2. Direct Fallback: Scrape JKAnime search page directly
+    // 1. Direct Search: Scrape JKAnime search page directly (100% official JKAnime slugs)
     try {
       const searchUrl = `${CONFIG.JKANIME_BASE_URL}/buscar/${encodeURIComponent(cleanQ)}/`;
       const { data: html } = await axios.get(searchUrl, {
@@ -293,7 +267,35 @@ export class ScraperService {
         return items;
       }
     } catch (e) {
-      console.error('JKAnime direct search fallback error:', e);
+      console.error('JKAnime direct search error:', e);
+    }
+
+    // 2. Fallback: Try AnimeVerse search if JKAnime search returns 0 results
+    try {
+      const url = `${CONFIG.ANIMEVERSE_BASE_URL}/api/v1/anime/search?q=${encodeURIComponent(cleanQ)}`;
+      const { data } = await axios.get(url, { timeout: 4500 });
+
+      if (data && data.success && Array.isArray(data.data?.results) && data.data.results.length > 0) {
+        const items = data.data.results.map((item: any) => {
+          const rawSlug = item.slug || item.id || item.title;
+          const slug = cleanSlug(rawSlug);
+          const title = cleanTitle(item.title, slug);
+
+          return {
+            id: slug,
+            title: title,
+            slug: slug,
+            image: item.image || `https://cdn.jkdesa.com/assets/images/animes/image/${slug}.jpg`,
+            backdrop: item.backdrop || null,
+            type: item.type || 'TV Anime',
+            provider: item.provider || 'AnimeVerse',
+          };
+        });
+        apiCache.set(cacheKey, items, 1800);
+        return items;
+      }
+    } catch (e) {
+      console.warn('AnimeVerse search fallback timed out/failed');
     }
 
     return [];
