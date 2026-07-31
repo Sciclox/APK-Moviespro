@@ -34,7 +34,7 @@ router.get('/anime/hero', async (_req: Request, res: Response) => {
  */
 router.get('/anime/latest', async (_req: Request, res: Response) => {
   try {
-    const results = await ScraperService.getLatestReleasing();
+    const results = await ScraperService.getLatest();
     res.json({ success: true, data: results });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });

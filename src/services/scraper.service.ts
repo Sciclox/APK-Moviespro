@@ -108,102 +108,28 @@ export class ScraperService {
   }
 
   /**
-   * Fetch Currently Releasing Anime (Animes en Emisión) using AniList GraphQL
+   * Fetch Currently Releasing Anime (Animes en Emisión)
    */
-  static async getLatestReleasing(): Promise<AnimeItem[]> {
-    const query = `
-      query {
-        Page(page: 1, perPage: 15) {
-          media(status: RELEASING, type: ANIME, sort: POPULARITY_DESC) {
-            id
-            title {
-              romaji
-              english
-            }
-            coverImage {
-              extraLarge
-              large
-            }
-            bannerImage
-          }
-        }
-      }
-    `;
+  static async getLatest(): Promise<AnimeItem[]> {
+    const cacheKey = 'releasing_jkanime_emision';
+    const cached = apiCache.get<AnimeItem[]>(cacheKey);
+    if (cached) return cached;
 
     try {
-      const response = await axios.post(
-        CONFIG.ANILIST_API_URL,
-        { query },
-        { timeout: 5000 }
-      );
-
-      const mediaList = response.data?.data?.Page?.media || [];
-      if (mediaList.length > 0) {
-        return mediaList.map((item: any) => {
-          // Prioritize Romaji title to match JKAnime/native Japanese slugs
-          const titleStr = item.title?.romaji || item.title?.english || 'Anime en Emisión';
-          const slugStr = titleStr
-            .toLowerCase()
-            .replace(/[^a-z0-9]+/g, '-')
-            .replace(/^-|-$/g, '');
-
-          return {
-            id: slugStr,
-            title: titleStr,
-            slug: slugStr,
-            image: item.coverImage?.extraLarge || item.coverImage?.large || 'https://cdn.animeav1.com/covers/222.jpg',
-            backdrop: item.bannerImage || null,
-            type: 'EN EMISIÓN',
-            provider: 'AniList Releasing',
-          };
-        });
+      const items = await this.getCatalog({ estado: 'emision', page: 1 });
+      if (items && items.length > 0) {
+        apiCache.set(cacheKey, items, 1800);
+        return items;
       }
     } catch (e) {
-      console.error('Error fetching releasing anime from AniList:', e);
-    }
-
-    // Fallback: Scrape releasing episodes directly from JKAnime homepage
-    try {
-      const { data: html } = await axios.get(CONFIG.JKANIME_BASE_URL, {
-        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
-        timeout: 4500,
-      });
-      const $ = cheerio.load(html);
-      const items: AnimeItem[] = [];
-
-      $('a.box').each((_, el) => {
-        const href = $(el).attr('href') || '';
-        const title = $(el).find('h2, h3, .title').text().trim() || cleanTitle('', href);
-        const img = $(el).find('img').attr('src') || 'https://cdn.animeav1.com/covers/222.jpg';
-        const parts = href.replace(/\/$/, '').split('/');
-        if (parts.length >= 4) {
-          const slug = parts[parts.length - 2] || parts[parts.length - 1];
-          if (
-            slug &&
-            !['buscar', 'animes', 'directorio', 'genero', 'emision', 'usuario', 'perfil', 'editar-perfil', 'login', 'registro'].includes(slug.toLowerCase()) &&
-            !slug.includes('perfil') &&
-            !slug.includes('user') &&
-            !items.some((i) => i.slug === slug)
-          ) {
-            items.push({
-              id: slug,
-              title: cleanTitle(title, slug),
-              slug: slug,
-              image: img,
-              backdrop: null,
-              type: 'EN EMISIÓN',
-              provider: 'JKAnime',
-            });
-          }
-        }
-      });
-
-      if (items.length > 0) return items.slice(0, 15);
-    } catch (e) {
-      console.error('JKAnime homepage fallback error:', e);
+      console.error('Error fetching releasing animes from JKAnime directorio:', e);
     }
 
     return [];
+  }
+
+  static async getLatestReleasing(): Promise<AnimeItem[]> {
+    return this.getLatest();
   }
 
   static async searchAnime(query: string): Promise<AnimeItem[]> {
@@ -293,26 +219,29 @@ export class ScraperService {
   }
 
   /**
-   * Get Catalog by Genre
+   * Get Catalog by Genre / Category / Type / Status
    */
   static async getCatalog(
-    options?: { genre?: string; categoria?: string; tipo?: string; page?: number } | string,
+    options?: { genre?: string; categoria?: string; tipo?: string; estado?: string; page?: number } | string,
     pageNum: number = 1
   ): Promise<AnimeItem[]> {
     try {
       let genre = typeof options === 'object' ? options.genre : options;
       let categoria = typeof options === 'object' ? options.categoria : undefined;
       let tipo = typeof options === 'object' ? options.tipo : undefined;
+      let estado = typeof options === 'object' ? options.estado : undefined;
       let page = typeof options === 'object' ? (options.page || 1) : pageNum;
 
       const cleanGenre = genre && genre.toLowerCase() !== 'todos' ? genre.toLowerCase().replace(/[^a-z0-9-]+/g, '-') : '';
       const cleanCategoria = categoria ? categoria.toLowerCase().trim() : '';
       const cleanTipo = tipo ? tipo.toLowerCase().trim() : '';
+      const cleanEstado = estado ? estado.toLowerCase().trim() : '';
 
       const params: string[] = [`p=${page}`];
       if (cleanGenre) params.push(`genero=${encodeURIComponent(cleanGenre)}`);
       if (cleanCategoria) params.push(`categoria=${encodeURIComponent(cleanCategoria)}`);
       if (cleanTipo) params.push(`tipo=${encodeURIComponent(cleanTipo)}`);
+      if (cleanEstado) params.push(`estado=${encodeURIComponent(cleanEstado)}`);
 
       const url = `${CONFIG.JKANIME_BASE_URL}/directorio/?${params.join('&')}`;
 
