@@ -264,7 +264,8 @@ export class ScraperService {
               title: title,
               slug: slug,
               image: item.image,
-              type: item.tipo || item.type || 'Anime',
+              type: item.tipo || item.type || 'Serie',
+              status: item.estado || item.status || 'Finalizado',
               synopsis: item.synopsis || null,
               provider: 'JKAnime Directorio',
             };
