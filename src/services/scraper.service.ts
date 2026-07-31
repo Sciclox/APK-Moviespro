@@ -222,7 +222,7 @@ export class ScraperService {
    * Get Catalog by Genre / Category / Type / Status
    */
   static async getCatalog(
-    options?: { genre?: string; categoria?: string; tipo?: string; estado?: string; page?: number } | string,
+    options?: { genre?: string; categoria?: string; tipo?: string; estado?: string; demografia?: string; page?: number } | string,
     pageNum: number = 1
   ): Promise<AnimeItem[]> {
     try {
@@ -230,15 +230,28 @@ export class ScraperService {
       let categoria = typeof options === 'object' ? options.categoria : undefined;
       let tipo = typeof options === 'object' ? options.tipo : undefined;
       let estado = typeof options === 'object' ? options.estado : undefined;
+      let demografia = typeof options === 'object' ? options.demografia : undefined;
       let page = typeof options === 'object' ? (options.page || 1) : pageNum;
 
       const cleanGenre = genre && genre.toLowerCase() !== 'todos' ? genre.toLowerCase().replace(/[^a-z0-9-]+/g, '-') : '';
       const cleanCategoria = categoria ? categoria.toLowerCase().trim() : '';
       const cleanTipo = tipo ? tipo.toLowerCase().trim() : '';
       const cleanEstado = estado ? estado.toLowerCase().trim() : '';
+      const cleanDemografia = demografia ? demografia.toLowerCase().trim() : '';
+
+      const demographySlugs = ['shounen', 'shoujo', 'seinen', 'josei', 'kodomo'];
 
       const params: string[] = [`p=${page}`];
-      if (cleanGenre) params.push(`genero=${encodeURIComponent(cleanGenre)}`);
+      if (cleanGenre) {
+        if (demographySlugs.includes(cleanGenre)) {
+          params.push(`demografia=${encodeURIComponent(cleanGenre)}`);
+        } else {
+          params.push(`genero=${encodeURIComponent(cleanGenre)}`);
+        }
+      }
+      if (cleanDemografia && !cleanGenre) {
+        params.push(`demografia=${encodeURIComponent(cleanDemografia)}`);
+      }
       if (cleanCategoria) params.push(`categoria=${encodeURIComponent(cleanCategoria)}`);
       if (cleanTipo) params.push(`tipo=${encodeURIComponent(cleanTipo)}`);
       if (cleanEstado) params.push(`estado=${encodeURIComponent(cleanEstado)}`);

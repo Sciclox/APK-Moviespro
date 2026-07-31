@@ -67,8 +67,10 @@ router.get('/anime/catalog', async (req: Request, res: Response) => {
     const genre = req.query.genre as string;
     const categoria = req.query.categoria as string;
     const tipo = req.query.tipo as string;
+    const estado = req.query.estado as string;
+    const demografia = req.query.demografia as string;
     const page = parseInt(req.query.page as string || '1', 10);
-    const results = await ScraperService.getCatalog({ genre, categoria, tipo, page });
+    const results = await ScraperService.getCatalog({ genre, categoria, tipo, estado, demografia, page });
     res.json({ success: true, data: results });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
