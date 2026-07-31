@@ -668,7 +668,7 @@ export class ScraperService {
       slug: slug,
       synopsis: finalSynopsis,
       image: meta?.coverImage?.extraLarge || validSpanishMeta?.image || jkMeta.seasonCover || 'https://cdn.animeav1.com/covers/222.jpg',
-      backdrop: kitsuMeta || validSpanishMeta?.backdrop || meta?.bannerImage || jkMeta.seasonCover || meta?.coverImage?.extraLarge || null,
+      backdrop: validSpanishMeta?.backdrop || kitsuMeta || meta?.bannerImage || jkMeta.seasonCover || meta?.coverImage?.extraLarge || null,
       genres: meta?.genres || ['Acción', 'Aventura', 'Fantasía'],
       status: formattedStatus,
       score: validSpanishMeta?.score || (meta?.averageScore ? meta.averageScore / 10 : 8.5),
