@@ -295,13 +295,31 @@ export class ScraperService {
   /**
    * Get Catalog by Genre
    */
-  static async getCatalog(genre?: string, page: number = 1): Promise<AnimeItem[]> {
+  static async getCatalog(
+    params: { genre?: string; category?: string; type?: string; page?: number } | string,
+    pageNum: number = 1
+  ): Promise<AnimeItem[]> {
     try {
-      const cleanGenre = genre && genre.toLowerCase() !== 'todos' ? genre.toLowerCase().replace(/[^a-z0-9-]+/g, '-') : '';
-      let url = `${CONFIG.JKANIME_BASE_URL}/directorio/?p=${page}`;
-      if (cleanGenre) {
-        url = `${CONFIG.JKANIME_BASE_URL}/directorio/?genero=${encodeURIComponent(cleanGenre)}&p=${page}`;
+      let genre = typeof params === 'string' ? params : params?.genre;
+      let category = typeof params === 'object' ? params?.category : undefined;
+      let type = typeof params === 'object' ? params?.type : undefined;
+      let page = typeof params === 'object' ? (params?.page || 1) : pageNum;
+
+      const queryParts: string[] = [];
+
+      if (genre && genre.toLowerCase() !== 'todos') {
+        queryParts.push(`genero=${encodeURIComponent(genre.toLowerCase().replace(/[^a-z0-9-]+/g, '-'))}`);
       }
+      if (category) {
+        queryParts.push(`categoria=${encodeURIComponent(category.toLowerCase())}`);
+      }
+      if (type) {
+        queryParts.push(`tipo=${encodeURIComponent(type.toLowerCase())}`);
+      }
+      queryParts.push(`p=${page}`);
+
+      const queryString = queryParts.join('&');
+      const url = `${CONFIG.JKANIME_BASE_URL}/directorio/?${queryString}`;
 
       const { data } = await axios.get(url, {
         headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
