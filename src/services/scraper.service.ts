@@ -297,25 +297,37 @@ export class ScraperService {
    */
   static async getCatalog(genre?: string, page: number = 1): Promise<AnimeItem[]> {
     try {
-      const genreParam = genre ? encodeURIComponent(genre) : 'Accion';
-      const url = `${CONFIG.ANIMEVERSE_BASE_URL}/api/v1/anime/catalog?genre=${genreParam}`;
-      const { data } = await axios.get(url, { timeout: 6000 });
+      const cleanGenre = genre && genre.toLowerCase() !== 'todos' ? genre.toLowerCase().replace(/[^a-z0-9-]+/g, '-') : '';
+      let url = `${CONFIG.JKANIME_BASE_URL}/directorio/?page=${page}`;
+      if (cleanGenre) {
+        url = `${CONFIG.JKANIME_BASE_URL}/directorio/?genero=${encodeURIComponent(cleanGenre)}&page=${page}`;
+      }
 
-      if (data && data.success && data.data?.results) {
-        return data.data.results.map((item: any) => {
-          const rawSlug = item.slug || item.id || item.title;
-          const slug = cleanSlug(rawSlug);
-          const title = cleanTitle(item.title, slug);
+      const { data } = await axios.get(url, {
+        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
+        timeout: 6000,
+      });
 
-          return {
-            id: slug,
-            title: title,
-            slug: slug,
-            image: item.image,
-            type: item.type || 'Anime',
-            provider: item.provider || 'Catalog',
-          };
-        });
+      const match = typeof data === 'string' ? data.match(/var\s+animes\s*=\s*(\{.*?\});/s) : null;
+      if (match && match[1]) {
+        const parsed = JSON.parse(match[1]);
+        if (parsed && Array.isArray(parsed.data)) {
+          return parsed.data.map((item: any) => {
+            const rawSlug = item.slug || item.id || item.title;
+            const slug = cleanSlug(rawSlug);
+            const title = cleanTitle(item.title, slug);
+
+            return {
+              id: slug,
+              title: title,
+              slug: slug,
+              image: item.image,
+              type: item.tipo || item.type || 'Anime',
+              synopsis: item.synopsis || null,
+              provider: 'JKAnime Directorio',
+            };
+          });
+        }
       }
     } catch (e) {
       console.error('Catalog error:', e);
