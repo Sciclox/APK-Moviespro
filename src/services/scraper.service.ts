@@ -298,9 +298,9 @@ export class ScraperService {
   static async getCatalog(genre?: string, page: number = 1): Promise<AnimeItem[]> {
     try {
       const cleanGenre = genre && genre.toLowerCase() !== 'todos' ? genre.toLowerCase().replace(/[^a-z0-9-]+/g, '-') : '';
-      let url = `${CONFIG.JKANIME_BASE_URL}/directorio/?page=${page}`;
+      let url = `${CONFIG.JKANIME_BASE_URL}/directorio/?p=${page}`;
       if (cleanGenre) {
-        url = `${CONFIG.JKANIME_BASE_URL}/directorio/?genero=${encodeURIComponent(cleanGenre)}&page=${page}`;
+        url = `${CONFIG.JKANIME_BASE_URL}/directorio/?genero=${encodeURIComponent(cleanGenre)}&p=${page}`;
       }
 
       const { data } = await axios.get(url, {
