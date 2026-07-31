@@ -65,10 +65,10 @@ router.get('/anime/search', async (req: Request, res: Response) => {
 router.get('/anime/catalog', async (req: Request, res: Response) => {
   try {
     const genre = req.query.genre as string;
-    const category = req.query.category as string;
-    const type = req.query.type as string;
+    const categoria = req.query.categoria as string;
+    const tipo = req.query.tipo as string;
     const page = parseInt(req.query.page as string || '1', 10);
-    const results = await ScraperService.getCatalog({ genre, category, type, page });
+    const results = await ScraperService.getCatalog({ genre, categoria, tipo, page });
     res.json({ success: true, data: results });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });

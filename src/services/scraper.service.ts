@@ -296,30 +296,25 @@ export class ScraperService {
    * Get Catalog by Genre
    */
   static async getCatalog(
-    params: { genre?: string; category?: string; type?: string; page?: number } | string,
+    options?: { genre?: string; categoria?: string; tipo?: string; page?: number } | string,
     pageNum: number = 1
   ): Promise<AnimeItem[]> {
     try {
-      let genre = typeof params === 'string' ? params : params?.genre;
-      let category = typeof params === 'object' ? params?.category : undefined;
-      let type = typeof params === 'object' ? params?.type : undefined;
-      let page = typeof params === 'object' ? (params?.page || 1) : pageNum;
+      let genre = typeof options === 'object' ? options.genre : options;
+      let categoria = typeof options === 'object' ? options.categoria : undefined;
+      let tipo = typeof options === 'object' ? options.tipo : undefined;
+      let page = typeof options === 'object' ? (options.page || 1) : pageNum;
 
-      const queryParts: string[] = [];
+      const cleanGenre = genre && genre.toLowerCase() !== 'todos' ? genre.toLowerCase().replace(/[^a-z0-9-]+/g, '-') : '';
+      const cleanCategoria = categoria ? categoria.toLowerCase().trim() : '';
+      const cleanTipo = tipo ? tipo.toLowerCase().trim() : '';
 
-      if (genre && genre.toLowerCase() !== 'todos') {
-        queryParts.push(`genero=${encodeURIComponent(genre.toLowerCase().replace(/[^a-z0-9-]+/g, '-'))}`);
-      }
-      if (category) {
-        queryParts.push(`categoria=${encodeURIComponent(category.toLowerCase())}`);
-      }
-      if (type) {
-        queryParts.push(`tipo=${encodeURIComponent(type.toLowerCase())}`);
-      }
-      queryParts.push(`p=${page}`);
+      const params: string[] = [`p=${page}`];
+      if (cleanGenre) params.push(`genero=${encodeURIComponent(cleanGenre)}`);
+      if (cleanCategoria) params.push(`categoria=${encodeURIComponent(cleanCategoria)}`);
+      if (cleanTipo) params.push(`tipo=${encodeURIComponent(cleanTipo)}`);
 
-      const queryString = queryParts.join('&');
-      const url = `${CONFIG.JKANIME_BASE_URL}/directorio/?${queryString}`;
+      const url = `${CONFIG.JKANIME_BASE_URL}/directorio/?${params.join('&')}`;
 
       const { data } = await axios.get(url, {
         headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
