@@ -101,7 +101,7 @@ export class ScraperService {
         title: 'Sword Art Online',
         slug: 'sword-art-online',
         image: 'https://cdn.animeav1.com/covers/222.jpg',
-        backdrop: 'https://image.tmdb.org/t/p/w780/6A8IHWrtMLtadNXnMTjggvVY8cs.jpg',
+        backdrop: 'https://image.tmdb.org/t/p/original/6A8IHWrtMLtadNXnMTjggvVY8cs.jpg',
         synopsis: 'En el año 2022, el videojuego de realidad virtual Sword Art Online es lanzado.',
       },
     ];
@@ -667,7 +667,7 @@ export class ScraperService {
       japaneseTitle: meta?.title?.native || '',
       slug: slug,
       synopsis: finalSynopsis,
-      image: jkMeta.seasonCover || meta?.coverImage?.extraLarge || validSpanishMeta?.image || 'https://cdn.animeav1.com/covers/222.jpg',
+      image: meta?.coverImage?.extraLarge || validSpanishMeta?.image || jkMeta.seasonCover || 'https://cdn.animeav1.com/covers/222.jpg',
       backdrop: kitsuMeta || validSpanishMeta?.backdrop || meta?.bannerImage || jkMeta.seasonCover || meta?.coverImage?.extraLarge || null,
       genres: meta?.genres || ['Acción', 'Aventura', 'Fantasía'],
       status: formattedStatus,
