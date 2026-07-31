@@ -566,7 +566,8 @@ export class ScraperService {
     ]);
 
     // Sanitize spanishMeta to prevent loose TMDB mismatches (e.g. Nihon Animator Mihonichi)
-    const validSpanishMeta = (spanishMeta && spanishMeta.synopsis && !spanishMeta.synopsis.includes('Japan Anima') && !spanishMeta.synopsis.includes('Exhibition')) ? spanishMeta : null;
+    const isInvalidSynopsis = spanishMeta?.synopsis ? (spanishMeta.synopsis.includes('Japan Anima') || spanishMeta.synopsis.includes('Exhibition')) : false;
+    const validSpanishMeta = (spanishMeta && !isInvalidSynopsis) ? spanishMeta : null;
 
     const isMovie = meta?.format === 'MOVIE' || cleanTitleText.toLowerCase().includes('movie') || cleanTitleText.toLowerCase().includes('pelicula') || cleanTitleText.toLowerCase().includes('película');
     const mediaType = isMovie ? 'PELÍCULA' : (meta?.format === 'SPECIAL' || meta?.format === 'OVA' ? 'ESPECIAL' : 'SERIE');
