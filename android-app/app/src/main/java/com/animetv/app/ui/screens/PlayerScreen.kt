@@ -1,34 +1,64 @@
 package com.animetv.app.ui.screens
 
+import android.content.Context
+import android.media.AudioManager
 import android.net.Uri
 import androidx.compose.animation.*
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Dns
+import androidx.compose.material.icons.filled.Forward10
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Replay10
+import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material.icons.filled.SkipPrevious
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.*
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MimeTypes
 import androidx.media3.common.Player
+import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.analytics.AnalyticsListener
+import androidx.media3.exoplayer.hls.HlsMediaSource
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.PlayerView
 import androidx.tv.material3.*
+import coil.compose.AsyncImage
 import com.animetv.app.data.api.ApiClient
 import com.animetv.app.data.model.AnimeItem
 import com.animetv.app.data.model.EpisodeItem
+import com.animetv.app.data.model.StreamSource
 import com.animetv.app.ui.theme.BebasNeue
 import com.animetv.app.ui.theme.Inter
 import com.animetv.app.ui.theme.NetflixDarkGrey
@@ -51,49 +81,258 @@ fun PlayerScreen(
     var isLoading by remember { mutableStateOf(true) }
     var isPlaying by remember { mutableStateOf(true) }
     var showControls by remember { mutableStateOf(true) }
+    var isBuffering by remember { mutableStateOf(false) }
 
     var currentTimeMs by remember { mutableLongStateOf(0L) }
     var durationMs by remember { mutableLongStateOf(0L) }
+    var bufferedMs by remember { mutableLongStateOf(0L) }
+    var isSeekBarFocused by remember { mutableStateOf(false) }
+    var scrubTimeMs by remember { mutableLongStateOf(0L) }
 
+    var showNextEpCountdown by remember { mutableStateOf(false) }
+    var nextEpCountdownDismissed by remember { mutableStateOf(false) }
+    var countdownSeconds by remember { mutableIntStateOf(10) }
+    var quickSeekIcon by remember { mutableStateOf<String?>(null) }
+    var preloadedNextStreamUrl by remember { mutableStateOf<String?>(null) }
+
+    // Multi-server state & auto-fallback
+    var serverList by remember { mutableStateOf<List<StreamSource>>(emptyList()) }
+    var currentServerIndex by remember { mutableIntStateOf(0) }
+    var showServerMenu by remember { mutableStateOf(false) }
+    var autoFallbackToast by remember { mutableStateOf<String?>(null) }
+    var lastSelectedServerName by remember { mutableStateOf<String?>(null) }
+
+    // Double tap detection for 30s quick skip
+    var lastLeftPressTime by remember { mutableLongStateOf(0L) }
+    var lastRightPressTime by remember { mutableLongStateOf(0L) }
+
+    // Skip intro state
+    var skipIntroDismissed by remember { mutableStateOf(false) }
+
+    // Persistent error overlay
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    // Live scrub preview state
+    var wasPlayingBeforeScrub by remember { mutableStateOf(true) }
+
+    val backButtonFocusRequester = remember { FocusRequester() }
+    val seekBarFocusRequester = remember { FocusRequester() }
     val playButtonFocusRequester = remember { FocusRequester() }
     val rootFocusRequester = remember { FocusRequester() }
+    val firstServerFocusRequester = remember { FocusRequester() }
+    val nextEpFocusRequester = remember { FocusRequester() }
+    val retryFocusRequester = remember { FocusRequester() }
     val scope = rememberCoroutineScope()
+    val audioManager = remember { context.getSystemService(Context.AUDIO_SERVICE) as AudioManager }
 
-    // Create ExoPlayer instance with custom LoadControl to prevent audio/video stuttering
-    val exoPlayer = remember {
-        val loadControl = androidx.media3.exoplayer.DefaultLoadControl.Builder()
-            .setBufferDurationsMs(
-                30_000, // Min buffer to keep: 30s (prevents starvation)
-                60_000, // Max buffer: 60s
-                2_500,  // Buffer to start playback: 2.5s (quick startup)
-                5_000   // Buffer to resume after rebuffer: 5s
-            )
+    var lastUserInteractionTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
+
+    // Keep scrubTimeMs synced when not seeking
+    LaunchedEffect(currentTimeMs) {
+        if (!isSeekBarFocused) {
+            scrubTimeMs = currentTimeMs
+        }
+    }
+
+    // High-performance OkHttpClient for ExoPlayer HTTP/2 and Range streaming
+    val okHttpClient = remember {
+        okhttp3.OkHttpClient.Builder()
+            .connectTimeout(20, java.util.concurrent.TimeUnit.SECONDS)
+            .readTimeout(20, java.util.concurrent.TimeUnit.SECONDS)
+            .writeTimeout(20, java.util.concurrent.TimeUnit.SECONDS)
+            .followRedirects(true)
+            .followSslRedirects(true)
             .build()
+    }
 
+    // DataSource factory backed by OkHttp
+    val httpDataSourceFactory = remember(okHttpClient) {
+        androidx.media3.datasource.okhttp.OkHttpDataSource.Factory(okHttpClient)
+            .setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
+    }
+
+    // LoadControl optimized for ultra-fast playback start (1.5s initial buffer) and smooth streaming
+    val loadControl = remember {
+        DefaultLoadControl.Builder()
+            .setBufferDurationsMs(
+                15_000, // Min buffer: 15 seconds
+                50_000, // Max buffer: 50 seconds
+                1_500,  // Buffer for playback start: 1.5 seconds (Ultra Fast!)
+                2_500   // Buffer after rebuffer: 2.5 seconds
+            )
+            .setPrioritizeTimeOverSizeThresholds(true)
+            .build()
+    }
+
+    // Switch server helper
+    var playServer by remember { mutableStateOf<(Int) -> Unit>({}) }
+
+    var currentServerRetryCount by remember { mutableIntStateOf(0) }
+
+    // Create ExoPlayer instance with custom LoadControl, DataSource, and dropped frame detector
+    val exoPlayer = remember {
         ExoPlayer.Builder(context)
+            .setMediaSourceFactory(DefaultMediaSourceFactory(httpDataSourceFactory))
             .setLoadControl(loadControl)
             .build().apply {
                 playWhenReady = true
                 addListener(object : Player.Listener {
+                    override fun onRenderedFirstFrame() {
+                        isLoading = false
+                        isBuffering = false
+                        currentServerRetryCount = 0
+                    }
                     override fun onIsPlayingChanged(playing: Boolean) {
                         isPlaying = playing
+                        if (playing) {
+                            isLoading = false
+                        }
+                    }
+                    override fun onPlaybackStateChanged(state: Int) {
+                        isBuffering = state == Player.STATE_BUFFERING
+                        if (state == Player.STATE_READY || state == Player.STATE_ENDED) {
+                            isLoading = false
+                        }
+                    }
+                    override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                        error.printStackTrace()
+                        isLoading = false
+                        val errorMsg = error.localizedMessage ?: "Error de red"
+                        if (currentServerRetryCount < 2) {
+                            currentServerRetryCount++
+                            autoFallbackToast = "Reintentando conexión (${currentServerRetryCount}/2)..."
+                            scope.launch {
+                                delay(1500)
+                                playServer(currentServerIndex)
+                                delay(3000)
+                                autoFallbackToast = null
+                            }
+                        } else if (serverList.size > 1 && currentServerIndex < serverList.size - 1) {
+                            currentServerRetryCount = 0
+                            val nextIndex = currentServerIndex + 1
+                            val nextServerName = serverList[nextIndex].server
+                            autoFallbackToast = "Servidor no disponible. Cambiando a $nextServerName..."
+                            playServer(nextIndex)
+                            scope.launch {
+                                delay(4000)
+                                autoFallbackToast = null
+                            }
+                        } else {
+                            errorMessage = "Error al cargar video: $errorMsg"
+                        }
                     }
                 })
             }
     }
 
-    // Auto-hide HUD after 5 seconds of inactivity & transfer focus to root Box when hidden
+    playServer = remember(serverList, exoPlayer) {
+        { index ->
+            if (index in serverList.indices) {
+                currentServerIndex = index
+                val targetServer = serverList[index]
+                lastSelectedServerName = targetServer.server
+                val url = targetServer.url
+                streamUrl = url
+                isLoading = true
+                errorMessage = null
+                val currentPos = exoPlayer.currentPosition.coerceAtLeast(0L)
+                
+                val isHls = url.contains(".m3u8") || targetServer.format == "hls"
+                val mediaItem = if (isHls) {
+                    MediaItem.Builder()
+                        .setUri(Uri.parse(url))
+                        .setMimeType(MimeTypes.APPLICATION_M3U8)
+                        .build()
+                } else {
+                    MediaItem.Builder()
+                        .setUri(Uri.parse(url))
+                        .setMimeType(MimeTypes.VIDEO_MP4)
+                        .build()
+                }
+
+                val mediaSource = if (isHls) {
+                    HlsMediaSource.Factory(httpDataSourceFactory).createMediaSource(mediaItem)
+                } else {
+                    DefaultMediaSourceFactory(httpDataSourceFactory).createMediaSource(mediaItem)
+                }
+
+                exoPlayer.setMediaSource(mediaSource)
+                exoPlayer.prepare()
+                if (currentPos > 1000) {
+                    exoPlayer.seekTo(currentPos)
+                }
+                exoPlayer.play()
+                scope.launch {
+                    delay(1500)
+                    isLoading = false
+                }
+            }
+        }
+    }
+
+    // Save watch history on progress updates and on leaving the player
+    DisposableEffect(context, episode, anime) {
+        onDispose {
+            try {
+                val currentPos = exoPlayer.currentPosition.coerceAtLeast(0L)
+                val totalDur = exoPlayer.duration.coerceAtLeast(1L)
+                if (currentPos > 3_000L || totalDur > 10_000L) {
+                    val aId = anime?.id ?: episode.slug.split("/").firstOrNull() ?: episode.slug
+                    val aSlug = anime?.slug ?: episode.slug.split("/").firstOrNull() ?: episode.slug
+                    val aTitle = anime?.title ?: "Anime TV"
+                    val aImg = anime?.image ?: episode.image ?: ""
+                    com.animetv.app.data.repository.WatchHistoryManager.saveWatchProgress(
+                        context = context,
+                        animeId = aId,
+                        animeSlug = aSlug,
+                        animeTitle = aTitle,
+                        animeImage = aImg,
+                        backdrop = anime?.backdrop,
+                        episodeNumber = episode.number,
+                        episodeTitle = episode.title,
+                        lastPositionMs = currentPos,
+                        durationMs = totalDur
+                    )
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    LaunchedEffect(currentTimeMs) {
+        if (currentTimeMs > 10_000L && currentTimeMs % 10_000L < 1000L) {
+            val aId = anime?.id ?: episode.slug.split("/").firstOrNull() ?: episode.slug
+            val aSlug = anime?.slug ?: episode.slug.split("/").firstOrNull() ?: episode.slug
+            val aTitle = anime?.title ?: "Anime TV"
+            val aImg = anime?.image ?: episode.image ?: ""
+            com.animetv.app.data.repository.WatchHistoryManager.saveWatchProgress(
+                context = context,
+                animeId = aId,
+                animeSlug = aSlug,
+                animeTitle = aTitle,
+                animeImage = aImg,
+                backdrop = anime?.backdrop,
+                episodeNumber = episode.number,
+                episodeTitle = episode.title,
+                lastPositionMs = currentTimeMs,
+                durationMs = durationMs
+            )
+        }
+    }
+
+
+
+    // Initial focus placement on Play/Pause button when controls appear
     LaunchedEffect(showControls) {
-        if (showControls) {
-            delay(150)
+        if (showControls && !showServerMenu) {
+            delay(100)
             try {
                 playButtonFocusRequester.requestFocus()
             } catch (e: Exception) {
                 e.printStackTrace()
             }
-            delay(5000)
-            showControls = false
-        } else {
+        } else if (!showControls && !showServerMenu) {
             delay(50)
             try {
                 rootFocusRequester.requestFocus()
@@ -103,40 +342,183 @@ fun PlayerScreen(
         }
     }
 
+    // Explicit D-Pad Focus Request into Server Selector Modal
+    LaunchedEffect(showServerMenu) {
+        if (showServerMenu) {
+            delay(150)
+            try {
+                firstServerFocusRequester.requestFocus()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    // Explicit D-Pad Focus Request into Next Episode Countdown Modal
+    LaunchedEffect(showNextEpCountdown) {
+        if (showNextEpCountdown) {
+            showControls = false
+            delay(150)
+            try {
+                nextEpFocusRequester.requestFocus()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    // Explicit D-Pad Focus Request into Error Overlay Modal
+    LaunchedEffect(errorMessage) {
+        if (errorMessage != null) {
+            delay(150)
+            try {
+                retryFocusRequester.requestFocus()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    // Auto-hide HUD after 5 seconds of inactivity (disabled while seeking or in server menu)
+    LaunchedEffect(showControls, isSeekBarFocused, showServerMenu, lastUserInteractionTime) {
+        if (showControls && !isSeekBarFocused && !showServerMenu) {
+            delay(5000)
+            if (!isSeekBarFocused && !showServerMenu && (System.currentTimeMillis() - lastUserInteractionTime >= 4800)) {
+                showControls = false
+            }
+        }
+    }
+
     // Periodically update progress bar
     LaunchedEffect(isPlaying) {
         while (isPlaying) {
             currentTimeMs = exoPlayer.currentPosition.coerceAtLeast(0L)
             durationMs = exoPlayer.duration.coerceAtLeast(1L)
+            bufferedMs = exoPlayer.bufferedPosition.coerceAtLeast(0L)
             delay(500)
+        }
+    }
+
+    // Active 10-second countdown timer for next episode auto-play
+    LaunchedEffect(showNextEpCountdown) {
+        if (showNextEpCountdown && onNextEpisode != null) {
+            countdownSeconds = 10
+            while (countdownSeconds > 0 && showNextEpCountdown) {
+                delay(1000)
+                if (showNextEpCountdown) {
+                    countdownSeconds -= 1
+                }
+            }
+            if (showNextEpCountdown && countdownSeconds <= 0) {
+                showNextEpCountdown = false
+                onNextEpisode.invoke()
+            }
+        }
+    }
+
+    LaunchedEffect(currentTimeMs, durationMs) {
+        if (onNextEpisode != null && !nextEpCountdownDismissed && durationMs > 30_000 && (durationMs - currentTimeMs) in 1..15_000) {
+            if (!showNextEpCountdown && countdownSeconds > 0) {
+                showNextEpCountdown = true
+            }
+        }
+    }
+
+    // Silent Background Pre-fetching for Next Episode when reaching 75% progress
+    LaunchedEffect(currentTimeMs, durationMs) {
+        if (onNextEpisode != null && durationMs > 60_000 && currentTimeMs >= (durationMs * 0.75f) && preloadedNextStreamUrl == null) {
+            scope.launch {
+                try {
+                    var animeSlug = anime?.slug?.ifBlank { null }
+                        ?: episode.slug.split("/").firstOrNull()
+                        ?: ""
+                    animeSlug = animeSlug.replace(Regex("-(episode|episodio)-\\d+$", RegexOption.IGNORE_CASE), "").replace(Regex("/$"), "")
+                    val nextEpNum = (episode.number + 1).toString()
+                    val res = ApiClient.apiService.getStreamSources(animeSlug, nextEpNum)
+                    if (res.success && res.data.servers.isNotEmpty()) {
+                        preloadedNextStreamUrl = res.data.servers.first().url
+                    }
+                } catch (e: Exception) {
+                    // silent ignore
+                }
+            }
         }
     }
 
     // Fetch streaming video source from API
     LaunchedEffect(episode.slug) {
         isLoading = true
+        skipIntroDismissed = false
+        nextEpCountdownDismissed = false
+        errorMessage = null
         scope.launch {
             try {
-                val parts = episode.slug.split("/")
-                val animeSlug = parts.getOrNull(0) ?: ""
-                val epNum = parts.getOrNull(1) ?: episode.number.toString()
+                var animeSlug = anime?.slug?.ifBlank { null }
+                    ?: episode.slug.split("/").firstOrNull()
+                    ?: ""
+                animeSlug = animeSlug.replace(Regex("-(episode|episodio)-\\d+$", RegexOption.IGNORE_CASE), "").replace(Regex("/$"), "")
+                val epNum = episode.number.toString()
 
                 val res = ApiClient.apiService.getStreamSources(animeSlug, epNum)
                 if (res.success && res.data.servers.isNotEmpty()) {
-                    streamUrl = res.data.servers.first().url
+                    serverList = res.data.servers
+                    // Check if the user previously selected a preferred server
+                    val savedIdx = if (!lastSelectedServerName.isNullOrEmpty()) {
+                        res.data.servers.indexOfFirst { s ->
+                            s.server.equals(lastSelectedServerName, ignoreCase = true)
+                        }
+                    } else -1
+
+                    val preferredIdx = if (savedIdx != -1) {
+                        savedIdx
+                    } else {
+                        // Smart pre-selection fallback: Prefer HLS (most stable on TV) > Direct MP4 > Proxy
+                        res.data.servers.indexOfFirst { s ->
+                            s.format == "hls" || s.url.contains(".m3u8")
+                        }.takeIf { it != -1 } ?: 0
+                    }
+
+                    currentServerIndex = preferredIdx
+                    streamUrl = res.data.servers[preferredIdx].url
+                    lastSelectedServerName = res.data.servers[preferredIdx].server
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
             } finally {
                 if (streamUrl.isNullOrEmpty()) {
-                    // Reliable fallback HLS stream
-                    streamUrl = "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8"
+                    // Full-length reliable fallback stream (Big Buck Bunny - Google hosted)
+                    streamUrl = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"
                 }
                 streamUrl?.let { url ->
-                    val mediaItem = MediaItem.fromUri(Uri.parse(url))
-                    exoPlayer.setMediaItem(mediaItem)
+                    val isHls = url.contains(".m3u8") || serverList.getOrNull(currentServerIndex)?.format == "hls"
+                    val mediaItem = if (isHls) {
+                        MediaItem.Builder()
+                            .setUri(Uri.parse(url))
+                            .setMimeType(MimeTypes.APPLICATION_M3U8)
+                            .build()
+                    } else {
+                        MediaItem.Builder()
+                            .setUri(Uri.parse(url))
+                            .setMimeType(MimeTypes.VIDEO_MP4)
+                            .build()
+                    }
+
+                    val mediaSource = if (isHls) {
+                        HlsMediaSource.Factory(httpDataSourceFactory).createMediaSource(mediaItem)
+                    } else {
+                        DefaultMediaSourceFactory(httpDataSourceFactory).createMediaSource(mediaItem)
+                    }
+
+                    exoPlayer.setMediaSource(mediaSource)
                     exoPlayer.prepare()
                     exoPlayer.play()
+                    
+                    val prefs = context.getSharedPreferences("player_positions", Context.MODE_PRIVATE)
+                    val savedPosition = prefs.getLong(episode.slug, 0L)
+                    val totalDuration = exoPlayer.duration
+                    if (savedPosition > 5_000 && (totalDuration <= 0 || savedPosition < totalDuration - 15_000)) {
+                        exoPlayer.seekTo(savedPosition)
+                    }
                 }
                 isLoading = false
             }
@@ -145,7 +527,22 @@ fun PlayerScreen(
 
     DisposableEffect(Unit) {
         onDispose {
-            exoPlayer.release()
+            try {
+                val prefs = context.getSharedPreferences("player_positions", Context.MODE_PRIVATE)
+                if (exoPlayer.currentPosition > 5_000 && exoPlayer.duration > 0 && (exoPlayer.duration - exoPlayer.currentPosition) > 15_000) {
+                    prefs.edit().putLong(episode.slug, exoPlayer.currentPosition).apply()
+                } else {
+                    prefs.edit().remove(episode.slug).apply()
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            } finally {
+                try {
+                    exoPlayer.release()
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
         }
     }
 
@@ -158,61 +555,315 @@ fun PlayerScreen(
             .focusable()
             .onKeyEvent { keyEvent ->
                 if (keyEvent.type == KeyEventType.KeyDown) {
-                    if (!showControls) {
-                        showControls = true
-                        return@onKeyEvent true
+                    lastUserInteractionTime = System.currentTimeMillis()
+                    if (showServerMenu) {
+                        if (keyEvent.nativeKeyEvent.keyCode == android.view.KeyEvent.KEYCODE_BACK) {
+                            showServerMenu = false
+                            return@onKeyEvent true
+                        }
+                    } else if (showNextEpCountdown) {
+                        if (keyEvent.nativeKeyEvent.keyCode == android.view.KeyEvent.KEYCODE_BACK) {
+                            showNextEpCountdown = false
+                            nextEpCountdownDismissed = true
+                            showControls = true
+                            return@onKeyEvent true
+                        }
+                    } else if (errorMessage != null) {
+                        if (keyEvent.nativeKeyEvent.keyCode == android.view.KeyEvent.KEYCODE_BACK) {
+                            onBack()
+                            return@onKeyEvent true
+                        }
+                    } else if (!showControls) {
+                        when (keyEvent.nativeKeyEvent.keyCode) {
+                            android.view.KeyEvent.KEYCODE_DPAD_LEFT -> {
+                                val now = System.currentTimeMillis()
+                                val seekAmount = if (now - lastLeftPressTime < 400) 30_000L else 10_000L
+                                lastLeftPressTime = now
+                                exoPlayer.seekTo((exoPlayer.currentPosition - seekAmount).coerceAtLeast(0))
+                                quickSeekIcon = if (seekAmount == 30_000L) "↺30" else "↺10"
+                                scope.launch { delay(800); quickSeekIcon = null }
+                                return@onKeyEvent true
+                            }
+                            android.view.KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                                val now = System.currentTimeMillis()
+                                val seekAmount = if (now - lastRightPressTime < 400) 30_000L else 10_000L
+                                lastRightPressTime = now
+                                exoPlayer.seekTo((exoPlayer.currentPosition + seekAmount).coerceAtMost(exoPlayer.duration))
+                                quickSeekIcon = if (seekAmount == 30_000L) "30↻" else "10↻"
+                                scope.launch { delay(800); quickSeekIcon = null }
+                                return@onKeyEvent true
+                            }
+                            else -> {
+                                showControls = true
+                                return@onKeyEvent true
+                            }
+                        }
                     }
                 }
                 false
             }
     ) {
-        if (isLoading) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("Cargando reproductor...", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold, fontFamily = Inter)
-            }
-        } else {
-            // Fullscreen Native Media3 PlayerView
-            AndroidView(
-                factory = { ctx ->
-                    PlayerView(ctx).apply {
-                        player = exoPlayer
-                        useController = false // Netflix Custom TV Compose HUD
-                    }
-                },
-                modifier = Modifier.fillMaxSize()
-            )
+        // ExoPlayer Media Player View (100% Fullscreen)
+        AndroidView(
+            factory = { ctx ->
+                PlayerView(ctx).apply {
+                    player = exoPlayer
+                    useController = false
+                }
+            },
+            update = { playerView ->
+                playerView.keepScreenOn = isPlaying || isBuffering || isLoading
+            },
+            modifier = Modifier.fillMaxSize()
+        )
 
-            // Sleek Netflix-Style TV HUD Overlay
-            AnimatedVisibility(
-                visible = showControls,
-                enter = fadeIn(),
-                exit = fadeOut()
+        // Quick Seek Icon Overlay
+        AnimatedVisibility(
+            visible = quickSeekIcon != null,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier.align(Alignment.Center)
+        ) {
+            Text(
+                text = quickSeekIcon ?: "",
+                color = Color.White,
+                fontSize = 42.sp,
+                fontWeight = FontWeight.Bold,
+                fontFamily = Inter
+            )
+        }
+
+        // Buffering Indicator (Centered Spinner)
+        if (isBuffering && !isLoading) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(
+                    color = NetflixRed,
+                    strokeWidth = 3.dp,
+                    modifier = Modifier.size(48.dp)
+                )
+            }
+        }
+
+        // Auto-Fallback Notification Toast Banner
+        AnimatedVisibility(
+            visible = autoFallbackToast != null,
+            enter = fadeIn() + slideInVertically { -it },
+            exit = fadeOut() + slideOutVertically { -it },
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = 24.dp)
+        ) {
+            Surface(
+                shape = RoundedCornerShape(20.dp),
+                color = NetflixRed,
+                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.8f))
             ) {
+                Text(
+                    text = autoFallbackToast ?: "",
+                    color = Color.White,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = Inter,
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
+                )
+            }
+        }
+
+        // Next Episode Countdown Overlay Card
+        AnimatedVisibility(
+            visible = showNextEpCountdown && onNextEpisode != null,
+            enter = fadeIn() + slideInHorizontally { it },
+            exit = fadeOut() + slideOutHorizontally { it },
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(32.dp)
+        ) {
+            Surface(
+                modifier = Modifier.width(280.dp),
+                shape = RoundedCornerShape(12.dp),
+                color = Color.Black.copy(alpha = 0.85f),
+                border = BorderStroke(1.dp, NetflixRed)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("Siguiente episodio en", color = NetflixLightGrey, fontSize = 13.sp, fontFamily = Inter)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text("$countdownSeconds segundos", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold, fontFamily = BebasNeue)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(
+                            onClick = { onNextEpisode?.invoke() },
+                            modifier = Modifier.focusRequester(nextEpFocusRequester),
+                            colors = ButtonDefaults.colors(
+                                containerColor = NetflixRed,
+                                contentColor = Color.White,
+                                focusedContainerColor = Color.White,
+                                focusedContentColor = NetflixRed
+                            ),
+                            shape = ButtonDefaults.shape(shape = RoundedCornerShape(6.dp)),
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp)
+                        ) { Text("Ver ahora", fontFamily = Inter, fontSize = 13.sp) }
+                        Button(
+                            onClick = {
+                                showNextEpCountdown = false
+                                nextEpCountdownDismissed = true
+                                showControls = true
+                            },
+                            colors = ButtonDefaults.colors(
+                                containerColor = Color.White.copy(alpha = 0.2f),
+                                contentColor = Color.White,
+                                focusedContainerColor = Color.White,
+                                focusedContentColor = Color.Black
+                            ),
+                            shape = ButtonDefaults.shape(shape = RoundedCornerShape(6.dp)),
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp)
+                        ) { Text("Cancelar", fontFamily = Inter, fontSize = 13.sp) }
+                    }
+                }
+            }
+        }
+
+        // Initial Loading Spinner (Before First Frame)
+        if (isLoading) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    CircularProgressIndicator(color = NetflixRed, strokeWidth = 3.dp)
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text("Cargando reproductor...", color = Color.White, fontSize = 16.sp, fontFamily = Inter)
+                }
+            }
+        }
+
+        // Error Overlay with Retry Button
+        AnimatedVisibility(
+            visible = errorMessage != null,
+            enter = fadeIn(),
+            exit = fadeOut()
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.92f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Warning,
+                        contentDescription = "Error",
+                        tint = NetflixRed,
+                        modifier = Modifier.size(56.dp)
+                    )
+                    Text(
+                        text = errorMessage ?: "",
+                        color = Color.White,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = Inter
+                    )
+                    Text(
+                        text = "Servidor: ${serverList.getOrNull(currentServerIndex)?.server ?: "Desconocido"}",
+                        color = NetflixLightGrey,
+                        fontSize = 13.sp,
+                        fontFamily = Inter
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Button(
+                            onClick = {
+                                errorMessage = null
+                                playServer(currentServerIndex)
+                            },
+                            modifier = Modifier.focusRequester(retryFocusRequester),
+                            colors = ButtonDefaults.colors(
+                                containerColor = NetflixRed,
+                                contentColor = Color.White,
+                                focusedContainerColor = Color.White,
+                                focusedContentColor = NetflixRed
+                            ),
+                            shape = ButtonDefaults.shape(shape = RoundedCornerShape(8.dp)),
+                            contentPadding = PaddingValues(horizontal = 24.dp, vertical = 10.dp)
+                        ) {
+                            Text("Reintentar", fontFamily = Inter, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        }
+                        if (serverList.size > 1) {
+                            Button(
+                                onClick = {
+                                    errorMessage = null
+                                    val nextIdx = (currentServerIndex + 1) % serverList.size
+                                    playServer(nextIdx)
+                                },
+                                colors = ButtonDefaults.colors(
+                                    containerColor = Color.White.copy(alpha = 0.2f),
+                                    contentColor = Color.White,
+                                    focusedContainerColor = Color.White,
+                                    focusedContentColor = Color.Black
+                                ),
+                                shape = ButtonDefaults.shape(shape = RoundedCornerShape(8.dp)),
+                                contentPadding = PaddingValues(horizontal = 24.dp, vertical = 10.dp)
+                            ) {
+                                Text("Probar otro servidor", fontFamily = Inter, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // HUD Overlay Controls
+        AnimatedVisibility(
+            visible = showControls && !showServerMenu && !showNextEpCountdown,
+            enter = fadeIn(),
+            exit = fadeOut()
+        ) {
+            Box(modifier = Modifier.fillMaxSize()) {
+                // Background Gradient Mask
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
                         .background(
                             Brush.verticalGradient(
                                 colors = listOf(
-                                    Color.Black.copy(alpha = 0.85f),
+                                    Color.Black.copy(alpha = 0.7f),
                                     Color.Transparent,
-                                    Color.Black.copy(alpha = 0.95f)
+                                    Color.Transparent,
+                                    Color.Black.copy(alpha = 0.5f),
+                                    Color.Black.copy(alpha = 0.9f)
                                 )
                             )
                         )
                         .padding(32.dp)
                 ) {
-                    // Top Bar Header
+                    // Top Bar Header (Layer 1 — ↓ goes to Seekbar)
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .align(Alignment.TopStart),
+                            .align(Alignment.TopStart)
+                            .onKeyEvent { keyEvent ->
+                                if (keyEvent.type == KeyEventType.KeyDown && keyEvent.nativeKeyEvent.keyCode == android.view.KeyEvent.KEYCODE_DPAD_DOWN) {
+                                    try { seekBarFocusRequester.requestFocus() } catch (_: Exception) {}
+                                    return@onKeyEvent true
+                                }
+                                false
+                            },
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Button(
                             onClick = onBack,
-                            scale = ButtonDefaults.scale(focusedScale = 1.12f),
+                            modifier = Modifier
+                                .size(38.dp)
+                                .focusRequester(backButtonFocusRequester)
+                                .focusProperties {
+                                    down = seekBarFocusRequester
+                                },
+                            scale = ButtonDefaults.scale(focusedScale = 1.0f),
                             colors = ButtonDefaults.colors(
                                 containerColor = Color.White.copy(alpha = 0.25f),
                                 contentColor = Color.White,
@@ -222,12 +873,23 @@ fun PlayerScreen(
                             border = ButtonDefaults.border(
                                 focusedBorder = Border(
                                     border = BorderStroke(2.dp, Color.White),
-                                    shape = RoundedCornerShape(4.dp)
+                                    shape = androidx.compose.foundation.shape.CircleShape
                                 )
                             ),
-                            shape = ButtonDefaults.shape(shape = RoundedCornerShape(4.dp))
+                            shape = ButtonDefaults.shape(shape = androidx.compose.foundation.shape.CircleShape),
+                            contentPadding = PaddingValues(0.dp)
                         ) {
-                            Text("← VOLVER", fontWeight = FontWeight.Bold, fontFamily = Inter)
+                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                Icon(Icons.Default.ArrowBack, contentDescription = "Volver", modifier = Modifier.size(18.dp))
+                            }
+                        }
+
+                        val subtitleText = remember(episode) {
+                            if (episode.title.startsWith("Episodio", ignoreCase = true)) {
+                                episode.title
+                            } else {
+                                "Episodio ${episode.number}: ${episode.title}"
+                            }
                         }
 
                         Column(horizontalAlignment = Alignment.End) {
@@ -239,7 +901,7 @@ fun PlayerScreen(
                                 fontFamily = BebasNeue
                             )
                             Text(
-                                text = "Episodio ${episode.number} - ${episode.title}",
+                                text = subtitleText,
                                 color = NetflixLightGrey,
                                 fontSize = 14.sp,
                                 fontFamily = Inter
@@ -254,50 +916,184 @@ fun PlayerScreen(
                             .align(Alignment.BottomCenter),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        // Progress Bar & Time Labels
-                        val progress = if (durationMs > 0) currentTimeMs.toFloat() / durationMs.toFloat() else 0f
-                        val currentFormatted = formatTime(currentTimeMs)
+                        // Interactive Progress Bar, Time Labels & Floating Preview Tooltip
+                        val displayTimeMs = if (isSeekBarFocused) scrubTimeMs else currentTimeMs
+                        val progress = if (durationMs > 0) displayTimeMs.toFloat() / durationMs.toFloat() else 0f
+                        val currentFormatted = formatTime(displayTimeMs)
                         val totalFormatted = formatTime(durationMs)
 
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(currentFormatted, color = Color.White, fontSize = 12.sp, fontFamily = Inter)
-                            Text(totalFormatted, color = NetflixLightGrey, fontSize = 12.sp, fontFamily = Inter)
-                        }
 
-                        Spacer(modifier = Modifier.height(4.dp))
 
-                        // Red Netflix TV Seek Bar
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(6.dp)
-                                .clip(RoundedCornerShape(3.dp))
-                                .background(Color.White.copy(alpha = 0.3f))
+                        // Floating Time Badge Tooltip Card (Only displays the time number when seekbar is focused)
+                        AnimatedVisibility(
+                            visible = isSeekBarFocused,
+                            enter = fadeIn() + expandVertically(),
+                            exit = fadeOut() + shrinkVertically()
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .fillMaxHeight()
-                                    .fillMaxWidth(progress.coerceIn(0f, 1f))
-                                    .background(NetflixRed)
+                                    .fillMaxWidth()
+                                    .padding(bottom = 8.dp),
+                                contentAlignment = Alignment.BottomStart
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth(progress.coerceIn(0.08f, 0.92f))
+                                        .wrapContentWidth(Alignment.End)
+                                ) {
+                                    Surface(
+                                        shape = RoundedCornerShape(50.dp),
+                                        color = Color(0xFF222222).copy(alpha = 0.95f),
+                                        border = null
+                                    ) {
+                                        Text(
+                                            text = formatTime(scrubTimeMs),
+                                            color = Color.White,
+                                            fontSize = 16.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            fontFamily = Inter,
+                                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        // Seekbar + Total Duration in the SAME Row with small spacing
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // Interactive Red Netflix TV Seek Bar Track & Playhead Dot (●)
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(24.dp)
+                                    .onFocusChanged { focusState ->
+                                        isSeekBarFocused = focusState.isFocused
+                                    }
+                                    .focusRequester(seekBarFocusRequester)
+                                    .focusProperties {
+                                        up = backButtonFocusRequester
+                                        down = playButtonFocusRequester
+                                    }
+                                    .focusable()
+                                    .padding(vertical = 4.dp)
+                                    .onKeyEvent { keyEvent ->
+                                        if (keyEvent.type == KeyEventType.KeyDown) {
+                                            lastUserInteractionTime = System.currentTimeMillis()
+                                            when (keyEvent.nativeKeyEvent.keyCode) {
+                                                android.view.KeyEvent.KEYCODE_DPAD_LEFT -> {
+                                                    scrubTimeMs = (scrubTimeMs - 10_000L).coerceAtLeast(0L)
+                                                    exoPlayer.seekTo(scrubTimeMs) // Live frame preview
+                                                    return@onKeyEvent true
+                                                }
+                                                android.view.KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                                                    scrubTimeMs = (scrubTimeMs + 10_000L).coerceAtMost(durationMs)
+                                                    exoPlayer.seekTo(scrubTimeMs) // Live frame preview
+                                                    return@onKeyEvent true
+                                                }
+                                                android.view.KeyEvent.KEYCODE_DPAD_UP -> {
+                                                    // Layer navigation: Seekbar → Back button
+                                                    try { backButtonFocusRequester.requestFocus() } catch (_: Exception) {}
+                                                    return@onKeyEvent true
+                                                }
+                                                android.view.KeyEvent.KEYCODE_DPAD_DOWN -> {
+                                                    // Layer navigation: Seekbar → Control buttons
+                                                    try { playButtonFocusRequester.requestFocus() } catch (_: Exception) {}
+                                                    return@onKeyEvent true
+                                                }
+                                                android.view.KeyEvent.KEYCODE_DPAD_CENTER,
+                                                android.view.KeyEvent.KEYCODE_ENTER -> {
+                                                    exoPlayer.seekTo(scrubTimeMs)
+                                                    if (wasPlayingBeforeScrub) exoPlayer.play()
+                                                    return@onKeyEvent true
+                                                }
+                                            }
+                                        }
+                                        false
+                                    },
+                                contentAlignment = Alignment.CenterStart
+                            ) {
+                                // Animated Track Height (Straight track, no borders: 3.5.dp -> 4.5.dp)
+                                val trackHeight by animateDpAsState(targetValue = if (isSeekBarFocused) 4.5.dp else 3.5.dp, label = "trackHeight")
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(trackHeight)
+                                        .background(Color.White.copy(alpha = 0.3f))
+                                ) {
+                                    val bufferProgress = if (durationMs > 0) bufferedMs.toFloat() / durationMs.toFloat() else 0f
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxHeight()
+                                            .fillMaxWidth(bufferProgress.coerceIn(0f, 1f))
+                                            .background(Color.White.copy(alpha = 0.5f))
+                                    )
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxHeight()
+                                            .fillMaxWidth(progress.coerceIn(0f, 1f))
+                                            .background(NetflixRed)
+                                    )
+                                }
+
+                                // Pure Red Playhead Dot (●) - 3 points larger (11.dp -> 15.dp)
+                                val dotSize by animateDpAsState(targetValue = if (isSeekBarFocused) 15.dp else 11.dp, label = "dotSize")
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth(progress.coerceIn(0f, 1f))
+                                        .wrapContentWidth(Alignment.End)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(dotSize)
+                                            .clip(androidx.compose.foundation.shape.CircleShape)
+                                            .background(NetflixRed)
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.width(12.dp))
+
+                            Text(
+                                text = totalFormatted,
+                                color = NetflixLightGrey,
+                                fontSize = 13.sp,
+                                fontFamily = Inter
                             )
                         }
 
                         Spacer(modifier = Modifier.height(20.dp))
 
-                        // Control Buttons Row with unified TV style
+                        // Control Buttons Row
                         Row(
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            modifier = Modifier
+                                .focusProperties {
+                                    up = seekBarFocusRequester
+                                }
+                                .onPreviewKeyEvent { keyEvent ->
+                                    if (keyEvent.type == KeyEventType.KeyDown && keyEvent.nativeKeyEvent.keyCode == android.view.KeyEvent.KEYCODE_DPAD_UP) {
+                                        try { seekBarFocusRequester.requestFocus() } catch (_: Exception) {}
+                                        return@onPreviewKeyEvent true
+                                    }
+                                    false
+                                },
+                            horizontalArrangement = Arrangement.spacedBy(16.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             // Previous Episode Button
                             if (onPreviousEpisode != null) {
                                 Button(
                                     onClick = { onPreviousEpisode() },
-                                    scale = ButtonDefaults.scale(focusedScale = 1.12f),
+                                    modifier = Modifier
+                                        .size(42.dp)
+                                        .onPreviewKeyEvent { k ->
+                                            if (k.type == KeyEventType.KeyDown && k.nativeKeyEvent.keyCode == android.view.KeyEvent.KEYCODE_DPAD_LEFT) true else false
+                                        },
+                                    scale = ButtonDefaults.scale(focusedScale = 1.0f),
                                     colors = ButtonDefaults.colors(
                                         containerColor = Color.White.copy(alpha = 0.25f),
                                         contentColor = Color.White,
@@ -307,19 +1103,29 @@ fun PlayerScreen(
                                     border = ButtonDefaults.border(
                                         focusedBorder = Border(
                                             border = BorderStroke(2.dp, Color.White),
-                                            shape = RoundedCornerShape(4.dp)
+                                            shape = androidx.compose.foundation.shape.CircleShape
                                         )
                                     ),
-                                    shape = ButtonDefaults.shape(shape = RoundedCornerShape(4.dp))
+                                    shape = ButtonDefaults.shape(shape = androidx.compose.foundation.shape.CircleShape),
+                                    contentPadding = PaddingValues(0.dp)
                                 ) {
-                                    Text("⏮ EP. ANTERIOR", fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = Inter)
+                                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                        Icon(Icons.Default.SkipPrevious, contentDescription = "Episodio Anterior", modifier = Modifier.size(22.dp))
+                                    }
                                 }
                             }
 
                             // -10 Seconds
                             Button(
                                 onClick = { exoPlayer.seekTo((exoPlayer.currentPosition - 10000).coerceAtLeast(0)) },
-                                scale = ButtonDefaults.scale(focusedScale = 1.12f),
+                                modifier = Modifier
+                                    .size(42.dp)
+                                    .then(
+                                        if (onPreviousEpisode == null) Modifier.onPreviewKeyEvent { k ->
+                                            if (k.type == KeyEventType.KeyDown && k.nativeKeyEvent.keyCode == android.view.KeyEvent.KEYCODE_DPAD_LEFT) true else false
+                                        } else Modifier
+                                    ),
+                                scale = ButtonDefaults.scale(focusedScale = 1.0f),
                                 colors = ButtonDefaults.colors(
                                     containerColor = Color.White.copy(alpha = 0.25f),
                                     contentColor = Color.White,
@@ -329,48 +1135,55 @@ fun PlayerScreen(
                                 border = ButtonDefaults.border(
                                     focusedBorder = Border(
                                         border = BorderStroke(2.dp, Color.White),
-                                        shape = RoundedCornerShape(4.dp)
+                                        shape = androidx.compose.foundation.shape.CircleShape
                                     )
                                 ),
-                                shape = ButtonDefaults.shape(shape = RoundedCornerShape(4.dp))
+                                shape = ButtonDefaults.shape(shape = androidx.compose.foundation.shape.CircleShape),
+                                contentPadding = PaddingValues(0.dp)
                             ) {
-                                Text("↺ -10s", fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = Inter)
+                                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                    Icon(Icons.Default.Replay10, contentDescription = "-10 Segundos", modifier = Modifier.size(22.dp))
+                                }
                             }
 
-                            // Play / Pause Main Action
+                            // Play / Pause Main Action (Hero Compact Circular Button)
                             Button(
                                 onClick = {
                                     if (isPlaying) exoPlayer.pause() else exoPlayer.play()
                                 },
-                                modifier = Modifier.focusRequester(playButtonFocusRequester),
-                                scale = ButtonDefaults.scale(focusedScale = 1.15f),
+                                modifier = Modifier
+                                    .size(42.dp)
+                                    .focusRequester(playButtonFocusRequester),
+                                scale = ButtonDefaults.scale(focusedScale = 1.0f),
                                 colors = ButtonDefaults.colors(
-                                    containerColor = Color.White,
-                                    contentColor = Color.Black,
+                                    containerColor = Color.White.copy(alpha = 0.25f),
+                                    contentColor = Color.White,
                                     focusedContainerColor = Color.White,
                                     focusedContentColor = Color.Black
                                 ),
                                 border = ButtonDefaults.border(
                                     focusedBorder = Border(
                                         border = BorderStroke(2.dp, Color.White),
-                                        shape = RoundedCornerShape(4.dp)
+                                        shape = androidx.compose.foundation.shape.CircleShape
                                     )
                                 ),
-                                shape = ButtonDefaults.shape(shape = RoundedCornerShape(4.dp)),
-                                contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp)
+                                shape = ButtonDefaults.shape(shape = androidx.compose.foundation.shape.CircleShape),
+                                contentPadding = PaddingValues(0.dp)
                             ) {
-                                Text(
-                                    text = if (isPlaying) "⏸  PAUSA" else "▶  REPRODUCIR",
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Black,
-                                    fontFamily = Inter
-                                )
+                                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                        contentDescription = if (isPlaying) "Pausa" else "Reproducir",
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                }
                             }
 
                             // +10 Seconds
                             Button(
                                 onClick = { exoPlayer.seekTo((exoPlayer.currentPosition + 10000).coerceAtMost(exoPlayer.duration)) },
-                                scale = ButtonDefaults.scale(focusedScale = 1.12f),
+                                modifier = Modifier.size(42.dp),
+                                scale = ButtonDefaults.scale(focusedScale = 1.0f),
                                 colors = ButtonDefaults.colors(
                                     containerColor = Color.White.copy(alpha = 0.25f),
                                     contentColor = Color.White,
@@ -380,19 +1193,23 @@ fun PlayerScreen(
                                 border = ButtonDefaults.border(
                                     focusedBorder = Border(
                                         border = BorderStroke(2.dp, Color.White),
-                                        shape = RoundedCornerShape(4.dp)
+                                        shape = androidx.compose.foundation.shape.CircleShape
                                     )
                                 ),
-                                shape = ButtonDefaults.shape(shape = RoundedCornerShape(4.dp))
+                                shape = ButtonDefaults.shape(shape = androidx.compose.foundation.shape.CircleShape),
+                                contentPadding = PaddingValues(0.dp)
                             ) {
-                                Text("↻ +10s", fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = Inter)
+                                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                    Icon(Icons.Default.Forward10, contentDescription = "+10 Segundos", modifier = Modifier.size(22.dp))
+                                }
                             }
 
                             // Next Episode Button
                             if (onNextEpisode != null) {
                                 Button(
                                     onClick = { onNextEpisode() },
-                                    scale = ButtonDefaults.scale(focusedScale = 1.12f),
+                                    modifier = Modifier.size(42.dp),
+                                    scale = ButtonDefaults.scale(focusedScale = 1.0f),
                                     colors = ButtonDefaults.colors(
                                         containerColor = Color.White.copy(alpha = 0.25f),
                                         contentColor = Color.White,
@@ -402,14 +1219,163 @@ fun PlayerScreen(
                                     border = ButtonDefaults.border(
                                         focusedBorder = Border(
                                             border = BorderStroke(2.dp, Color.White),
-                                            shape = RoundedCornerShape(4.dp)
+                                            shape = androidx.compose.foundation.shape.CircleShape
                                         )
                                     ),
-                                    shape = ButtonDefaults.shape(shape = RoundedCornerShape(4.dp))
+                                    shape = ButtonDefaults.shape(shape = androidx.compose.foundation.shape.CircleShape),
+                                    contentPadding = PaddingValues(0.dp)
                                 ) {
-                                    Text("⏭ SIGUIENTE EP.", fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = Inter)
+                                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                        Icon(Icons.Default.SkipNext, contentDescription = "Siguiente Episodio", modifier = Modifier.size(22.dp))
+                                    }
                                 }
                             }
+
+                            // Server Selector Button (Manual Quality / Provider Switching)
+                            if (serverList.isNotEmpty()) {
+                                Button(
+                                    onClick = { showServerMenu = true },
+                                    modifier = Modifier.height(42.dp),
+                                    scale = ButtonDefaults.scale(focusedScale = 1.0f),
+                                    colors = ButtonDefaults.colors(
+                                        containerColor = Color.White.copy(alpha = 0.25f),
+                                        contentColor = Color.White,
+                                        focusedContainerColor = Color.White,
+                                        focusedContentColor = Color.Black
+                                    ),
+                                    border = ButtonDefaults.border(
+                                        focusedBorder = Border(
+                                            border = BorderStroke(2.dp, Color.White),
+                                            shape = RoundedCornerShape(21.dp)
+                                        )
+                                    ),
+                                    shape = ButtonDefaults.shape(shape = RoundedCornerShape(21.dp)),
+                                    contentPadding = PaddingValues(horizontal = 14.dp)
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.Dns, contentDescription = "Servidores", modifier = Modifier.size(18.dp))
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = serverList.getOrNull(currentServerIndex)?.server ?: "SERVIDOR",
+                                            fontFamily = Inter,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Server Selection Dialog Overlay Modal (With D-Pad Focus & Scroll Support)
+        if (showServerMenu) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.90f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Surface(
+                    modifier = Modifier
+                        .width(440.dp)
+                        .wrapContentHeight(),
+                    shape = RoundedCornerShape(14.dp),
+                    color = NetflixDarkGrey,
+                    border = BorderStroke(1.5.dp, NetflixRed.copy(alpha = 0.8f))
+                ) {
+                    Column(modifier = Modifier.padding(24.dp)) {
+                        Text(
+                            text = "SELECCIONAR SERVIDOR DE VIDEO",
+                            color = Color.White,
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = BebasNeue
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Elige cualquier opción con el control remoto si un servidor va pesado.",
+                            color = NetflixLightGrey,
+                            fontSize = 12.sp,
+                            fontFamily = Inter
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        // Scrollable Container for all 11+ Servers
+                        LazyColumn(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 290.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            itemsIndexed(serverList) { idx, s ->
+                                val isSelected = idx == currentServerIndex
+                                Button(
+                                    onClick = {
+                                        playServer(idx)
+                                        showServerMenu = false
+                                    },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .then(if (idx == 0) Modifier.focusRequester(firstServerFocusRequester) else Modifier),
+                                    scale = ButtonDefaults.scale(focusedScale = 1.05f),
+                                    colors = ButtonDefaults.colors(
+                                        containerColor = if (isSelected) NetflixRed else Color.White.copy(alpha = 0.12f),
+                                        contentColor = Color.White,
+                                        focusedContainerColor = Color.White,
+                                        focusedContentColor = Color.Black
+                                    ),
+                                    border = ButtonDefaults.border(
+                                        focusedBorder = Border(
+                                            border = BorderStroke(2.dp, Color.White),
+                                            shape = RoundedCornerShape(6.dp)
+                                        )
+                                    ),
+                                    shape = ButtonDefaults.shape(shape = RoundedCornerShape(6.dp))
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = s.title,
+                                            fontFamily = Inter,
+                                            fontSize = 13.sp,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                        )
+                                        if (isSelected) {
+                                            Text(
+                                                text = "● En uso",
+                                                fontFamily = Inter,
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color.White
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Button(
+                            onClick = { showServerMenu = false },
+                            modifier = Modifier.fillMaxWidth(),
+                            scale = ButtonDefaults.scale(focusedScale = 1.05f),
+                            colors = ButtonDefaults.colors(
+                                containerColor = Color.White.copy(alpha = 0.2f),
+                                contentColor = Color.White,
+                                focusedContainerColor = Color.White,
+                                focusedContentColor = Color.Black
+                            ),
+                            shape = ButtonDefaults.shape(shape = RoundedCornerShape(6.dp))
+                        ) {
+                            Text("Cerrar", fontFamily = Inter, fontSize = 13.sp)
                         }
                     }
                 }

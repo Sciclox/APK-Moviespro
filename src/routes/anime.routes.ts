@@ -19,9 +19,10 @@ router.get('/health', (_req: Request, res: Response) => {
  * @route GET /api/v1/anime/hero
  * @desc Get featured anime banners for TV home screen
  */
-router.get('/anime/hero', async (_req: Request, res: Response) => {
+router.get('/anime/hero', async (req: Request, res: Response) => {
   try {
-    const banners = await ScraperService.getHeroBanners();
+    const tipo = req.query.tipo as string;
+    const banners = await ScraperService.getHeroBanners(tipo);
     res.json({ success: true, data: banners });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });

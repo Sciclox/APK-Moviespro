@@ -1,4 +1,4 @@
-- [x] Add `material-icons-extended` to `libs.versions.toml`
-- [x] Add dependency to `app/build.gradle.kts`
-- [x] Sync Gradle
-- [x] Run `app:assembleDebug` to verify fix
+- [ ] Fix syntax and structure in `HomeScreen.kt`
+- [ ] Implement `focusProperties` guard in `MainActivity.kt`
+- [ ] Stabilize `requestFocus` calls in `DetailScreen.kt` and `MyListScreen.kt`
+- [ ] Run `app:assembleDebug` and verify stability

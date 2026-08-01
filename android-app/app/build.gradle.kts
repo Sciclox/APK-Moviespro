@@ -59,9 +59,11 @@ dependencies {
     implementation(libs.androidx.media3.exoplayer)
     implementation(libs.androidx.media3.ui)
     implementation(libs.androidx.media3.exoplayer.hls)
+    implementation(libs.androidx.media3.datasource.okhttp)
 
     // Image Loader for Compose
     implementation(libs.coil.compose)
+    implementation("androidx.palette:palette-ktx:1.0.0")
 
     // Networking (Retrofit + Gson)
     implementation(libs.retrofit)

@@ -8,7 +8,7 @@ import retrofit2.http.Query
 interface AnimeApiService {
 
     @GET("api/v1/anime/hero")
-    suspend fun getHeroBanners(): ApiResponse<List<AnimeItem>>
+    suspend fun getHeroBanners(@Query("tipo") tipo: String? = null): ApiResponse<List<AnimeItem>>
 
     @GET("api/v1/anime/latest")
     suspend fun getLatest(): ApiResponse<List<AnimeItem>>
@@ -19,6 +19,10 @@ interface AnimeApiService {
     @GET("api/v1/anime/catalog")
     suspend fun getCatalog(
         @Query("genre") genre: String? = null,
+        @Query("categoria") categoria: String? = null,
+        @Query("tipo") tipo: String? = null,
+        @Query("estado") estado: String? = null,
+        @Query("demografia") demografia: String? = null,
         @Query("page") page: Int = 1
     ): ApiResponse<List<AnimeItem>>
 

@@ -15,6 +15,9 @@ object ApiClient {
 
     private val okHttpClient = OkHttpClient.Builder()
         .addInterceptor(loggingInterceptor)
+        .connectTimeout(45, java.util.concurrent.TimeUnit.SECONDS)
+        .readTimeout(45, java.util.concurrent.TimeUnit.SECONDS)
+        .writeTimeout(45, java.util.concurrent.TimeUnit.SECONDS)
         .build()
 
     val apiService: AnimeApiService by lazy {

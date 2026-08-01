@@ -19,6 +19,7 @@ import com.animetv.app.ui.theme.BebasNeue
 import com.animetv.app.ui.theme.NetflixBlack
 import com.animetv.app.ui.theme.NetflixRed
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @Composable
 fun SplashScreen(
@@ -31,7 +32,15 @@ fun SplashScreen(
     // Fade out at end
     val fadeOutAnim = remember { Animatable(1f) }
 
+    var showColdStartMessage by remember { mutableStateOf(false) }
+
     LaunchedEffect(Unit) {
+        // Delay timer to show cold-start message if server is waking up
+        launch {
+            delay(3000)
+            showColdStartMessage = true
+        }
+
         // Phase 1: Fade in + Scale up the N logo
         alphaAnim.animateTo(
             targetValue = 1f,
@@ -70,45 +79,36 @@ fun SplashScreen(
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-            modifier = Modifier
-                .scale(scaleAnim.value)
-                .graphicsLayer { alpha = alphaAnim.value }
+            verticalArrangement = Arrangement.Center
         ) {
-            // Big Red "N" Logo
             Box(
                 modifier = Modifier
-                    .width(80.dp)
-                    .height(100.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(NetflixRed),
+                    .scale(scaleAnim.value)
+                    .graphicsLayer { alpha = alphaAnim.value },
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = "N",
-                    color = Color.White,
-                    fontSize = 72.sp,
-                    fontFamily = BebasNeue,
-                    fontWeight = FontWeight.Normal
+                androidx.compose.foundation.Image(
+                    painter = androidx.compose.ui.res.painterResource(id = com.animetv.app.R.drawable.logo_splash),
+                    contentDescription = "Splash Logo",
+                    contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+                    modifier = Modifier
+                        .width(320.dp)
+                        .height(160.dp)
                 )
             }
-
-            Row {
-                Text(
-                    text = "ANIME",
+            if (showColdStartMessage) {
+                Spacer(modifier = Modifier.height(16.dp))
+                androidx.compose.material3.CircularProgressIndicator(
                     color = NetflixRed,
-                    fontSize = 32.sp,
-                    fontFamily = BebasNeue,
-                    fontWeight = FontWeight.Normal,
-                    letterSpacing = 3.sp
+                    strokeWidth = 2.dp,
+                    modifier = Modifier.size(24.dp)
                 )
+                Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = " TV",
-                    color = Color.White,
-                    fontSize = 32.sp,
-                    fontFamily = BebasNeue,
-                    fontWeight = FontWeight.Normal,
-                    letterSpacing = 3.sp
+                    text = "Conectando con el servidor de streaming...",
+                    color = com.animetv.app.ui.theme.NetflixLightGrey,
+                    fontSize = 14.sp,
+                    fontFamily = com.animetv.app.ui.theme.Inter
                 )
             }
         }

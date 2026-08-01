@@ -37,31 +37,56 @@ export class TMDBService {
    * Fetch metadata enriched with 100% Spanish synopsis & episode stills from TMDB / AnimeVerse
    */
   static async getSpanishMetadata(title: string): Promise<EnrichedMetadata | null> {
-    try {
-      const url = `${CONFIG.ANIMEVERSE_BASE_URL}/api/v1/anime/enrich?title=${encodeURIComponent(title)}`;
-      const { data } = await axios.get(url, { timeout: 5000 });
+    if (!title) return null;
 
-      if (data) {
-        const details = data.details || data.tmdb || {};
-        const overview = details.overview || null;
-        const backdropPath = details.backdrop_path ? `${CONFIG.TMDB_IMAGE_BASE}${details.backdrop_path}` : null;
-        const posterPath = details.poster_path ? `${CONFIG.TMDB_IMAGE_BASE}${details.poster_path}` : null;
-        const voteAverage = details.vote_average ? Math.round(details.vote_average * 10) / 10 : null;
-        const year = details.first_air_date ? parseInt(details.first_air_date.split('-')[0], 10) : null;
-        const episodeStills: Record<string, string> = data.episodeStills || {};
+    // Generate candidate title queries to handle titles with colons, slashes, or franchise prefixes
+    const candidates: string[] = [title];
 
-        return {
-          synopsis: overview,
-          backdrop: backdropPath,
-          image: posterPath,
-          score: voteAverage,
-          year: year,
-          episodeStills: episodeStills,
-        };
+    if (title.includes('//') || title.includes(':') || title.includes('-')) {
+      const clean = title.replace(/\/\//g, ' ').replace(/:/g, ' ').replace(/\s+/g, ' ').trim();
+      if (clean && !candidates.includes(clean)) candidates.push(clean);
+
+      if (title.includes('//')) {
+        const afterSlash = title.split('//').pop()?.trim();
+        if (afterSlash && !candidates.includes(afterSlash)) candidates.push(afterSlash);
       }
-    } catch {
-      // ignore
+
+      if (title.includes(':')) {
+        const afterColon = title.split(':').pop()?.trim();
+        if (afterColon && !candidates.includes(afterColon)) candidates.push(afterColon);
+      }
     }
+
+    for (const queryTitle of candidates) {
+      try {
+        const url = `${CONFIG.ANIMEVERSE_BASE_URL}/api/v1/anime/enrich?title=${encodeURIComponent(queryTitle)}`;
+        const { data } = await axios.get(url, { timeout: 4000 });
+
+        if (data) {
+          const details = data.details || data.tmdb || {};
+          const overview = details.overview || null;
+          const backdropPath = details.backdrop_path ? `${CONFIG.TMDB_IMAGE_BASE}${details.backdrop_path}` : null;
+          const posterPath = details.poster_path ? `${CONFIG.TMDB_IMAGE_BASE}${details.poster_path}` : null;
+          const voteAverage = details.vote_average ? Math.round(details.vote_average * 10) / 10 : null;
+          const year = details.first_air_date ? parseInt(details.first_air_date.split('-')[0], 10) : null;
+          const episodeStills: Record<string, string> = data.episodeStills || {};
+
+          if (backdropPath || overview) {
+            return {
+              synopsis: overview,
+              backdrop: backdropPath,
+              image: posterPath,
+              score: voteAverage,
+              year: year,
+              episodeStills: episodeStills,
+            };
+          }
+        }
+      } catch {
+        // Try next candidate
+      }
+    }
+
     return null;
   }
 

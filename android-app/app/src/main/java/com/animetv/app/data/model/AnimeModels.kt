@@ -12,9 +12,10 @@ data class AnimeItem(
     @SerializedName("title") val title: String,
     @SerializedName("slug") val slug: String,
     @SerializedName("image") val image: String,
-    @SerializedName("backdrop") val backdrop: String?,
-    @SerializedName("type") val type: String?,
-    @SerializedName("synopsis") val synopsis: String?
+    @SerializedName("backdrop") val backdrop: String? = null,
+    @SerializedName("type") val type: String? = null,
+    @SerializedName("status") val status: String? = null,
+    @SerializedName("synopsis") val synopsis: String? = null
 )
 
 data class EpisodeItem(
@@ -30,6 +31,7 @@ data class EpisodeItem(
 data class AnimeDetail(
     @SerializedName("id") val id: String,
     @SerializedName("title") val title: String,
+    @SerializedName("englishTitle") val englishTitle: String? = null,
     @SerializedName("japaneseTitle") val japaneseTitle: String?,
     @SerializedName("slug") val slug: String,
     @SerializedName("synopsis") val synopsis: String,
@@ -55,4 +57,17 @@ data class WatchResponse(
     @SerializedName("animeTitle") val animeTitle: String,
     @SerializedName("episodeNumber") val episodeNumber: Int,
     @SerializedName("servers") val servers: List<StreamSource>
+)
+
+data class WatchHistoryItem(
+    @SerializedName("animeId") val animeId: String,
+    @SerializedName("animeSlug") val animeSlug: String,
+    @SerializedName("animeTitle") val animeTitle: String,
+    @SerializedName("animeImage") val animeImage: String,
+    @SerializedName("backdrop") val backdrop: String? = null,
+    @SerializedName("episodeNumber") val episodeNumber: Int,
+    @SerializedName("episodeTitle") val episodeTitle: String,
+    @SerializedName("lastPositionMs") val lastPositionMs: Long = 0L,
+    @SerializedName("durationMs") val durationMs: Long = 0L,
+    @SerializedName("updatedAt") val updatedAt: Long = System.currentTimeMillis()
 )

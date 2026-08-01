@@ -61,9 +61,41 @@ export class ScraperService {
   /**
    * Fetch Hero Banners for TV Home Screen
    */
-  static async getHeroBanners(): Promise<AnimeItem[]> {
-    const cached = apiCache.get<AnimeItem[]>('hero_banners');
+  static async getHeroBanners(tipo?: string): Promise<AnimeItem[]> {
+    const isMovies = tipo?.toLowerCase() === 'peliculas';
+    const cacheKey = isMovies ? 'hero_banners_peliculas' : 'hero_banners_home';
+    const cached = apiCache.get<AnimeItem[]>(cacheKey);
     if (cached) return cached;
+
+    if (isMovies) {
+      try {
+        const catalogMovies = await this.getCatalog({ tipo: 'peliculas', page: 1 });
+        if (catalogMovies && catalogMovies.length > 0) {
+          const top5Movies = catalogMovies.slice(0, 5);
+          const enrichedTop5 = await Promise.all(
+            top5Movies.map(async (item) => {
+              try {
+                const spanishMeta = await TMDBService.getSpanishMetadata(item.title);
+                if (spanishMeta && spanishMeta.backdrop) {
+                  return {
+                    ...item,
+                    backdrop: spanishMeta.backdrop,
+                    synopsis: spanishMeta.synopsis || item.synopsis,
+                  };
+                }
+              } catch (_e) {}
+              return item;
+            })
+          );
+
+          apiCache.set(cacheKey, enrichedTop5, 900); // 15-min cache
+          return enrichedTop5;
+        }
+      } catch (e) {
+        console.error('Error fetching movie hero banners:', e);
+      }
+    }
+
     try {
       const url = `${CONFIG.ANIMEVERSE_BASE_URL}/api/v1/anime/hero`;
       const { data } = await axios.get(url, { timeout: 6000 });
@@ -88,7 +120,7 @@ export class ScraperService {
             provider: 'AnimeVerse',
           };
         });
-        apiCache.set('hero_banners', result, 900); // 15-min cache
+        apiCache.set(cacheKey, result, 900); // 15-min cache
         return result;
       }
     } catch (e) {
@@ -267,7 +299,7 @@ export class ScraperService {
       if (match && match[1]) {
         const parsed = JSON.parse(match[1]);
         if (parsed && Array.isArray(parsed.data)) {
-          return parsed.data.map((item: any) => {
+          const rawItems: AnimeItem[] = parsed.data.map((item: any) => {
             const rawSlug = item.slug || item.id || item.title;
             const slug = cleanSlug(rawSlug);
             const title = cleanTitle(item.title, slug);
@@ -283,6 +315,27 @@ export class ScraperService {
               provider: 'JKAnime Directorio',
             };
           });
+
+          // Enrich top catalog items (especially movies) with 16:9 TMDB Backdrops
+          const enrichedItems = await Promise.all(
+            rawItems.map(async (animeItem, idx) => {
+              if (idx < 10 || cleanTipo === 'peliculas') {
+                try {
+                  const spanishMeta = await TMDBService.getSpanishMetadata(animeItem.title);
+                  if (spanishMeta && spanishMeta.backdrop) {
+                    return {
+                      ...animeItem,
+                      backdrop: spanishMeta.backdrop,
+                      synopsis: spanishMeta.synopsis || animeItem.synopsis,
+                    };
+                  }
+                } catch (_e) {}
+              }
+              return animeItem;
+            })
+          );
+
+          return enrichedItems;
         }
       }
     } catch (e) {

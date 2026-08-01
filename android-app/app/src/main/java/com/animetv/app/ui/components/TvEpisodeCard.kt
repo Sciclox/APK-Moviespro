@@ -17,7 +17,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.*
+import androidx.compose.ui.platform.LocalContext
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.animetv.app.data.model.EpisodeItem
 import com.animetv.app.ui.theme.Inter
 import com.animetv.app.ui.theme.NetflixRed
@@ -29,6 +31,7 @@ fun TvEpisodeCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
     var isFocused by remember { mutableStateOf(false) }
 
     Card(
@@ -49,7 +52,11 @@ fun TvEpisodeCard(
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
             AsyncImage(
-                model = episode.image ?: "https://image.tmdb.org/t/p/w780/wokec1ewZhYNMLcKuK01H09i2pB.jpg",
+                model = ImageRequest.Builder(context)
+                    .data(episode.image ?: "https://image.tmdb.org/t/p/w780/wokec1ewZhYNMLcKuK01H09i2pB.jpg")
+                    .crossfade(true)
+                    .size(400, 225)
+                    .build(),
                 contentDescription = episode.title,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize()

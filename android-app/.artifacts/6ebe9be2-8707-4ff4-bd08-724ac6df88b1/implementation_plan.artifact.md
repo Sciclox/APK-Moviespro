@@ -1,27 +1,41 @@
-# Plan de Solución de Errores - Anime TV
+# Plan de Solución: Errores de Navegación y Cierre de App
 
-Este plan aborda los errores de compilación introducidos por el nuevo componente de navegación `NetflixSideNav`.
+Este plan aborda los cierres inesperados (crashes) que ocurren al navegar por la aplicación en el emulador de Android TV.
 
 ## Problemas Identificados
 
-### Errores de Referencia en `NetflixSideNav.kt`
-- El componente utiliza iconos de Material Design (`Tv` y `BookmarkBorder`) que no están incluidos en la librería base de iconos.
-- Falta la dependencia `androidx.compose.material:material-icons-extended` en el proyecto.
+### Crash `IllegalStateException: LayoutCoordinate operations are only valid when isAttached is true`
+- **Causa**: El sistema de foco de Compose intenta buscar el siguiente elemento (traversal) mientras una pantalla se está desmontando durante una transición de `AnimatedContent`.
+- **Efecto**: La aplicación se cierra inmediatamente.
+- **Ubicación**: Principalmente en transiciones entre `Home`, `Search` y `Detail`.
+
+### Conflictos de `requestFocus`
+- Múltiples `LaunchedEffect` en diferentes pantallas intentan robar el foco al mismo tiempo, especialmente durante los 200ms iniciales de carga.
 
 ## Cambios Propuestos
 
-### Configuración de Dependencias
+### Arquitectura de Navegación
 
-#### [MODIFY] [libs.versions.toml](file:///C:/Users/Lenovo/OneDrive/Documentos/Proyectos/APK-AnimeTV/android-app/gradle/libs.versions.toml)
-- Añadir la entrada para `material-icons-extended` en la sección de librerías.
+#### [MODIFY] [MainActivity.kt](file:///C:/Users/Lenovo/OneDrive/Documentos/Proyectos/APK-AnimeTV/android-app/app/src/main/java/com/animetv/app/MainActivity.kt)
+- Utilizar `AnimatedContent` con una propiedad de foco controlada.
+- Aplicar `Modifier.focusProperties { canFocus = isVisible }` a las pantallas dentro de la transición para que el sistema de foco ignore las pantallas que están saliendo.
+- Limpiar el stack de navegación para evitar bucles de foco.
 
-#### [MODIFY] [build.gradle.kts (app)](file:///C:/Users/Lenovo/OneDrive/Documentos/Proyectos/APK-AnimeTV/android-app/app/build.gradle.kts)
-- Incluir la nueva dependencia de iconos extendidos.
+### Estabilización de Pantallas
+
+#### [MODIFY] [HomeScreen.kt](file:///C:/Users/Lenovo/OneDrive/Documentos/Proyectos/APK-AnimeTV/android-app/app/src/main/java/com/animetv/app/ui/screens/HomeScreen.kt)
+- Añadir verificaciones de seguridad antes de ejecutar `animateScrollToItem`.
+- Coordinar el foco inicial con `MainActivity` para evitar "guerras de foco".
+
+#### [MODIFY] [DetailScreen.kt](file:///C:/Users/Lenovo/OneDrive/Documentos/Proyectos/APK-AnimeTV/android-app/app/src/main/java/com/animetv/app/ui/screens/DetailScreen.kt)
+- Ajustar el tiempo de `delay` en el foco inicial para asegurar que la transición haya terminado.
 
 ## Plan de Verificación
 
 ### Pruebas Automatizadas
-- Ejecutar `gradlew app:assembleDebug` para confirmar que todos los errores de referencia se han resuelto.
+- Ejecutar `gradlew app:assembleDebug` para asegurar que no hay errores de sintaxis tras los cambios de arquitectura.
 
 ### Verificación Manual
-- Abrir el archivo `NetflixSideNav.kt` en el editor para asegurar que el IDE ya no marca errores en las importaciones de iconos.
+- Navegar rápidamente entre las pestañas `Inicio`, `Buscar` y `Mi Lista`.
+- Entrar y salir repetidamente de la pantalla de detalles de varios animes.
+- Verificar que el control remoto (D-Pad) responde siempre de forma predecible sin cerrar la app.

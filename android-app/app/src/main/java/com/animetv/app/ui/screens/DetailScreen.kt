@@ -2,6 +2,8 @@ package com.animetv.app.ui.screens
 
 import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.ui.draw.blur
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -43,6 +45,9 @@ import com.animetv.app.ui.theme.NetflixRed
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.ui.focus.onFocusChanged
+
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 fun DetailScreen(
@@ -58,10 +63,35 @@ fun DetailScreen(
     var expandedSeasonMenu by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val backButtonFocusRequester = remember { FocusRequester() }
+    val listState = rememberLazyListState()
 
     val isMovie = remember(detail, anime) {
         val rawType = (detail?.type ?: anime.type ?: "TV").uppercase()
         rawType.contains("MOVIE") || rawType.contains("PELICULA") || rawType.contains("PELÍCULA")
+    }
+
+    val cleanTitleText = remember(detail, anime) {
+        val raw = detail?.title ?: anime.title
+        val cleanSlugStr = anime.slug.replace(Regex("^(slug|anime|id)-", RegexOption.IGNORE_CASE), "")
+        if (raw.contains("perfil", ignoreCase = true) || raw.contains("editar", ignoreCase = true) || raw.startsWith("slug ", ignoreCase = true)) {
+            cleanSlugStr.replace("-", " ")
+                .split(" ")
+                .filter { it.isNotBlank() }
+                .joinToString(" ") { it.replaceFirstChar { c -> c.uppercase() } }
+        } else {
+            raw
+        }
+    }
+
+    val cleanSynopsisText = remember(detail, anime, cleanTitleText) {
+        val raw = detail?.synopsis ?: anime.synopsis ?: ""
+        if (raw.contains("editar perfil", ignoreCase = true)) {
+            "$cleanTitleText es una aclamada serie de animación japonesa con increíbles batallas e historia envolvente."
+        } else if (raw.isNotBlank()) {
+            raw
+        } else {
+            "$cleanTitleText es una aclamada serie de animación japonesa con increíbles batallas e historia envolvente."
+        }
     }
 
     val fallbackEpisodes = remember(anime, isMovie) {
@@ -110,17 +140,21 @@ fun DetailScreen(
 
     // Auto focus on ATRÁS button when screen opens
     LaunchedEffect(isLoading) {
-        if (!isLoading) {
-            delay(150)
-            try {
-                backButtonFocusRequester.requestFocus()
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
+        delay(150)
+        try {
+            backButtonFocusRequester.requestFocus()
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
     }
 
     val allEpisodes = if (detail?.episodes.isNullOrEmpty()) fallbackEpisodes else detail!!.episodes
+
+    val blurRadius by animateDpAsState(
+        targetValue = if (isLoading) 20.dp else 0.dp,
+        animationSpec = tween(durationMillis = 600),
+        label = "blur"
+    )
 
     Box(
         modifier = Modifier
@@ -133,8 +167,8 @@ fun DetailScreen(
             contentDescription = anime.title,
             contentScale = ContentScale.Crop,
             modifier = Modifier
-                .fillMaxWidth()
-                .height(480.dp)
+                .fillMaxSize()
+                .blur(blurRadius)
         )
 
         // Gradient overlay
@@ -154,27 +188,41 @@ fun DetailScreen(
                 )
         )
 
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.horizontalGradient(
-                        colors = listOf(
-                            NetflixBlack.copy(alpha = 0.95f),
-                            NetflixBlack.copy(alpha = 0.6f),
-                            Color.Transparent
-                        )
-                    )
-                )
-        )
+
 
         if (isLoading) {
             Column(
                 modifier = Modifier
-                    .padding(start = 72.dp, top = 60.dp)
+                    .padding(start = 72.dp, top = 36.dp)
                     .width(500.dp)
             ) {
-                ShimmerBox(width = 100.dp, height = 36.dp)
+                Button(
+                    onClick = { onBack() },
+                    modifier = Modifier
+                        .focusRequester(backButtonFocusRequester),
+                    scale = ButtonDefaults.scale(focusedScale = 1.08f),
+                    colors = ButtonDefaults.colors(
+                        containerColor = Color.White.copy(alpha = 0.25f),
+                        contentColor = Color.White,
+                        focusedContainerColor = Color.White,
+                        focusedContentColor = Color.Black
+                    ),
+                    border = ButtonDefaults.border(
+                        focusedBorder = Border(
+                            border = BorderStroke(2.dp, Color.White),
+                            shape = RoundedCornerShape(4.dp)
+                        )
+                    ),
+                    shape = ButtonDefaults.shape(shape = RoundedCornerShape(4.dp)),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                ) {
+                    Text(
+                        text = "←  ATRÁS",
+                        fontFamily = Inter,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp
+                    )
+                }
                 Spacer(modifier = Modifier.height(20.dp))
                 ShimmerBox(width = 320.dp, height = 40.dp)
                 Spacer(modifier = Modifier.height(12.dp))
@@ -184,6 +232,7 @@ fun DetailScreen(
             }
         } else {
             LazyColumn(
+                state = listState,
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(start = 72.dp, top = 36.dp, end = 48.dp, bottom = 48.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
@@ -191,8 +240,19 @@ fun DetailScreen(
                 // Item 1: ATRÁS Navigation Button as top item in LazyColumn
                 item {
                     Button(
-                        onClick = onBack,
-                        modifier = Modifier.focusRequester(backButtonFocusRequester),
+                        onClick = {
+                            scope.launch { listState.scrollToItem(0) }
+                            onBack()
+                        },
+                        modifier = Modifier
+                            .focusRequester(backButtonFocusRequester)
+                            .onFocusChanged { focusState ->
+                                if (focusState.isFocused) {
+                                    scope.launch {
+                                        listState.animateScrollToItem(0)
+                                    }
+                                }
+                            },
                         scale = ButtonDefaults.scale(focusedScale = 1.08f),
                         colors = ButtonDefaults.colors(
                             containerColor = Color.White.copy(alpha = 0.25f),
@@ -221,12 +281,17 @@ fun DetailScreen(
                 // Item 2: Title + Metadata
                 item {
                     Column {
-                        // N SERIE / N PELÍCULA Badge
+                        // Limotion Badge
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Text("N", color = NetflixRed, fontSize = 22.sp, fontWeight = FontWeight.Black, fontFamily = BebasNeue)
+                            androidx.compose.foundation.Image(
+                                painter = androidx.compose.ui.res.painterResource(id = com.animetv.app.R.drawable.limotion_logo),
+                                contentDescription = "Limotion Badge",
+                                contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+                                modifier = Modifier.height(20.dp)
+                            )
                             Text(
                                 text = if (isMovie) "PELÍCULA" else "SERIE",
                                 color = NetflixLightGrey,
@@ -241,7 +306,7 @@ fun DetailScreen(
 
                         // Title
                         Text(
-                            text = detail?.title ?: anime.title,
+                            text = cleanTitleText,
                             color = Color.White,
                             fontSize = 36.sp,
                             fontWeight = FontWeight.Black,
@@ -249,14 +314,7 @@ fun DetailScreen(
                             lineHeight = 38.sp
                         )
 
-                        if (!detail?.japaneseTitle.isNullOrBlank()) {
-                            Text(
-                                text = detail?.japaneseTitle ?: "",
-                                color = NetflixLightGrey,
-                                fontSize = 14.sp,
-                                fontFamily = Inter
-                            )
-                        }
+
 
                         Spacer(modifier = Modifier.height(14.dp))
 
@@ -317,7 +375,7 @@ fun DetailScreen(
                 // Item 3: Synopsis
                 item {
                     Text(
-                        text = detail?.synopsis ?: anime.synopsis ?: "Sinopsis no disponible.",
+                        text = cleanSynopsisText,
                         color = NetflixLightGrey,
                         fontSize = 14.sp,
                         lineHeight = 22.sp,

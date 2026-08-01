@@ -7,18 +7,17 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.*
 import coil.compose.AsyncImage
 import com.animetv.app.data.model.AnimeItem
 import com.animetv.app.ui.theme.BebasNeue
-import com.animetv.app.ui.theme.Inter
 import com.animetv.app.ui.theme.NetflixRed
 
 @OptIn(ExperimentalTvMaterial3Api::class)
@@ -34,47 +33,46 @@ fun TvTop10Card(
     Card(
         onClick = onClick,
         modifier = modifier
-            .width(200.dp)
-            .height(240.dp)
+            .width(205.dp)
+            .height(250.dp)
             .padding(vertical = 4.dp, horizontal = 2.dp)
             .onFocusChanged { isFocused = it.isFocused },
-        shape = CardDefaults.shape(shape = RoundedCornerShape(6.dp)),
-        scale = CardDefaults.scale(focusedScale = 1.0f), // No scale
+        shape = CardDefaults.shape(shape = RoundedCornerShape(8.dp)),
+        scale = CardDefaults.scale(focusedScale = 1.05f),
         border = CardDefaults.border(
             focusedBorder = Border(
-                border = BorderStroke(3.dp, Color.White),
-                shape = RoundedCornerShape(6.dp)
+                border = BorderStroke(2.5.dp, Color.White),
+                shape = RoundedCornerShape(8.dp)
             )
         ),
         colors = CardDefaults.colors(containerColor = Color.Transparent)
     ) {
-        Row(
-            modifier = Modifier.fillMaxSize(),
-            verticalAlignment = Alignment.CenterVertically
+        Box(
+            modifier = Modifier.fillMaxSize()
         ) {
-            // Giant Rank Number
-            Box(
+            // LAYER 1 (BEHIND): Giant Rank Number 1..10 in horizontal line
+            Text(
+                text = "$rank",
+                color = if (isFocused) NetflixRed else Color.White.copy(alpha = 0.85f),
+                fontSize = if (rank == 10) 115.sp else 130.sp,
+                fontFamily = BebasNeue,
+                fontWeight = FontWeight.Bold,
+                softWrap = false,
+                maxLines = 1,
+                lineHeight = 115.sp,
+                letterSpacing = if (rank == 10) (-12).sp else (-2).sp,
                 modifier = Modifier
-                    .width(60.dp)
-                    .fillMaxHeight()
-                    .background(Color.Transparent),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "$rank",
-                    color = Color.White,
-                    fontSize = 96.sp,
-                    fontFamily = BebasNeue,
-                    fontWeight = FontWeight.Normal,
-                    lineHeight = 96.sp
-                )
-            }
+                    .align(Alignment.CenterStart)
+                    .offset(x = if (rank == 10) (2).dp else 8.dp, y = 6.dp)
+            )
 
-            // Poster Image
+            // LAYER 2 (ON TOP): Poster Image layered on top of the number
             Box(
                 modifier = Modifier
                     .fillMaxHeight()
-                    .width(140.dp)
+                    .width(135.dp)
+                    .align(Alignment.CenterEnd)
+                    .clip(RoundedCornerShape(6.dp))
             ) {
                 AsyncImage(
                     model = anime.image,

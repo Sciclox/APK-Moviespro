@@ -5,6 +5,10 @@ import com.animetv.app.data.model.AnimeItem
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+
 object MyListManager {
     private const val PREFS_NAME = "animetv_mylist_prefs"
     private const val KEY_MY_LIST = "my_list_json"
@@ -50,7 +54,9 @@ object MyListManager {
             isAdded = true
         }
 
-        saveList(context, currentList)
+        CoroutineScope(Dispatchers.IO).launch {
+            saveList(context, currentList)
+        }
         return isAdded
     }
 
