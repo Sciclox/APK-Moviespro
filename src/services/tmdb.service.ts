@@ -39,23 +39,27 @@ export class TMDBService {
   static async getSpanishMetadata(title: string): Promise<EnrichedMetadata | null> {
     if (!title) return null;
 
-    // Generate candidate title queries to handle titles with colons, slashes, or franchise prefixes
-    const candidates: string[] = [title];
+    const candidates: string[] = [];
 
+    // 1. Prioritize specific movie subtitle after '//' or ':' FIRST (e.g. "Unanswered//butterfly" -> Movie 1654313)
+    if (title.includes('//')) {
+      const afterSlash = title.split('//').pop()?.trim();
+      if (afterSlash && !candidates.includes(afterSlash)) candidates.push(afterSlash);
+    }
+
+    if (title.includes(':')) {
+      const afterColon = title.split(':').pop()?.trim();
+      if (afterColon && !candidates.includes(afterColon)) candidates.push(afterColon);
+    }
+
+    // 2. Cleaned title without punctuation
     if (title.includes('//') || title.includes(':') || title.includes('-')) {
       const clean = title.replace(/\/\//g, ' ').replace(/:/g, ' ').replace(/\s+/g, ' ').trim();
       if (clean && !candidates.includes(clean)) candidates.push(clean);
-
-      if (title.includes('//')) {
-        const afterSlash = title.split('//').pop()?.trim();
-        if (afterSlash && !candidates.includes(afterSlash)) candidates.push(afterSlash);
-      }
-
-      if (title.includes(':')) {
-        const afterColon = title.split(':').pop()?.trim();
-        if (afterColon && !candidates.includes(afterColon)) candidates.push(afterColon);
-      }
     }
+
+    // 3. Full original title as fallback
+    if (!candidates.includes(title)) candidates.push(title);
 
     for (const queryTitle of candidates) {
       try {
