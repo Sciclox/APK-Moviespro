@@ -91,6 +91,21 @@ export class TMDBService {
       }
     }
 
+    // Fallback: Query AniList for official 16:9 anime bannerImage if TMDB returned no backdrop
+    try {
+      const aniList = await this.getAniListMetadata(title);
+      if (aniList && aniList.bannerImage) {
+        return {
+          synopsis: aniList.description ? await this.translateToSpanish(aniList.description) : null,
+          backdrop: aniList.bannerImage,
+          image: aniList.coverImage?.extraLarge || aniList.coverImage?.large || null,
+          score: aniList.averageScore ? Math.round((aniList.averageScore / 10) * 10) / 10 : null,
+          year: null,
+          episodeStills: {},
+        };
+      }
+    } catch (_e) {}
+
     return null;
   }
 
