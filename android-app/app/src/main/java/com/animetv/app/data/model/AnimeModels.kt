@@ -14,7 +14,8 @@ data class RecentEpisodeItem(
     @SerializedName("episodeNumber") val episodeNumber: Int,
     @SerializedName("image") val image: String,
     @SerializedName("backdrop") val backdrop: String? = null,
-    @SerializedName("synopsis") val synopsis: String? = null
+    @SerializedName("synopsis") val synopsis: String? = null,
+    @SerializedName("dateText") val dateText: String? = null
 )
 
 data class AnimeItem(

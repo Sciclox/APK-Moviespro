@@ -6,6 +6,7 @@ export interface RecentEpisodeItem {
   image: string;
   backdrop?: string | null;
   synopsis?: string | null;
+  dateText?: string | null;
 }
 
 export interface AnimeItem {

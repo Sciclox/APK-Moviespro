@@ -396,8 +396,13 @@ fun TvEpisodeCard(
                 .clip(cardShape)
                 .background(Color.Black)
         ) {
+            // Poster image with downsampling for smooth performance
             AsyncImage(
-                model = episodeItem.image,
+                model = ImageRequest.Builder(LocalContext.current)
+                    .data(episodeItem.image)
+                    .crossfade(true)
+                    .size(300, 450)
+                    .build(),
                 contentDescription = episodeItem.title,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
@@ -412,7 +417,7 @@ fun TvEpisodeCard(
                     .background(
                         Brush.verticalGradient(
                             colors = listOf(
-                                Color.Black.copy(alpha = 0.4f),
+                                Color.Black.copy(alpha = 0.5f),
                                 Color.Transparent,
                                 Color.Black.copy(alpha = 0.95f)
                             )
@@ -420,22 +425,48 @@ fun TvEpisodeCard(
                     )
             )
 
-            // Episode Badge (Top Left)
-            Box(
+            // Top Badges Overlay: Episode number + Date Tag (Hoy, Ayer, Domingo 02, etc.)
+            Row(
                 modifier = Modifier
                     .align(Alignment.TopStart)
-                    .padding(6.dp)
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(com.animetv.app.ui.theme.NetflixRed)
-                    .padding(horizontal = 6.dp, vertical = 3.dp)
+                    .padding(6.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "EP. ${episodeItem.episodeNumber}",
-                    color = Color.White,
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                    fontFamily = Inter
-                )
+                // 1. Episode Badge
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(Color(0xFF007AFF))
+                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                ) {
+                    Text(
+                        text = "Ep ${episodeItem.episodeNumber}",
+                        color = Color.White,
+                        fontSize = 9.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = Inter
+                    )
+                }
+
+                // 2. Date Tag (Hoy, Ayer, Domingo 02)
+                val dateLabel = episodeItem.dateText
+                if (!dateLabel.isNullOrBlank()) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(Color.Black.copy(alpha = 0.75f))
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = dateLabel,
+                            color = Color.White,
+                            fontSize = 9.5.sp,
+                            fontWeight = FontWeight.Medium,
+                            fontFamily = Inter
+                        )
+                    }
+                }
             }
 
             // Bottom Title

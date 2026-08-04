@@ -158,32 +158,48 @@ export class ScraperService {
 
       const systemPaths = ['buscar', 'animes', 'directorio', 'genero', 'emision', 'usuario', 'perfil', 'editar-perfil', 'login', 'registro', 'top', 'dash', 'notificaciones'];
 
-      $('a').each((_, elem) => {
-        const href = $(elem).attr('href') || '';
-        const match = href.match(/jkanime\.net\/([^\/]+)\/(\d+)\/?$/) || href.match(/^\/([^\/]+)\/(\d+)\/?$/);
+      $('.d-thumb, .anime__item, div.col-12, div.col-6, div.col-md-4, div.col-lg-3').each((_, element) => {
+        const container = $(element);
+        const a = container.find('a').first().attr('href') ? container.find('a').first() : container.closest('a');
+        const href = a.attr('href') || container.parent().find('a').attr('href') || '';
+        
+        const match = href.match(/^\/([^\/]+)\/(\d+)\/?$/) || href.match(/jkanime\.net\/([^\/]+)\/(\d+)\/?$/);
         if (match) {
           const slug = match[1];
           const episodeNumber = parseInt(match[2], 10);
-
+          
           if (!systemPaths.includes(slug)) {
             const key = `${slug}_${episodeNumber}`;
             if (!seenKeys.has(key)) {
               seenKeys.add(key);
 
-              const rawTitle = $(elem).find('h5, h6, h3, .title, strong').first().text().replace(/\s+/g, ' ').trim();
-              const title = cleanTitle(rawTitle || slug, slug);
-
-              let image = $(elem).find('img').attr('src') || $(elem).find('img').attr('data-src') || '';
-              if (!image || !image.startsWith('http')) {
-                image = `https://cdn.animeav1.com/covers/${slug}.jpg`;
+              const imgEl = container.find('img').first();
+              const posterUrl = imgEl.attr('data-animepic') || imgEl.attr('src') || `https://cdn.animeav1.com/covers/${slug}.jpg`;
+              
+              // Extract title from alt attribute (e.g. "One Piece - 1172") or h5 tag
+              let altTitle = imgEl.attr('alt') || '';
+              if (altTitle.includes(' - ')) {
+                altTitle = altTitle.split(' - ')[0].trim();
               }
+              const h5Title = container.parent().find('h5, h3, h6, .title, strong').first().text().replace(/\s+/g, ' ').trim();
+              const title = cleanTitle(altTitle || h5Title || slug, slug);
+
+              // Extract date label (Hoy, Ayer, Domingo 02, etc.)
+              let dateText: string | null = null;
+              container.parent().find('span, small, div').each((_, span) => {
+                const txt = $(span).text().replace(/\s+/g, ' ').trim();
+                if (txt === 'Hoy' || txt === 'Ayer' || txt.match(/^[A-Za-z]+ \d{2}$/i)) {
+                  dateText = txt;
+                }
+              });
 
               items.push({
                 id: `${slug}-${episodeNumber}`,
                 slug: slug,
                 title: title,
                 episodeNumber: episodeNumber,
-                image: image,
+                image: posterUrl,
+                dateText: dateText
               });
             }
           }
