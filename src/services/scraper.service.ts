@@ -169,6 +169,13 @@ export class ScraperService {
             }
 
             const titleText = $(el).find('h5, .title, .tituloblanco, h2, h3').text().trim() || cleanTitle('', slug);
+            const statusText = $(el).find('.status, .state, span.status, .anime__item__text span').text().trim();
+            let status: string | undefined = undefined;
+            if (statusText.toLowerCase().includes('emision')) {
+              status = 'En emisión';
+            } else if (statusText.toLowerCase().includes('concluid') || statusText.toLowerCase().includes('finalizad')) {
+              status = 'Finalizado';
+            }
 
             items.push({
               id: slug,
@@ -176,6 +183,7 @@ export class ScraperService {
               slug: slug,
               image: img,
               backdrop: null,
+              status: status,
               type: 'TV Anime',
               provider: 'JKAnime',
             });
