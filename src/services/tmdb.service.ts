@@ -4,22 +4,21 @@ import { CONFIG } from '../config/constants';
 export interface AniListMedia {
   id: number;
   title: {
-    romaji: string | null;
-    english: string | null;
-    native: string | null;
+    romaji: string;
+    english: string;
+    native: string;
   };
-  synonyms: string[];
   format: string;
   episodes: number | null;
   status: string | null;
   bannerImage: string | null;
   coverImage: {
-    extraLarge: string | null;
-    large: string | null;
+    extraLarge: string;
+    large: string;
   };
-  description: string | null;
+  description: string;
   genres: string[];
-  averageScore: number | null;
+  averageScore: number;
 }
 
 export interface EnrichedMetadata {
@@ -35,152 +34,52 @@ export class TMDBService {
 
 
   /**
-   * Generates smart prioritized search candidates from complex anime titles
-   */
-  private static buildSearchCandidates(title: string): string[] {
-    const candidates = new Set<string>();
-    if (!title) return [];
-
-    const rawTitle = title.trim();
-
-    // 1. Subtitle after ':' (e.g. "Sword Art Online: Unanswered//butterfly" -> "Unanswered//butterfly")
-    if (rawTitle.includes(':')) {
-      const afterColon = rawTitle.split(':').slice(1).join(':').trim();
-      if (afterColon) candidates.add(afterColon);
-    }
-
-    // 2. Subtitle or title with slashes replaced with space or slash
-    if (rawTitle.includes('//')) {
-      candidates.add(rawTitle.replace(/\/\//g, ' / '));
-      candidates.add(rawTitle.replace(/\/\//g, ' '));
-    }
-
-    // 3. Cleaned subtitle without slashes
-    if (rawTitle.includes(':') && rawTitle.includes('//')) {
-      const afterColon = rawTitle.split(':').slice(1).join(':').trim();
-      if (afterColon) candidates.add(afterColon.replace(/\/\//g, ' ').trim());
-    }
-
-    // 4. Cleaned full title without punctuation
-    const cleanTitle = rawTitle
-      .replace(/[\/\/:_\-~]+/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim();
-    if (cleanTitle) candidates.add(cleanTitle);
-
-    // 5. Full original title
-    candidates.add(rawTitle);
-
-    // 6. Base franchise title before ':' (e.g. "Sword Art Online")
-    if (rawTitle.includes(':')) {
-      const mainFranchise = rawTitle.split(':')[0].trim();
-      if (mainFranchise) candidates.add(mainFranchise);
-    }
-
-    return Array.from(candidates);
-  }
-
-  /**
-   * Extract core keywords from title queries to validate TMDB search results
-   */
-  private static extractCoreKeywords(titles: string[]): string[] {
-    const words = new Set<string>();
-    const stopWords = new Set(['the', 'no', 'of', 'and', 'in', 'to', 'a', 'de', 'la', 'el', 'los', 'las', 'un', 'una', 'del', 'con', 'por', 'para', 'y', 'en', 'is', 'for', 'on', 'more', 'one', 'tv', 'ova', 'special', 'movie', 'extra']);
-
-    titles.forEach(t => {
-      if (!t) return;
-      const clean = t.toLowerCase().replace(/[^a-z0-9\s]+/g, ' ');
-      clean.split(/\s+/).forEach(w => {
-        if (w.length > 2 && !stopWords.has(w)) {
-          words.add(w);
-        }
-      });
-    });
-
-    return Array.from(words);
-  }
-
-  /**
-   * Validate if a TMDB result is relevant to the anime target
-   */
-  private static isTitleRelevant(tmdbTitle: string, overview: string, coreKeywords: string[]): boolean {
-    if (coreKeywords.length === 0) return true;
-    const targetText = `${tmdbTitle} ${overview}`.toLowerCase();
-    // Must contain at least one core keyword (e.g. "boku", "hero", "academia", "sword", "online", "leveling")
-    return coreKeywords.some(kw => targetText.includes(kw));
-  }
-
-  /**
    * Fetch metadata enriched with 100% Spanish synopsis & episode stills from TMDB / AnimeVerse
    */
   static async getSpanishMetadata(title: string): Promise<EnrichedMetadata | null> {
     if (!title) return null;
 
-    const initialCandidates = this.buildSearchCandidates(title);
+    const candidates: string[] = [];
 
-    // 1. Query AniList FIRST (Anime-Only Database) to fetch official English/Romaji/Native titles & banner
-    let foundAniListMedia: Partial<AniListMedia> | null = null;
-    const expandedCandidates = new Set<string>();
-
-    for (const queryTitle of initialCandidates) {
-      try {
-        const aniList = await this.getAniListMetadata(queryTitle);
-        if (aniList) {
-          if (!foundAniListMedia) foundAniListMedia = aniList;
-
-          if (aniList.title?.romaji) expandedCandidates.add(aniList.title.romaji);
-          if (aniList.title?.english) expandedCandidates.add(aniList.title.english);
-          if (aniList.title?.native) expandedCandidates.add(aniList.title.native);
-          if (Array.isArray(aniList.synonyms)) {
-            aniList.synonyms.forEach(syn => {
-              if (syn && syn.trim().length > 2) expandedCandidates.add(syn.trim());
-            });
-          }
-          if (expandedCandidates.size > 0) break;
-        }
-      } catch (_e) {}
+    // 1. Prioritize specific movie subtitle after '//' or ':' FIRST (e.g. "Unanswered//butterfly" -> Movie 1654313)
+    if (title.includes('//')) {
+      const afterSlash = title.split('//').pop()?.trim();
+      if (afterSlash && !candidates.includes(afterSlash)) candidates.push(afterSlash);
     }
 
-    // Merge initial candidates with expanded AniList titles
-    const allSearchQueries = new Set<string>(initialCandidates);
-    expandedCandidates.forEach(t => {
-      allSearchQueries.add(t);
-      this.buildSearchCandidates(t).forEach(cand => allSearchQueries.add(cand));
-    });
+    if (title.includes(':')) {
+      const afterColon = title.split(':').pop()?.trim();
+      if (afterColon && !candidates.includes(afterColon)) candidates.push(afterColon);
+    }
 
-    const coreKeywords = this.extractCoreKeywords([
-      title,
-      foundAniListMedia?.title?.english || '',
-      foundAniListMedia?.title?.romaji || ''
-    ]);
+    // 2. Cleaned title without punctuation
+    if (title.includes('//') || title.includes(':') || title.includes('-')) {
+      const clean = title.replace(/\/\//g, ' ').replace(/:/g, ' ').replace(/\s+/g, ' ').trim();
+      if (clean && !candidates.includes(clean)) candidates.push(clean);
+    }
 
-    // 2. Try TMDB / AnimeVerse with each query, enforcing title relevance check
-    for (const queryTitle of Array.from(allSearchQueries)) {
-      // Ignore standalone single words of length <= 4 when querying TMDB (prevents matching shows named "More", "One", "Live")
-      if (queryTitle.length <= 4 && !queryTitle.includes(':')) continue;
+    // 3. Full original title as fallback
+    if (!candidates.includes(title)) candidates.push(title);
 
+    for (const queryTitle of candidates) {
       try {
         const url = `${CONFIG.ANIMEVERSE_BASE_URL}/api/v1/anime/enrich?title=${encodeURIComponent(queryTitle)}`;
         const { data } = await axios.get(url, { timeout: 4000 });
 
         if (data) {
           const details = data.details || data.tmdb || {};
-          const tmdbTitle = (details.title || details.name || '').toLowerCase();
-          const overview = details.overview || '';
+          const overview = details.overview || null;
           const backdropPath = details.backdrop_path ? `${CONFIG.TMDB_IMAGE_BASE}${details.backdrop_path}` : null;
           const posterPath = details.poster_path ? `${CONFIG.TMDB_IMAGE_BASE}${details.poster_path}` : null;
           const voteAverage = details.vote_average ? Math.round(details.vote_average * 10) / 10 : null;
           const year = details.first_air_date ? parseInt(details.first_air_date.split('-')[0], 10) : null;
           const episodeStills: Record<string, string> = data.episodeStills || {};
 
-          // Validate that the TMDB result is relevant to the anime (prevents matching news shows or random movies)
-          const isRelevant = this.isTitleRelevant(tmdbTitle, overview, coreKeywords);
-
-          if (isRelevant && (backdropPath || overview)) {
+          if (backdropPath || overview) {
             return {
               synopsis: overview,
-              backdrop: backdropPath || foundAniListMedia?.bannerImage || null,
-              image: posterPath || foundAniListMedia?.coverImage?.extraLarge || null,
+              backdrop: backdropPath,
+              image: posterPath,
               score: voteAverage,
               year: year,
               episodeStills: episodeStills,
@@ -192,23 +91,26 @@ export class TMDBService {
       }
     }
 
-    // 3. Fallback: Return AniList official 16:9 bannerImage & translated synopsis if TMDB returned no relevant match
-    if (foundAniListMedia && (foundAniListMedia.bannerImage || foundAniListMedia.coverImage?.extraLarge)) {
-      return {
-        synopsis: foundAniListMedia.description ? await this.translateToSpanish(foundAniListMedia.description) : null,
-        backdrop: foundAniListMedia.bannerImage || null,
-        image: foundAniListMedia.coverImage?.extraLarge || foundAniListMedia.coverImage?.large || null,
-        score: foundAniListMedia.averageScore ? Math.round((foundAniListMedia.averageScore / 10) * 10) / 10 : null,
-        year: null,
-        episodeStills: {},
-      };
-    }
+    // Fallback: Query AniList for official 16:9 anime bannerImage if TMDB returned no backdrop
+    try {
+      const aniList = await this.getAniListMetadata(title);
+      if (aniList && aniList.bannerImage) {
+        return {
+          synopsis: aniList.description ? await this.translateToSpanish(aniList.description) : null,
+          backdrop: aniList.bannerImage,
+          image: aniList.coverImage?.extraLarge || aniList.coverImage?.large || null,
+          score: aniList.averageScore ? Math.round((aniList.averageScore / 10) * 10) / 10 : null,
+          year: null,
+          episodeStills: {},
+        };
+      }
+    } catch (_e) {}
 
     return null;
   }
 
   /**
-   * Fetch AniList media info (episodes count, genres, native title, synonyms)
+   * Fetch AniList media info (episodes count, genres, native title)
    */
   static async getAniListMetadata(title: string): Promise<Partial<AniListMedia> | null> {
     const query = `
@@ -221,7 +123,6 @@ export class TMDBService {
             english
             native
           }
-          synonyms
           episodes
           status
           bannerImage

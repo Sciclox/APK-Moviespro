@@ -579,13 +579,11 @@ export class ScraperService {
       }
     })();
 
-    const jkMeta = await jkDataPromise;
-    const searchTitle = jkMeta.seasonTitle || cleanTitleText;
-
-    const [spanishMeta, meta, kitsuMeta] = await Promise.all([
-      TMDBService.getSpanishMetadata(searchTitle),
-      TMDBService.getAniListMetadata(searchTitle),
-      TMDBService.getKitsuMetadata(searchTitle),
+    const [spanishMeta, meta, kitsuMeta, jkMeta] = await Promise.all([
+      TMDBService.getSpanishMetadata(cleanTitleText),
+      TMDBService.getAniListMetadata(cleanTitleText),
+      TMDBService.getKitsuMetadata(cleanTitleText),
+      jkDataPromise,
     ]);
 
     // Sanitize spanishMeta to prevent loose TMDB mismatches (e.g. Nihon Animator Mihonichi)
@@ -684,8 +682,6 @@ export class ScraperService {
           .trim()
       : null;
 
-    const trueBackdrop = validSpanishMeta?.backdrop || meta?.bannerImage || kitsuMeta || null;
-
     return {
       id: slug,
       title: displayTitle,
@@ -694,7 +690,7 @@ export class ScraperService {
       slug: slug,
       synopsis: finalSynopsis,
       image: meta?.coverImage?.extraLarge || validSpanishMeta?.image || jkMeta.seasonCover || 'https://cdn.animeav1.com/covers/222.jpg',
-      backdrop: trueBackdrop,
+      backdrop: validSpanishMeta?.backdrop || kitsuMeta || meta?.bannerImage || jkMeta.seasonCover || meta?.coverImage?.extraLarge || null,
       genres: meta?.genres || ['Acción', 'Aventura', 'Fantasía'],
       status: formattedStatus,
       score: validSpanishMeta?.score || (meta?.averageScore ? meta.averageScore / 10 : 8.5),
