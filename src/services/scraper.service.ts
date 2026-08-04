@@ -579,11 +579,13 @@ export class ScraperService {
       }
     })();
 
-    const [spanishMeta, meta, kitsuMeta, jkMeta] = await Promise.all([
-      TMDBService.getSpanishMetadata(cleanTitleText),
-      TMDBService.getAniListMetadata(cleanTitleText),
-      TMDBService.getKitsuMetadata(cleanTitleText),
-      jkDataPromise,
+    const jkMeta = await jkDataPromise;
+    const searchTitle = jkMeta.seasonTitle || cleanTitleText;
+
+    const [spanishMeta, meta, kitsuMeta] = await Promise.all([
+      TMDBService.getSpanishMetadata(searchTitle),
+      TMDBService.getAniListMetadata(searchTitle),
+      TMDBService.getKitsuMetadata(searchTitle),
     ]);
 
     // Sanitize spanishMeta to prevent loose TMDB mismatches (e.g. Nihon Animator Mihonichi)
