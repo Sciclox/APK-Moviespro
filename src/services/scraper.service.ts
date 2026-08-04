@@ -71,20 +71,22 @@ export class ScraperService {
     try {
       const catalogItems = await this.getCatalog(isMovies ? { tipo: 'peliculas', filtro: 'popularidad', page: 1 } : { filtro: 'popularidad', page: 1 });
       if (catalogItems && catalogItems.length > 0) {
-        const topItems = catalogItems.slice(0, 15);
+        const topItems = catalogItems.slice(0, 30);
         const enrichedTopItems = await Promise.all(
-          topItems.map(async (item) => {
-            try {
-              const spanishMeta = await TMDBService.getSpanishMetadata(item.title);
-              if (spanishMeta && spanishMeta.backdrop) {
-                return {
-                  ...item,
-                  title: cleanTitle(item.title, item.slug),
-                  backdrop: spanishMeta.backdrop,
-                  synopsis: spanishMeta.synopsis || item.synopsis,
-                };
-              }
-            } catch (_e) {}
+          topItems.map(async (item, index) => {
+            if (index < 8) {
+              try {
+                const spanishMeta = await TMDBService.getSpanishMetadata(item.title);
+                if (spanishMeta && spanishMeta.backdrop) {
+                  return {
+                    ...item,
+                    title: cleanTitle(item.title, item.slug),
+                    backdrop: spanishMeta.backdrop,
+                    synopsis: spanishMeta.synopsis || item.synopsis,
+                  };
+                }
+              } catch (_e) {}
+            }
             return {
               ...item,
               title: cleanTitle(item.title, item.slug)
