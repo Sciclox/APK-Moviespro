@@ -11,6 +11,8 @@ object HomeCacheManager {
     private const val KEY_CATALOG = "home_catalog_list"
     private const val KEY_RELEASING = "home_releasing_list"
     private const val KEY_MOVIES_HERO = "movies_hero_list"
+    private const val KEY_LATINO_HERO = "latino_hero_list"
+    private const val KEY_DONGHUA_HERO = "donghua_hero_list"
 
     fun getMoviesHeroList(context: Context): List<AnimeItem> {
         return getList(context, KEY_MOVIES_HERO)
@@ -20,6 +22,28 @@ object HomeCacheManager {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         if (!hero.isNullOrEmpty()) {
             prefs.edit().putString(KEY_MOVIES_HERO, gson.toJson(hero)).apply()
+        }
+    }
+
+    fun getLatinoHeroList(context: Context): List<AnimeItem> {
+        return getList(context, KEY_LATINO_HERO)
+    }
+
+    fun saveLatinoHeroData(context: Context, hero: List<AnimeItem>?) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        if (!hero.isNullOrEmpty()) {
+            prefs.edit().putString(KEY_LATINO_HERO, gson.toJson(hero)).apply()
+        }
+    }
+
+    fun getDonghuaHeroList(context: Context): List<AnimeItem> {
+        return getList(context, KEY_DONGHUA_HERO)
+    }
+
+    fun saveDonghuaHeroData(context: Context, hero: List<AnimeItem>?) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        if (!hero.isNullOrEmpty()) {
+            prefs.edit().putString(KEY_DONGHUA_HERO, gson.toJson(hero)).apply()
         }
     }
 

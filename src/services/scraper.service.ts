@@ -316,10 +316,10 @@ export class ScraperService {
             };
           });
 
-          // Enrich top catalog items (especially movies) with 16:9 TMDB Backdrops
+          // Enrich top catalog items (especially movies, latino, donghua) with 16:9 TMDB Backdrops
           const enrichedItems = await Promise.all(
             rawItems.map(async (animeItem, idx) => {
-              if (idx < 10 || cleanTipo === 'peliculas') {
+              if (idx < 10 || cleanTipo === 'peliculas' || cleanCategoria === 'latino' || cleanCategoria === 'donghua') {
                 try {
                   const spanishMeta = await TMDBService.getSpanishMetadata(animeItem.title);
                   if (spanishMeta && spanishMeta.backdrop) {

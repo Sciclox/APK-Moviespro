@@ -31,7 +31,9 @@ import com.animetv.app.data.repository.HomeCacheManager
 import com.animetv.app.ui.components.NetflixTopNav
 import com.animetv.app.ui.screens.CatalogScreen
 import com.animetv.app.ui.screens.DetailScreen
+import com.animetv.app.ui.screens.DonghuaScreen
 import com.animetv.app.ui.screens.HomeScreen
+import com.animetv.app.ui.screens.LatinoScreen
 import com.animetv.app.ui.screens.MoviesScreen
 import com.animetv.app.ui.screens.MyListScreen
 import com.animetv.app.ui.screens.PlayerScreen
@@ -319,9 +321,7 @@ class MainActivity : ComponentActivity() {
                                             )
                                         }
                                         TvScreen.DONGHUA -> {
-                                            CatalogScreen(
-                                                title = "Donghua",
-                                                categoria = "donghua",
+                                            DonghuaScreen(
                                                 isScreenActive = (currentScreen == TvScreen.DONGHUA),
                                                 lastSelectedAnime = selectedAnime,
                                                 onAnimeSelect = { anime ->
@@ -334,9 +334,7 @@ class MainActivity : ComponentActivity() {
                                             )
                                         }
                                         TvScreen.LATINO -> {
-                                            CatalogScreen(
-                                                title = "Anime Latino",
-                                                categoria = "latino",
+                                            LatinoScreen(
                                                 isScreenActive = (currentScreen == TvScreen.LATINO),
                                                 lastSelectedAnime = selectedAnime,
                                                 onAnimeSelect = { anime ->

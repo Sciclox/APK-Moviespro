@@ -34,33 +34,60 @@ export class TMDBService {
 
 
   /**
+   * Generates smart prioritized search candidates from complex anime titles
+   */
+  private static buildSearchCandidates(title: string): string[] {
+    const candidates = new Set<string>();
+    if (!title) return [];
+
+    const rawTitle = title.trim();
+
+    // 1. Subtitle after ':' (e.g. "Sword Art Online: Unanswered//butterfly" -> "Unanswered//butterfly")
+    if (rawTitle.includes(':')) {
+      const afterColon = rawTitle.split(':').slice(1).join(':').trim();
+      if (afterColon) candidates.add(afterColon);
+    }
+
+    // 2. Subtitle or title with slashes replaced with space or slash
+    if (rawTitle.includes('//')) {
+      candidates.add(rawTitle.replace(/\/\//g, ' / '));
+      candidates.add(rawTitle.replace(/\/\//g, ' '));
+    }
+
+    // 3. Cleaned subtitle without slashes
+    if (rawTitle.includes(':') && rawTitle.includes('//')) {
+      const afterColon = rawTitle.split(':').slice(1).join(':').trim();
+      if (afterColon) candidates.add(afterColon.replace(/\/\//g, ' ').trim());
+    }
+
+    // 4. Cleaned full title without punctuation
+    const cleanTitle = rawTitle
+      .replace(/[\/\/:_\-~]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (cleanTitle) candidates.add(cleanTitle);
+
+    // 5. Full original title
+    candidates.add(rawTitle);
+
+    // 6. Base franchise title before ':' (e.g. "Sword Art Online")
+    if (rawTitle.includes(':')) {
+      const mainFranchise = rawTitle.split(':')[0].trim();
+      if (mainFranchise) candidates.add(mainFranchise);
+    }
+
+    return Array.from(candidates);
+  }
+
+  /**
    * Fetch metadata enriched with 100% Spanish synopsis & episode stills from TMDB / AnimeVerse
    */
   static async getSpanishMetadata(title: string): Promise<EnrichedMetadata | null> {
     if (!title) return null;
 
-    const candidates: string[] = [];
+    const candidates = this.buildSearchCandidates(title);
 
-    // 1. Prioritize specific movie subtitle after '//' or ':' FIRST (e.g. "Unanswered//butterfly" -> Movie 1654313)
-    if (title.includes('//')) {
-      const afterSlash = title.split('//').pop()?.trim();
-      if (afterSlash && !candidates.includes(afterSlash)) candidates.push(afterSlash);
-    }
-
-    if (title.includes(':')) {
-      const afterColon = title.split(':').pop()?.trim();
-      if (afterColon && !candidates.includes(afterColon)) candidates.push(afterColon);
-    }
-
-    // 2. Cleaned title without punctuation
-    if (title.includes('//') || title.includes(':') || title.includes('-')) {
-      const clean = title.replace(/\/\//g, ' ').replace(/:/g, ' ').replace(/\s+/g, ' ').trim();
-      if (clean && !candidates.includes(clean)) candidates.push(clean);
-    }
-
-    // 3. Full original title as fallback
-    if (!candidates.includes(title)) candidates.push(title);
-
+    // 1. Try TMDB / AnimeVerse with each candidate in waterfall priority
     for (const queryTitle of candidates) {
       try {
         const url = `${CONFIG.ANIMEVERSE_BASE_URL}/api/v1/anime/enrich?title=${encodeURIComponent(queryTitle)}`;
@@ -91,20 +118,22 @@ export class TMDBService {
       }
     }
 
-    // Fallback: Query AniList for official 16:9 anime bannerImage if TMDB returned no backdrop
-    try {
-      const aniList = await this.getAniListMetadata(title);
-      if (aniList && aniList.bannerImage) {
-        return {
-          synopsis: aniList.description ? await this.translateToSpanish(aniList.description) : null,
-          backdrop: aniList.bannerImage,
-          image: aniList.coverImage?.extraLarge || aniList.coverImage?.large || null,
-          score: aniList.averageScore ? Math.round((aniList.averageScore / 10) * 10) / 10 : null,
-          year: null,
-          episodeStills: {},
-        };
-      }
-    } catch (_e) {}
+    // 2. Fallback: Query AniList across generated candidates for official 16:9 anime bannerImage
+    for (const queryTitle of candidates) {
+      try {
+        const aniList = await this.getAniListMetadata(queryTitle);
+        if (aniList && aniList.bannerImage) {
+          return {
+            synopsis: aniList.description ? await this.translateToSpanish(aniList.description) : null,
+            backdrop: aniList.bannerImage,
+            image: aniList.coverImage?.extraLarge || aniList.coverImage?.large || null,
+            score: aniList.averageScore ? Math.round((aniList.averageScore / 10) * 10) / 10 : null,
+            year: null,
+            episodeStills: {},
+          };
+        }
+      } catch (_e) {}
+    }
 
     return null;
   }
