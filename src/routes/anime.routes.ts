@@ -43,6 +43,19 @@ router.get('/anime/latest', async (_req: Request, res: Response) => {
 });
 
 /**
+ * @route GET /api/v1/anime/latest-episodes
+ * @desc Get recently uploaded episodes from JKAnime home page
+ */
+router.get('/anime/latest-episodes', async (_req: Request, res: Response) => {
+  try {
+    const results = await ScraperService.getLatestEpisodes();
+    res.json({ success: true, data: results });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
  * @route GET /api/v1/anime/search
  * @desc Search anime by query string
  */

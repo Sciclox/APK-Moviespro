@@ -120,6 +120,7 @@ class MainActivity : ComponentActivity() {
                 var homeHeroList by remember { mutableStateOf<List<AnimeItem>>(cachedHero) }
                 var homeCatalogList by remember { mutableStateOf<List<AnimeItem>>(cachedCatalog) }
                 var homeReleasingList by remember { mutableStateOf<List<AnimeItem>>(cachedReleasing) }
+                var homeLatestEpisodesList by remember { mutableStateOf<List<com.animetv.app.data.model.RecentEpisodeItem>>(emptyList()) }
                 var homeIsLoading by remember { mutableStateOf(cachedHero.isEmpty() && cachedCatalog.isEmpty()) }
 
                 // Search State
@@ -141,10 +142,12 @@ class MainActivity : ComponentActivity() {
                         val heroRes = ApiClient.apiService.getHeroBanners()
                         val catalogRes = ApiClient.apiService.getCatalog(genre = "Accion")
                         val releasingRes = ApiClient.apiService.getLatest()
+                        val latestEpRes = ApiClient.apiService.getLatestEpisodes()
 
                         if (heroRes.success && heroRes.data.isNotEmpty()) homeHeroList = heroRes.data
                         if (catalogRes.success && catalogRes.data.isNotEmpty()) homeCatalogList = catalogRes.data
                         if (releasingRes.success && releasingRes.data.isNotEmpty()) homeReleasingList = releasingRes.data
+                        if (latestEpRes.success && latestEpRes.data.isNotEmpty()) homeLatestEpisodesList = latestEpRes.data
 
                         HomeCacheManager.saveHomeData(context, homeHeroList, homeCatalogList, homeReleasingList)
                     } catch (e: Exception) {
@@ -290,9 +293,22 @@ class MainActivity : ComponentActivity() {
                                                 heroList = homeHeroList,
                                                 catalogList = homeCatalogList,
                                                 releasingList = homeReleasingList,
+                                                latestEpisodesList = homeLatestEpisodesList,
                                                 isLoading = homeIsLoading,
                                                 onAnimeSelect = { anime ->
                                                     selectedAnime = anime
+                                                    pushScreen(TvScreen.DETAIL)
+                                                },
+                                                onEpisodeSelect = { episodeItem ->
+                                                    selectedAnime = AnimeItem(
+                                                        id = episodeItem.slug,
+                                                        title = episodeItem.title,
+                                                        slug = episodeItem.slug,
+                                                        image = episodeItem.image,
+                                                        backdrop = episodeItem.backdrop,
+                                                        type = "TV",
+                                                        synopsis = episodeItem.synopsis
+                                                    )
                                                     pushScreen(TvScreen.DETAIL)
                                                 },
                                                 playButtonFocusRequester = homePlayButtonFocusRequester,

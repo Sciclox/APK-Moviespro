@@ -59,8 +59,10 @@ fun HomeScreen(
     heroList: List<AnimeItem>,
     catalogList: List<AnimeItem>,
     releasingList: List<AnimeItem>,
+    latestEpisodesList: List<com.animetv.app.data.model.RecentEpisodeItem> = emptyList(),
     isLoading: Boolean,
     onAnimeSelect: (AnimeItem) -> Unit,
+    onEpisodeSelect: ((com.animetv.app.data.model.RecentEpisodeItem) -> Unit)? = null,
     playButtonFocusRequester: FocusRequester,
     navFocusRequester: FocusRequester,
     onFocusItem: (FocusRequester) -> Unit = {}
@@ -99,9 +101,11 @@ fun HomeScreen(
     }
 
     val rowWatchHistoryIndex = 2
-    val rowReleasingIndex = if (watchHistory.isNotEmpty()) 3 else 2
-    val rowPopularIndex = if (watchHistory.isNotEmpty()) 4 else 3
-    val rowActionIndex = if (watchHistory.isNotEmpty()) 5 else 4
+    val rowLatestEpisodesIndex = if (watchHistory.isNotEmpty()) 3 else 2
+    val offsetLatest = if (latestEpisodesList.isNotEmpty()) 1 else 0
+    val rowReleasingIndex = (if (watchHistory.isNotEmpty()) 3 else 2) + offsetLatest
+    val rowPopularIndex = rowReleasingIndex + 1
+    val rowActionIndex = rowPopularIndex + 1
 
     var verticalScrollJob by remember { mutableStateOf<Job?>(null) }
     val scrollToRow: (Int) -> Unit = { targetIndex ->
@@ -278,6 +282,61 @@ fun HomeScreen(
                                                 if (it.isFocused) {
                                                     onFocusItem(cardFocusRequester)
                                                     scrollToRow(rowWatchHistoryIndex)
+                                                }
+                                            }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // ROW: Últimos Episodios Subidos
+                if (latestEpisodesList.isNotEmpty()) {
+                    item {
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            Text(
+                                text = "Últimos Episodios Subidos",
+                                color = NetflixLightGrey,
+                                fontSize = 15.sp,
+                                fontFamily = Inter,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(start = 36.dp, bottom = 8.dp)
+                            )
+                            TvLazyRow(
+                                modifier = Modifier.fillMaxWidth().height(310.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                contentPadding = PaddingValues(start = 36.dp, top = 8.dp, bottom = 16.dp, end = 36.dp)
+                            ) {
+                                items(latestEpisodesList) { episodeItem ->
+                                    val cardFocusRequester = remember(episodeItem.id) { FocusRequester() }
+
+                                    com.animetv.app.ui.components.TvEpisodeCard(
+                                        episodeItem = episodeItem,
+                                        onClick = {
+                                            if (onEpisodeSelect != null) {
+                                                onEpisodeSelect(episodeItem)
+                                            } else {
+                                                onAnimeSelect(
+                                                    AnimeItem(
+                                                        id = episodeItem.slug,
+                                                        title = episodeItem.title,
+                                                        slug = episodeItem.slug,
+                                                        image = episodeItem.image,
+                                                        backdrop = episodeItem.backdrop,
+                                                        type = "TV",
+                                                        synopsis = episodeItem.synopsis
+                                                    )
+                                                )
+                                            }
+                                        },
+                                        modifier = Modifier
+                                            .width(190.dp)
+                                            .focusRequester(cardFocusRequester)
+                                            .onFocusChanged {
+                                                if (it.isFocused) {
+                                                    onFocusItem(cardFocusRequester)
+                                                    scrollToRow(rowLatestEpisodesIndex)
                                                 }
                                             }
                                     )

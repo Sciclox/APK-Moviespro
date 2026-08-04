@@ -1,7 +1,7 @@
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import { CONFIG } from '../config/constants';
-import { AnimeItem, AnimeDetail, WatchResponse, StreamSource, EpisodeItem } from '../types/anime';
+import { AnimeItem, AnimeDetail, WatchResponse, StreamSource, EpisodeItem, RecentEpisodeItem } from '../types/anime';
 import { TMDBService } from './tmdb.service';
 
 function cleanSlug(rawSlug: string): string {
@@ -136,6 +136,69 @@ export class ScraperService {
 
   static async getLatestReleasing(): Promise<AnimeItem[]> {
     return this.getLatest();
+  }
+
+  /**
+   * Fetch Recently Uploaded Episodes from JKAnime Home Page
+   */
+  static async getLatestEpisodes(): Promise<RecentEpisodeItem[]> {
+    const cacheKey = 'latest_episodes_jkanime_home';
+    const cached = apiCache.get<RecentEpisodeItem[]>(cacheKey);
+    if (cached) return cached;
+
+    try {
+      const { data: html } = await axios.get(CONFIG.JKANIME_BASE_URL, {
+        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
+        timeout: 6000,
+      });
+
+      const $ = cheerio.load(html);
+      const items: RecentEpisodeItem[] = [];
+      const seenKeys = new Set<string>();
+
+      const systemPaths = ['buscar', 'animes', 'directorio', 'genero', 'emision', 'usuario', 'perfil', 'editar-perfil', 'login', 'registro', 'top', 'dash', 'notificaciones'];
+
+      $('a').each((_, elem) => {
+        const href = $(elem).attr('href') || '';
+        const match = href.match(/jkanime\.net\/([^\/]+)\/(\d+)\/?$/) || href.match(/^\/([^\/]+)\/(\d+)\/?$/);
+        if (match) {
+          const slug = match[1];
+          const episodeNumber = parseInt(match[2], 10);
+
+          if (!systemPaths.includes(slug)) {
+            const key = `${slug}_${episodeNumber}`;
+            if (!seenKeys.has(key)) {
+              seenKeys.add(key);
+
+              const rawTitle = $(elem).find('h5, h6, h3, .title, strong').first().text().replace(/\s+/g, ' ').trim();
+              const title = cleanTitle(rawTitle || slug, slug);
+
+              let image = $(elem).find('img').attr('src') || $(elem).find('img').attr('data-src') || '';
+              if (!image || !image.startsWith('http')) {
+                image = `https://cdn.animeav1.com/covers/${slug}.jpg`;
+              }
+
+              items.push({
+                id: `${slug}-${episodeNumber}`,
+                slug: slug,
+                title: title,
+                episodeNumber: episodeNumber,
+                image: image,
+              });
+            }
+          }
+        }
+      });
+
+      if (items.length > 0) {
+        apiCache.set(cacheKey, items, 300); // 5-minute cache
+        return items;
+      }
+    } catch (e) {
+      console.error('Error fetching latest episodes from JKAnime:', e);
+    }
+
+    return [];
   }
 
   static async searchAnime(query: string): Promise<AnimeItem[]> {

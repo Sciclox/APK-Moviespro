@@ -7,6 +7,16 @@ data class ApiResponse<T>(
     @SerializedName("data") val data: T
 )
 
+data class RecentEpisodeItem(
+    @SerializedName("id") val id: String,
+    @SerializedName("slug") val slug: String,
+    @SerializedName("title") val title: String,
+    @SerializedName("episodeNumber") val episodeNumber: Int,
+    @SerializedName("image") val image: String,
+    @SerializedName("backdrop") val backdrop: String? = null,
+    @SerializedName("synopsis") val synopsis: String? = null
+)
+
 data class AnimeItem(
     @SerializedName("id") val id: String,
     @SerializedName("title") val title: String,

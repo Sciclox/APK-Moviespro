@@ -13,6 +13,9 @@ interface AnimeApiService {
     @GET("api/v1/anime/latest")
     suspend fun getLatest(): ApiResponse<List<AnimeItem>>
 
+    @GET("api/v1/anime/latest-episodes")
+    suspend fun getLatestEpisodes(): ApiResponse<List<RecentEpisodeItem>>
+
     @GET("api/v1/anime/search")
     suspend fun searchAnime(@Query("q") query: String): ApiResponse<List<AnimeItem>>
 

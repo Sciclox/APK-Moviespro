@@ -1,3 +1,13 @@
+export interface RecentEpisodeItem {
+  id: string;
+  slug: string;
+  title: string;
+  episodeNumber: number;
+  image: string;
+  backdrop?: string | null;
+  synopsis?: string | null;
+}
+
 export interface AnimeItem {
   id: string;
   title: string;
