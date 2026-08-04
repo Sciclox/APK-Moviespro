@@ -441,7 +441,7 @@ class MainActivity : ComponentActivity() {
 
                         // Detail Screen Overlay
                         AnimatedContent(
-                            targetState = if (currentScreen == TvScreen.DETAIL) selectedAnime else null,
+                            targetState = if (currentScreen == TvScreen.DETAIL || currentScreen == TvScreen.PLAYER) selectedAnime else null,
                             modifier = Modifier.fillMaxSize(),
                             transitionSpec = {
                                 if (targetState != null) {
@@ -464,6 +464,7 @@ class MainActivity : ComponentActivity() {
                                 ) {
                                     DetailScreen(
                                         anime = detailAnime,
+                                        isScreenActive = (currentScreen == TvScreen.DETAIL),
                                         onBack = { popBackStack() },
                                         onPlayEpisode = { episode ->
                                             selectedEpisode = episode

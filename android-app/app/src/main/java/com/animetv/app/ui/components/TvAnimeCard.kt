@@ -112,12 +112,14 @@ fun TvAnimeCard(
                 }
             }
 
-            val isEmision = remember(anime.status) {
+            val statusText = remember(anime.status) {
                 val rawStatus = anime.status?.lowercase() ?: ""
-                rawStatus.contains("emision") || rawStatus.contains("currently") || rawStatus.contains("releasing")
+                when {
+                    rawStatus.contains("emision") || rawStatus.contains("currently") || rawStatus.contains("releasing") || rawStatus.contains("estreno") -> "En emisión"
+                    rawStatus.contains("finalizad") || rawStatus.contains("finished") || rawStatus.contains("concluid") || rawStatus.contains("completed") -> "Finalizado"
+                    else -> null
+                }
             }
-            val statusLabel = if (isEmision) "En emisión" else "Finalizado"
-            val statusBg = if (isEmision) Color(0xFFE50914) else Color(0xFF222222).copy(alpha = 0.85f)
 
             Row(
                 modifier = Modifier
@@ -143,19 +145,23 @@ fun TvAnimeCard(
                 }
 
                 // 2. Status Badge (En emisión, Finalizado)
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(statusBg)
-                        .padding(horizontal = 5.dp, vertical = 2.dp)
-                ) {
-                    Text(
-                        text = statusLabel.uppercase(),
-                        color = Color.White,
-                        fontSize = 8.5.sp,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = Inter
-                    )
+                if (statusText != null) {
+                    val isEmision = statusText == "En emisión"
+                    val statusBg = if (isEmision) Color(0xFFE50914) else Color(0xFF222222).copy(alpha = 0.85f)
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(statusBg)
+                            .padding(horizontal = 5.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = statusText.uppercase(),
+                            color = Color.White,
+                            fontSize = 8.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = Inter
+                        )
+                    }
                 }
             }
 

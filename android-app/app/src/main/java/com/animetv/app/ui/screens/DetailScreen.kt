@@ -52,6 +52,7 @@ import androidx.compose.ui.focus.onFocusChanged
 @Composable
 fun DetailScreen(
     anime: AnimeItem,
+    isScreenActive: Boolean = false,
     onBack: () -> Unit,
     onPlayEpisode: (EpisodeItem) -> Unit
 ) {
@@ -138,13 +139,15 @@ fun DetailScreen(
         }
     }
 
-    // Auto focus on ATRÁS button when screen opens
-    LaunchedEffect(isLoading) {
-        delay(150)
-        try {
-            backButtonFocusRequester.requestFocus()
-        } catch (e: Exception) {
-            e.printStackTrace()
+    // Auto focus on ATRÁS button when screen opens or when returning from PlayerScreen
+    LaunchedEffect(isScreenActive, isLoading) {
+        if (isScreenActive) {
+            delay(200)
+            try {
+                backButtonFocusRequester.requestFocus()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
         }
     }
 

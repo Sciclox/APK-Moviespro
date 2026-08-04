@@ -23,6 +23,7 @@ interface AnimeApiService {
         @Query("tipo") tipo: String? = null,
         @Query("estado") estado: String? = null,
         @Query("demografia") demografia: String? = null,
+        @Query("filtro") filtro: String? = null,
         @Query("page") page: Int = 1
     ): ApiResponse<List<AnimeItem>>
 

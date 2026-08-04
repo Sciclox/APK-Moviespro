@@ -109,6 +109,13 @@ fun PlayerScreen(
     // Skip intro state
     var skipIntroDismissed by remember { mutableStateOf(false) }
 
+    val isMovie = remember(anime, episode) {
+        val rawType = (anime?.type ?: "").uppercase()
+        val isMovieType = rawType.contains("MOVIE") || rawType.contains("PELICULA") || rawType.contains("PELÍCULA")
+        val isMovieTitle = episode.title.contains("Película", ignoreCase = true) || episode.title.contains("Pelicula", ignoreCase = true) || episode.id.endsWith("-movie")
+        isMovieType || isMovieTitle
+    }
+
     // Persistent error overlay
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
@@ -884,8 +891,14 @@ fun PlayerScreen(
                             }
                         }
 
-                        val subtitleText = remember(episode) {
-                            if (episode.title.startsWith("Episodio", ignoreCase = true)) {
+                        val subtitleText = remember(episode, isMovie) {
+                            if (isMovie) {
+                                if (episode.title.contains("Película", ignoreCase = true) || episode.title.contains("Pelicula", ignoreCase = true)) {
+                                    episode.title
+                                } else {
+                                    "Película Completa"
+                                }
+                            } else if (episode.title.startsWith("Episodio", ignoreCase = true)) {
                                 episode.title
                             } else {
                                 "Episodio ${episode.number}: ${episode.title}"
@@ -914,7 +927,7 @@ fun PlayerScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .align(Alignment.BottomCenter),
-                        horizontalAlignment = Alignment.CenterHorizontally
+                        horizontalAlignment = Alignment.Start
                     ) {
                         // Interactive Progress Bar, Time Labels & Floating Preview Tooltip
                         val displayTimeMs = if (isSeekBarFocused) scrubTimeMs else currentTimeMs
@@ -930,16 +943,16 @@ fun PlayerScreen(
                             enter = fadeIn() + expandVertically(),
                             exit = fadeOut() + shrinkVertically()
                         ) {
-                            Box(
+                            BoxWithConstraints(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(bottom = 8.dp),
                                 contentAlignment = Alignment.BottomStart
                             ) {
+                                val tooltipWidth = maxWidth
+                                val badgeOffset = (tooltipWidth - 70.dp) * progress.coerceIn(0f, 1f)
                                 Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth(progress.coerceIn(0.08f, 0.92f))
-                                        .wrapContentWidth(Alignment.End)
+                                    modifier = Modifier.offset(x = badgeOffset.coerceAtLeast(0.dp))
                                 ) {
                                     Surface(
                                         shape = RoundedCornerShape(50.dp),
@@ -967,7 +980,7 @@ fun PlayerScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             // Interactive Red Netflix TV Seek Bar Track & Playhead Dot (●)
-                            Box(
+                            BoxWithConstraints(
                                 modifier = Modifier
                                     .weight(1f)
                                     .height(24.dp)
@@ -1017,6 +1030,7 @@ fun PlayerScreen(
                                     },
                                 contentAlignment = Alignment.CenterStart
                             ) {
+                                val trackWidth = maxWidth
                                 // Animated Track Height (Straight track, no borders: 3.5.dp -> 4.5.dp)
                                 val trackHeight by animateDpAsState(targetValue = if (isSeekBarFocused) 4.5.dp else 3.5.dp, label = "trackHeight")
                                 Box(
@@ -1040,20 +1054,16 @@ fun PlayerScreen(
                                     )
                                 }
 
-                                // Pure Red Playhead Dot (●) - 3 points larger (11.dp -> 15.dp)
+                                // Pure Red Playhead Dot (●) - Positioned with exact offset across fixed track
                                 val dotSize by animateDpAsState(targetValue = if (isSeekBarFocused) 15.dp else 11.dp, label = "dotSize")
+                                val dotOffset = (trackWidth - dotSize) * progress.coerceIn(0f, 1f)
                                 Box(
                                     modifier = Modifier
-                                        .fillMaxWidth(progress.coerceIn(0f, 1f))
-                                        .wrapContentWidth(Alignment.End)
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(dotSize)
-                                            .clip(androidx.compose.foundation.shape.CircleShape)
-                                            .background(NetflixRed)
-                                    )
-                                }
+                                        .offset(x = dotOffset)
+                                        .size(dotSize)
+                                        .clip(androidx.compose.foundation.shape.CircleShape)
+                                        .background(NetflixRed)
+                                )
                             }
 
                             Spacer(modifier = Modifier.width(12.dp))
@@ -1068,9 +1078,11 @@ fun PlayerScreen(
 
                         Spacer(modifier = Modifier.height(20.dp))
 
-                        // Control Buttons Row
+                        // Control Buttons Row (Left-aligned)
                         Row(
                             modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(start = 4.dp)
                                 .focusProperties {
                                     up = seekBarFocusRequester
                                 }
@@ -1205,7 +1217,7 @@ fun PlayerScreen(
                             }
 
                             // Next Episode Button
-                            if (onNextEpisode != null) {
+                            if (!isMovie && onNextEpisode != null) {
                                 Button(
                                     onClick = { onNextEpisode() },
                                     modifier = Modifier.size(42.dp),
@@ -1227,40 +1239,6 @@ fun PlayerScreen(
                                 ) {
                                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                                         Icon(Icons.Default.SkipNext, contentDescription = "Siguiente Episodio", modifier = Modifier.size(22.dp))
-                                    }
-                                }
-                            }
-
-                            // Server Selector Button (Manual Quality / Provider Switching)
-                            if (serverList.isNotEmpty()) {
-                                Button(
-                                    onClick = { showServerMenu = true },
-                                    modifier = Modifier.height(42.dp),
-                                    scale = ButtonDefaults.scale(focusedScale = 1.0f),
-                                    colors = ButtonDefaults.colors(
-                                        containerColor = Color.White.copy(alpha = 0.25f),
-                                        contentColor = Color.White,
-                                        focusedContainerColor = Color.White,
-                                        focusedContentColor = Color.Black
-                                    ),
-                                    border = ButtonDefaults.border(
-                                        focusedBorder = Border(
-                                            border = BorderStroke(2.dp, Color.White),
-                                            shape = RoundedCornerShape(21.dp)
-                                        )
-                                    ),
-                                    shape = ButtonDefaults.shape(shape = RoundedCornerShape(21.dp)),
-                                    contentPadding = PaddingValues(horizontal = 14.dp)
-                                ) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(Icons.Default.Dns, contentDescription = "Servidores", modifier = Modifier.size(18.dp))
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Text(
-                                            text = serverList.getOrNull(currentServerIndex)?.server ?: "SERVIDOR",
-                                            fontFamily = Inter,
-                                            fontSize = 12.sp,
-                                            fontWeight = FontWeight.Bold
-                                        )
                                     }
                                 }
                             }
@@ -1385,8 +1363,14 @@ fun PlayerScreen(
 }
 
 private fun formatTime(ms: Long): String {
+    if (ms <= 0) return "00:00"
     val totalSeconds = (ms / 1000).toInt()
-    val minutes = totalSeconds / 60
+    val hours = totalSeconds / 3600
+    val minutes = (totalSeconds % 3600) / 60
     val seconds = totalSeconds % 60
-    return String.format("%02d:%02d", minutes, seconds)
+    return if (hours > 0) {
+        String.format("%02d:%02d:%02d", hours, minutes, seconds)
+    } else {
+        String.format("%02d:%02d", minutes, seconds)
+    }
 }

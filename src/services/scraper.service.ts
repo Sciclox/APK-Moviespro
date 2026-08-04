@@ -69,11 +69,11 @@ export class ScraperService {
     if (cached) return cached;
 
     try {
-      const catalogItems = await this.getCatalog(isMovies ? { tipo: 'peliculas', page: 1 } : { page: 1 });
+      const catalogItems = await this.getCatalog(isMovies ? { tipo: 'peliculas', filtro: 'popularidad', page: 1 } : { filtro: 'popularidad', page: 1 });
       if (catalogItems && catalogItems.length > 0) {
-        const top5 = catalogItems.slice(0, 5);
-        const enrichedTop5 = await Promise.all(
-          top5.map(async (item) => {
+        const topItems = catalogItems.slice(0, 15);
+        const enrichedTopItems = await Promise.all(
+          topItems.map(async (item) => {
             try {
               const spanishMeta = await TMDBService.getSpanishMetadata(item.title);
               if (spanishMeta && spanishMeta.backdrop) {
@@ -92,8 +92,8 @@ export class ScraperService {
           })
         );
 
-        apiCache.set(cacheKey, enrichedTop5, 900); // 15-min cache
-        return enrichedTop5;
+        apiCache.set(cacheKey, enrichedTopItems, 900); // 15-min cache
+        return enrichedTopItems;
       }
     } catch (e) {
       console.error('Error fetching hero banners from catalog:', e);
@@ -238,7 +238,7 @@ export class ScraperService {
    * Get Catalog by Genre / Category / Type / Status
    */
   static async getCatalog(
-    options?: { genre?: string; categoria?: string; tipo?: string; estado?: string; demografia?: string; page?: number } | string,
+    options?: { genre?: string; categoria?: string; tipo?: string; estado?: string; demografia?: string; filtro?: string; page?: number } | string,
     pageNum: number = 1
   ): Promise<AnimeItem[]> {
     try {
@@ -247,6 +247,7 @@ export class ScraperService {
       let tipo = typeof options === 'object' ? options.tipo : undefined;
       let estado = typeof options === 'object' ? options.estado : undefined;
       let demografia = typeof options === 'object' ? options.demografia : undefined;
+      let filtro = typeof options === 'object' ? options.filtro : undefined;
       let page = typeof options === 'object' ? (options.page || 1) : pageNum;
 
       const cleanGenre = genre && genre.toLowerCase() !== 'todos' ? genre.toLowerCase().replace(/[^a-z0-9-]+/g, '-') : '';
@@ -254,6 +255,7 @@ export class ScraperService {
       const cleanTipo = tipo ? tipo.toLowerCase().trim() : '';
       const cleanEstado = estado ? estado.toLowerCase().trim() : '';
       const cleanDemografia = demografia ? demografia.toLowerCase().trim() : '';
+      const cleanFiltro = filtro ? filtro.toLowerCase().trim() : '';
 
       const demographySlugs = ['shounen', 'shoujo', 'seinen', 'josei', 'kodomo'];
 
@@ -271,6 +273,7 @@ export class ScraperService {
       if (cleanCategoria) params.push(`categoria=${encodeURIComponent(cleanCategoria)}`);
       if (cleanTipo) params.push(`tipo=${encodeURIComponent(cleanTipo)}`);
       if (cleanEstado) params.push(`estado=${encodeURIComponent(cleanEstado)}`);
+      if (cleanFiltro) params.push(`filtro=${encodeURIComponent(cleanFiltro)}`);
 
       const url = `${CONFIG.JKANIME_BASE_URL}/directorio/?${params.join('&')}`;
 
