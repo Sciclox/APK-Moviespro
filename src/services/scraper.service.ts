@@ -68,64 +68,35 @@ export class ScraperService {
     const cached = apiCache.get<AnimeItem[]>(cacheKey);
     if (cached) return cached;
 
-    if (isMovies) {
-      try {
-        const catalogMovies = await this.getCatalog({ tipo: 'peliculas', page: 1 });
-        if (catalogMovies && catalogMovies.length > 0) {
-          const top5Movies = catalogMovies.slice(0, 5);
-          const enrichedTop5 = await Promise.all(
-            top5Movies.map(async (item) => {
-              try {
-                const spanishMeta = await TMDBService.getSpanishMetadata(item.title);
-                if (spanishMeta && spanishMeta.backdrop) {
-                  return {
-                    ...item,
-                    backdrop: spanishMeta.backdrop,
-                    synopsis: spanishMeta.synopsis || item.synopsis,
-                  };
-                }
-              } catch (_e) {}
-              return item;
-            })
-          );
-
-          apiCache.set(cacheKey, enrichedTop5, 900); // 15-min cache
-          return enrichedTop5;
-        }
-      } catch (e) {
-        console.error('Error fetching movie hero banners:', e);
-      }
-    }
-
     try {
-      const url = `${CONFIG.ANIMEVERSE_BASE_URL}/api/v1/anime/hero`;
-      const { data } = await axios.get(url, { timeout: 6000 });
+      const catalogItems = await this.getCatalog(isMovies ? { tipo: 'peliculas', page: 1 } : { page: 1 });
+      if (catalogItems && catalogItems.length > 0) {
+        const top5 = catalogItems.slice(0, 5);
+        const enrichedTop5 = await Promise.all(
+          top5.map(async (item) => {
+            try {
+              const spanishMeta = await TMDBService.getSpanishMetadata(item.title);
+              if (spanishMeta && spanishMeta.backdrop) {
+                return {
+                  ...item,
+                  title: cleanTitle(item.title, item.slug),
+                  backdrop: spanishMeta.backdrop,
+                  synopsis: spanishMeta.synopsis || item.synopsis,
+                };
+              }
+            } catch (_e) {}
+            return {
+              ...item,
+              title: cleanTitle(item.title, item.slug)
+            };
+          })
+        );
 
-      if (data && data.success && Array.isArray(data.data)) {
-        const result = data.data.map((item: any) => {
-          const rawSlug = item.slug || item.title || '';
-          const slug = cleanSlug(rawSlug);
-
-          const title = cleanTitle(item.title || item.tmdb?.name, slug);
-          const backdrop = item.tmdb?.backdrop_path
-            ? `${CONFIG.TMDB_IMAGE_BASE}${item.tmdb.backdrop_path}`
-            : item.image;
-
-          return {
-            id: slug,
-            title: title,
-            slug: slug,
-            image: item.image,
-            backdrop: backdrop,
-            synopsis: item.tmdb?.overview || null,
-            provider: 'AnimeVerse',
-          };
-        });
-        apiCache.set(cacheKey, result, 900); // 15-min cache
-        return result;
+        apiCache.set(cacheKey, enrichedTop5, 900); // 15-min cache
+        return enrichedTop5;
       }
     } catch (e) {
-      console.error('Error fetching hero banners:', e);
+      console.error('Error fetching hero banners from catalog:', e);
     }
 
     return [
