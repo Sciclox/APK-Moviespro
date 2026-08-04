@@ -21,6 +21,7 @@ function cleanSlug(rawSlug: string): string {
 function cleanTitle(title: string, slug: string): string {
   if (title && !title.startsWith('http')) {
     return title
+      .replace(/([a-z])([A-Z])/g, '$1 $2')
       .replace(/[\u00a0\u2423\r\n\t_]+/g, ' ')
       .replace(/\s+/g, ' ')
       .trim();
