@@ -384,76 +384,82 @@ export class ScraperService {
         } catch {}
       }
     }
-
     // 3. Fallback to scraping JKAnime search results with strict system path filters
     try {
       const cleanTitleText = slug.replace(/-/g, ' ');
-      const words = cleanTitleText.split(' ').filter((w) => w.length >= 1);
-      const query = words.slice(0, 3).join('_');
-      const searchUrl = `${CONFIG.JKANIME_BASE_URL}/buscar/${encodeURIComponent(query)}/`;
-      const { data: html } = await axios.get(searchUrl, {
-        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
-        timeout: 3000,
-      });
-      const $ = cheerio.load(html);
-      const candidates: string[] = [];
-      const systemPaths = [
-        'buscar', 'animes', 'directorio', 'genero', 'emision', 'usuario', 'top',
-        'letra', 'ajax', 'assets', 'assets3', 'perfil', 'editar-perfil', 'login',
-        'registro', 'logout', 'privacidad', 'dmca', 'contacto', 'horario', 'politicas',
-        'politica-de-privacidad', 'terminos-y-condiciones', 'panel', 'home', 'dash',
-        'comentarios', 'solicitudes', 'listas', 'guardado', 'historial', 'notificaciones',
-        'estrenos', 'comunidad', 'aplicacion', '$me', 'reset', 'google', 'discord',
-        'facebook', 'twitter', 'instagram', 'auth', 'password', 'user'
-      ];
+      const cleanWords = cleanTitleText.split(' ').filter((w) => w.length >= 2);
+      const searchQueries = [
+        cleanWords.join(' '),
+        cleanWords.slice(-2).join(' '),
+        cleanWords[0] || ''
+      ].filter(Boolean);
 
-      $('.anime__item a, .portada a, .box a, .portadas a, .list a, .anime_pic a').each((_: number, el: any) => {
-        const href = $(el).attr('href') || '';
-        if (href.includes('jkanime.net/')) {
-          const parts = href.replace(/\/$/, '').split('/');
-          const candidate = parts[parts.length - 1];
-          if (
-            candidate &&
-            /^[a-z0-9-]+$/i.test(candidate) &&
-            !systemPaths.includes(candidate.toLowerCase()) &&
-            !href.includes('/dash/') &&
-            !href.includes('/buscar/') &&
-            !candidate.includes('perfil') &&
-            !candidate.includes('user') &&
-            !candidate.includes('login')
-          ) {
-            if (!candidates.includes(candidate)) {
-              candidates.push(candidate);
+      for (const q of searchQueries) {
+        const searchUrl = `${CONFIG.JKANIME_BASE_URL}/buscar/?q=${encodeURIComponent(q)}`;
+        const { data: html } = await axios.get(searchUrl, {
+          headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
+          timeout: 3000,
+        });
+        const $ = cheerio.load(html);
+        const candidates: string[] = [];
+        const systemPaths = [
+          'buscar', 'animes', 'directorio', 'genero', 'emision', 'usuario', 'top',
+          'letra', 'ajax', 'assets', 'assets3', 'perfil', 'editar-perfil', 'login',
+          'registro', 'logout', 'privacidad', 'dmca', 'contacto', 'horario', 'politicas',
+          'politica-de-privacidad', 'terminos-y-condiciones', 'panel', 'home', 'dash',
+          'comentarios', 'solicitudes', 'listas', 'guardado', 'historial', 'notificaciones',
+          'estrenos', 'comunidad', 'aplicacion', '$me', 'reset', 'google', 'discord',
+          'facebook', 'twitter', 'instagram', 'auth', 'password', 'user'
+        ];
+
+        $('a').each((_: number, el: any) => {
+          const href = $(el).attr('href') || '';
+          if (href.includes('jkanime.net/')) {
+            const parts = href.replace(/\/$/, '').split('/');
+            const candidate = parts[parts.length - 1];
+            if (
+              candidate &&
+              /^[a-z0-9-]+$/i.test(candidate) &&
+              !systemPaths.includes(candidate.toLowerCase()) &&
+              !href.includes('/dash/') &&
+              !href.includes('/buscar') &&
+              !candidate.includes('perfil') &&
+              !candidate.includes('user') &&
+              !candidate.includes('login')
+            ) {
+              if (!candidates.includes(candidate)) {
+                candidates.push(candidate);
+              }
             }
           }
-        }
-      });
+        });
 
-      if (candidates.length > 0) {
-        const cleanWords = slug.toLowerCase().replace(/[^a-z0-9]+/g, ' ').split(' ').filter((w: string) => w.length >= 1);
+        if (candidates.length > 0) {
+          const wordsToMatch = cleanWords.length > 0 ? cleanWords : [slug];
 
-        // First check if any candidate matches ALL key words of original slug
-        if (cleanWords.length > 0) {
+          // First check if any candidate matches ALL key words of original slug
           const exactWordMatch = candidates.find((c: string) => {
             const cClean = c.toLowerCase().replace(/[^a-z0-9]+/g, ' ');
-            return cleanWords.every((word: string) => cClean.includes(word));
+            return wordsToMatch.every((word: string) => cClean.includes(word.toLowerCase()));
           });
           if (exactWordMatch) return exactWordMatch;
-        }
 
-        // Select candidate with maximum overlapping words
-        let bestCandidate = candidates[0];
-        let maxOverlap = 0;
-        for (const c of candidates) {
-          const cClean = c.toLowerCase().replace(/[^a-z0-9]+/g, ' ');
-          const overlap = cleanWords.filter((w: string) => cClean.includes(w)).length;
-          if (overlap > maxOverlap) {
-            maxOverlap = overlap;
-            bestCandidate = c;
+          // Select candidate with maximum overlapping words
+          let bestCandidate = candidates[0];
+          let maxOverlap = 0;
+          for (const c of candidates) {
+            const cClean = c.toLowerCase().replace(/[^a-z0-9]+/g, ' ');
+            const overlap = wordsToMatch.filter((w: string) => cClean.includes(w.toLowerCase())).length;
+            if (overlap > maxOverlap) {
+              maxOverlap = overlap;
+              bestCandidate = c;
+            }
+          }
+
+          if (maxOverlap > 0) {
+            return bestCandidate;
           }
         }
-
-        return bestCandidate;
       }
     } catch {
       // ignore
