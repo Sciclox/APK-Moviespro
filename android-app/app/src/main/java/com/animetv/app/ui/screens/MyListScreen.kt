@@ -256,8 +256,8 @@ fun MyListScreen(
                                         var inList by remember { mutableStateOf(MyListManager.isInList(context, anime.id)) }
 
                                         Column(
-                                            modifier = Modifier.width(130.dp),
-                                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                                            modifier = Modifier.width(175.dp),
+                                            verticalArrangement = Arrangement.spacedBy(8.dp)
                                         ) {
                                             val cardFocusRequester = remember(anime.id) { FocusRequester() }
                                             TvAnimeCard(
@@ -265,7 +265,7 @@ fun MyListScreen(
                                                 onClick = { onAnimeSelect(anime) },
                                                 modifier = Modifier
                                                     .fillMaxWidth()
-                                                    .height(180.dp)
+                                                    .height(245.dp)
                                                     .focusRequester(cardFocusRequester)
                                                     .onFocusChanged { if (it.isFocused) onFocusItem(cardFocusRequester) }
                                                     .onKeyEvent { keyEvent ->
@@ -281,7 +281,7 @@ fun MyListScreen(
                                                     inList = MyListManager.isInList(context, anime.id)
                                                     myListAnimes = MyListManager.getSavedAnimes(context)
                                                 },
-                                                shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(4.dp)),
+                                                shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(6.dp)),
                                                 colors = ClickableSurfaceDefaults.colors(
                                                     containerColor = if (inList) Color.White.copy(alpha = 0.2f) else NetflixRed,
                                                     contentColor = Color.White,
@@ -294,17 +294,17 @@ fun MyListScreen(
                                                 Row(
                                                     horizontalArrangement = Arrangement.Center,
                                                     verticalAlignment = Alignment.CenterVertically,
-                                                    modifier = Modifier.padding(vertical = 4.dp)
+                                                    modifier = Modifier.padding(vertical = 6.dp)
                                                 ) {
                                                     Icon(
                                                         imageVector = if (inList) Icons.Default.Check else Icons.Default.BookmarkBorder,
                                                         contentDescription = null,
-                                                        modifier = Modifier.size(14.dp)
+                                                        modifier = Modifier.size(16.dp)
                                                     )
-                                                    Spacer(modifier = Modifier.width(4.dp))
+                                                    Spacer(modifier = Modifier.width(6.dp))
                                                     Text(
                                                         text = if (inList) "En Lista" else "+ Lista",
-                                                        fontSize = 11.sp,
+                                                        fontSize = 12.sp,
                                                         fontFamily = Inter,
                                                         fontWeight = FontWeight.Bold
                                                     )
