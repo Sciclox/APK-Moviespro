@@ -55,7 +55,9 @@ class MemoryCache {
   set<T>(key: string, data: T, ttlSeconds: number): void {
     if (this.cache.size >= this.maxEntries && !this.cache.has(key)) {
       const firstKey = this.cache.keys().next().value;
-      this.cache.delete(firstKey);
+      if (firstKey) {
+        this.cache.delete(firstKey);
+      }
     }
     this.cache.set(key, {
       data,

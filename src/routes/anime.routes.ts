@@ -345,7 +345,9 @@ router.get('/proxy/video', async (req: Request, res: Response) => {
       if (extractedUrl) {
         if (resolvedStreamCache.size >= 200 && !resolvedStreamCache.has(embedUrl)) {
           const firstKey = resolvedStreamCache.keys().next().value;
-          resolvedStreamCache.delete(firstKey);
+          if (firstKey) {
+            resolvedStreamCache.delete(firstKey);
+          }
         }
         resolvedStreamCache.set(embedUrl, {
           directUrl: extractedUrl,
