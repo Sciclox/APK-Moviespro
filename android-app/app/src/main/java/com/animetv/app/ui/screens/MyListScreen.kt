@@ -288,14 +288,8 @@ fun MyListScreen(
                                                 colors = ClickableSurfaceDefaults.colors(
                                                     containerColor = if (inList) Color(0xFF2ECC71).copy(alpha = 0.2f) else Color.White.copy(alpha = 0.15f),
                                                     contentColor = if (inList) Color(0xFF2ECC71) else Color.White,
-                                                    focusedContainerColor = if (inList) Color(0xFF2ECC71) else NetflixRed,
-                                                    focusedContentColor = if (inList) Color.Black else Color.White
-                                                ),
-                                                border = ClickableSurfaceDefaults.border(
-                                                    focusedBorder = Border(
-                                                        border = BorderStroke(2.dp, Color.White),
-                                                        shape = RoundedCornerShape(8.dp)
-                                                    )
+                                                    focusedContainerColor = if (inList) Color(0xFF2ECC71) else Color.White,
+                                                    focusedContentColor = Color.Black
                                                 ),
                                                 scale = ClickableSurfaceDefaults.scale(focusedScale = 1.0f),
                                                 modifier = Modifier.fillMaxWidth()
