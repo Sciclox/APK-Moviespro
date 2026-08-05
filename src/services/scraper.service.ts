@@ -560,7 +560,7 @@ export class ScraperService {
    * Get Anime Detail, Spanish Synopsis, Episode Stills and Metadata
    */
   static async getAnimeDetails(slugInput: string): Promise<AnimeDetail> {
-    const cacheKey = `anime_detail_v2_${slugInput.toLowerCase()}`;
+    const cacheKey = `anime_detail_v3_${slugInput.toLowerCase()}`;
     const cached = apiCache.get<AnimeDetail>(cacheKey);
     if (cached) {
       return cached;

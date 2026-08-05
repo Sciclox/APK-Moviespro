@@ -42,28 +42,42 @@ export class TMDBService {
     const inputTitles = Array.isArray(title) ? title : [title];
     const candidates: string[] = [];
 
+    // 1. Full original titles FIRST (e.g. "Assassination Classroom the Movie: Our Time")
     for (const t of inputTitles) {
       if (!t || typeof t !== 'string') continue;
-      
-      // 1. Prioritize specific movie subtitle after '//' or ':' FIRST (e.g. "Unanswered//butterfly" -> Movie 1654313)
+      const trimmed = t.trim();
+      if (trimmed && !candidates.includes(trimmed)) {
+        candidates.push(trimmed);
+      }
+    }
+
+    // 2. Cleaned full titles without punctuation (e.g. "Assassination Classroom the Movie Our Time")
+    for (const t of inputTitles) {
+      if (!t || typeof t !== 'string') continue;
+      if (t.includes('//') || t.includes(':') || t.includes('-')) {
+        const clean = t.replace(/\/\//g, ' ').replace(/:/g, ' ').replace(/-/g, ' ').replace(/\s+/g, ' ').trim();
+        if (clean && !candidates.includes(clean)) {
+          candidates.push(clean);
+        }
+      }
+    }
+
+    // 3. Subtitles after '//' or ':' ONLY if long enough (>= 15 chars) to prevent matching short generic live-action titles
+    for (const t of inputTitles) {
+      if (!t || typeof t !== 'string') continue;
       if (t.includes('//')) {
         const afterSlash = t.split('//').pop()?.trim();
-        if (afterSlash && !candidates.includes(afterSlash)) candidates.push(afterSlash);
+        if (afterSlash && afterSlash.length >= 15 && !candidates.includes(afterSlash)) {
+          candidates.push(afterSlash);
+        }
       }
 
       if (t.includes(':')) {
         const afterColon = t.split(':').pop()?.trim();
-        if (afterColon && !candidates.includes(afterColon)) candidates.push(afterColon);
+        if (afterColon && afterColon.length >= 15 && !candidates.includes(afterColon)) {
+          candidates.push(afterColon);
+        }
       }
-
-      // 2. Cleaned title without punctuation
-      if (t.includes('//') || t.includes(':') || t.includes('-')) {
-        const clean = t.replace(/\/\//g, ' ').replace(/:/g, ' ').replace(/\s+/g, ' ').trim();
-        if (clean && !candidates.includes(clean)) candidates.push(clean);
-      }
-
-      // 3. Full original title
-      if (!candidates.includes(t)) candidates.push(t);
     }
 
     for (const queryTitle of candidates) {

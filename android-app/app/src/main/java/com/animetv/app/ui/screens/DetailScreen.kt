@@ -11,8 +11,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -258,7 +256,7 @@ fun DetailScreen(
                 )
         )
 
-        // Android 9-11 TV Compatibility Scrim Overlay
+        // Scrim Overlay
         if (loadingOverlayAlpha > 0f) {
             Box(
                 modifier = Modifier
@@ -273,51 +271,66 @@ fun DetailScreen(
             contentPadding = PaddingValues(start = 72.dp, top = 36.dp, end = 48.dp, bottom = 48.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-                // Item 1: ATRÁS Navigation Button (Row 1)
-                item {
-                    Button(
-                        onClick = {
-                            scope.launch { listState.scrollToItem(0) }
-                            onBack()
-                        },
-                        modifier = Modifier
-                            .focusRequester(backButtonFocusRequester)
-                            .focusProperties {
-                                left = FocusRequester.Cancel
-                                right = FocusRequester.Cancel
-                            }
-                            .onFocusChanged { focusState ->
-                                if (focusState.isFocused) {
-                                    scope.launch {
-                                        listState.animateScrollToItem(0, 0)
-                                    }
+            // Item 1: ATRÁS Navigation Button (Row 1)
+            item {
+                Button(
+                    onClick = {
+                        scope.launch { listState.scrollToItem(0) }
+                        onBack()
+                    },
+                    modifier = Modifier
+                        .focusRequester(backButtonFocusRequester)
+                        .focusProperties {
+                            left = FocusRequester.Cancel
+                            right = FocusRequester.Cancel
+                        }
+                        .onFocusChanged { focusState ->
+                            if (focusState.isFocused) {
+                                scope.launch {
+                                    listState.animateScrollToItem(0, 0)
                                 }
-                            },
-                        scale = ButtonDefaults.scale(focusedScale = 1.08f),
-                        colors = ButtonDefaults.colors(
-                            containerColor = Color.White.copy(alpha = 0.25f),
-                            contentColor = Color.White,
-                            focusedContainerColor = Color.White,
-                            focusedContentColor = Color.Black
-                        ),
-                        border = ButtonDefaults.border(
-                            focusedBorder = Border(
-                                border = BorderStroke(2.dp, Color.White),
-                                shape = RoundedCornerShape(4.dp)
-                            )
-                        ),
-                        shape = ButtonDefaults.shape(shape = RoundedCornerShape(4.dp)),
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
-                    ) {
-                        Text(
-                            text = "←  ATRÁS",
-                            fontFamily = Inter,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp
+                            }
+                        },
+                    scale = ButtonDefaults.scale(focusedScale = 1.08f),
+                    colors = ButtonDefaults.colors(
+                        containerColor = Color.White.copy(alpha = 0.25f),
+                        contentColor = Color.White,
+                        focusedContainerColor = Color.White,
+                        focusedContentColor = Color.Black
+                    ),
+                    border = ButtonDefaults.border(
+                        focusedBorder = Border(
+                            border = BorderStroke(2.dp, Color.White),
+                            shape = RoundedCornerShape(4.dp)
                         )
+                    ),
+                    shape = ButtonDefaults.shape(shape = RoundedCornerShape(4.dp)),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                ) {
+                    Text(
+                        text = "←  ATRÁS",
+                        fontFamily = Inter,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp
+                    )
+                }
+            }
+
+            if (isLoading) {
+                item {
+                    Column(
+                        modifier = Modifier
+                            .padding(top = 20.dp)
+                            .width(500.dp)
+                    ) {
+                        ShimmerBox(width = 320.dp, height = 40.dp)
+                        Spacer(modifier = Modifier.height(12.dp))
+                        ShimmerBox(width = 240.dp, height = 20.dp)
+                        Spacer(modifier = Modifier.height(16.dp))
+                        ShimmerBox(width = 500.dp, height = 80.dp)
                     }
                 }
-
+            } else {
                 // Item 2: Title + Metadata
                 item {
                     Column {
@@ -356,7 +369,7 @@ fun DetailScreen(
 
                         Spacer(modifier = Modifier.height(14.dp))
 
-                        // Badges Row with Dynamic Score
+                        // Badges Row
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(10.dp),
                             verticalAlignment = Alignment.CenterVertically
@@ -429,7 +442,7 @@ fun DetailScreen(
                     )
                 }
 
-                // Item 4: Action Buttons Row (Row 2)
+                // Item 4: Action Buttons Row
                 item {
                     Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                         val playButtonText = when {
@@ -445,17 +458,6 @@ fun DetailScreen(
                                 .focusRequester(playButtonFocusRequester)
                                 .focusProperties {
                                     left = FocusRequester.Cancel
-                                }
-                                .onPreviewKeyEvent { keyEvent ->
-                                    if (keyEvent.type == KeyEventType.KeyDown && keyEvent.nativeKeyEvent.keyCode == android.view.KeyEvent.KEYCODE_DPAD_UP) {
-                                        scope.launch {
-                                            listState.animateScrollToItem(0, 0)
-                                            try { backButtonFocusRequester.requestFocus() } catch (_: Exception) {}
-                                        }
-                                        true
-                                    } else {
-                                        false
-                                    }
                                 }
                                 .onFocusChanged { focusState ->
                                     if (focusState.isFocused) {
@@ -493,17 +495,6 @@ fun DetailScreen(
                             modifier = Modifier
                                 .focusProperties {
                                     right = FocusRequester.Cancel
-                                }
-                                .onPreviewKeyEvent { keyEvent ->
-                                    if (keyEvent.type == KeyEventType.KeyDown && keyEvent.nativeKeyEvent.keyCode == android.view.KeyEvent.KEYCODE_DPAD_UP) {
-                                        scope.launch {
-                                            listState.animateScrollToItem(0, 0)
-                                            try { backButtonFocusRequester.requestFocus() } catch (_: Exception) {}
-                                        }
-                                        true
-                                    } else {
-                                        false
-                                    }
                                 },
                             scale = ButtonDefaults.scale(focusedScale = 1.08f),
                             colors = ButtonDefaults.colors(
@@ -543,7 +534,7 @@ fun DetailScreen(
                     )
                 }
 
-                // Item 5b: Episode Batch Selector (Row 3 - for long series > 30 episodes)
+                // Item 5b: Episode Batch Selector
                 if (episodeBatches.isNotEmpty() && !isMovie) {
                     item {
                         TvLazyRow(
@@ -593,78 +584,61 @@ fun DetailScreen(
                     }
                 }
 
-                // Item 6: Horizontal Episode List (Row 4)
+                // Item 6: Horizontal Episode List
                 item {
-                    if (isLoading) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(185.dp)
-                                .padding(top = 12.dp, bottom = 20.dp),
-                            horizontalArrangement = Arrangement.spacedBy(14.dp)
-                        ) {
-                            repeat(5) {
-                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    ShimmerBox(width = 200.dp, height = 115.dp)
-                                    ShimmerBox(width = 130.dp, height = 14.dp)
-                                }
-                            }
-                        }
+                    val displayEpisodes = if (isMovie) {
+                        allEpisodes.take(1)
+                    } else if (episodeBatches.isNotEmpty()) {
+                        episodeBatches.getOrNull(selectedBatchIndex) ?: allEpisodes
                     } else {
-                        val displayEpisodes = if (isMovie) {
-                            allEpisodes.take(1)
-                        } else if (episodeBatches.isNotEmpty()) {
-                            episodeBatches.getOrNull(selectedBatchIndex) ?: allEpisodes
-                        } else {
-                            allEpisodes
-                        }
+                        allEpisodes
+                    }
 
-                        TvLazyRow(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(185.dp),
-                            horizontalArrangement = Arrangement.spacedBy(14.dp),
-                            contentPadding = PaddingValues(top = 12.dp, bottom = 20.dp, end = 24.dp)
-                        ) {
-                            items(displayEpisodes.size) { idx ->
-                                val ep = displayEpisodes[idx]
-                                val epHistory = watchHistoryList.find {
-                                    (it.animeSlug == anime.slug || it.animeId == anime.id) && it.episodeNumber == ep.number
-                                }
-                                val progressFraction = if (epHistory != null && epHistory.durationMs > 0) {
-                                    (epHistory.lastPositionMs.toFloat() / epHistory.durationMs.toFloat())
-                                } else null
-                                val isFirst = idx == 0
-                                val isLast = idx == displayEpisodes.lastIndex
-
-                                val epRequester = episodeFocusRequesters.getOrPut(ep.number) { FocusRequester() }
-
-                                TvEpisodeCard(
-                                    episode = ep,
-                                    onClick = {
-                                        lastPlayedEpNum = ep.number
-                                        onPlayEpisode(ep)
-                                    },
-                                    progressFraction = progressFraction,
-                                    modifier = Modifier
-                                        .focusRequester(epRequester)
-                                        .focusProperties {
-                                            if (isFirst) left = FocusRequester.Cancel
-                                            if (isLast) right = FocusRequester.Cancel
-                                        }
-                                        .onFocusChanged { focusState ->
-                                            if (focusState.isFocused) {
-                                                lastPlayedEpNum = ep.number
-                                                scope.launch { listState.animateScrollToItem(5) }
-                                            }
-                                        }
-                                )
+                    TvLazyRow(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(185.dp),
+                        horizontalArrangement = Arrangement.spacedBy(14.dp),
+                        contentPadding = PaddingValues(top = 12.dp, bottom = 20.dp, end = 24.dp)
+                    ) {
+                        items(displayEpisodes.size) { idx ->
+                            val ep = displayEpisodes[idx]
+                            val epHistory = watchHistoryList.find {
+                                (it.animeSlug == anime.slug || it.animeId == anime.id) && it.episodeNumber == ep.number
                             }
+                            val progressFraction = if (epHistory != null && epHistory.durationMs > 0) {
+                                (epHistory.lastPositionMs.toFloat() / epHistory.durationMs.toFloat())
+                            } else null
+                            val isFirst = idx == 0
+                            val isLast = idx == displayEpisodes.lastIndex
+
+                            val epRequester = episodeFocusRequesters.getOrPut(ep.number) { FocusRequester() }
+
+                            TvEpisodeCard(
+                                episode = ep,
+                                onClick = {
+                                    lastPlayedEpNum = ep.number
+                                    onPlayEpisode(ep)
+                                },
+                                progressFraction = progressFraction,
+                                modifier = Modifier
+                                    .focusRequester(epRequester)
+                                    .focusProperties {
+                                        if (isFirst) left = FocusRequester.Cancel
+                                        if (isLast) right = FocusRequester.Cancel
+                                    }
+                                    .onFocusChanged { focusState ->
+                                        if (focusState.isFocused) {
+                                            lastPlayedEpNum = ep.number
+                                            scope.launch { listState.animateScrollToItem(5) }
+                                        }
+                                    }
+                            )
                         }
                     }
                 }
 
-                // Item 7: Recommended / Similar Anime Section (Row 5)
+                // Item 7: Recommended / Similar Anime Section
                 if (recommendedList.isNotEmpty()) {
                     item {
                         Spacer(modifier = Modifier.height(12.dp))
@@ -705,33 +679,6 @@ fun DetailScreen(
                                             }
                                         }
                                 )
-                            }
-                        }
-                    }
-                } else if (isLoading) {
-                    item {
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Text(
-                            text = "Animes Similares",
-                            color = Color.White,
-                            fontSize = 22.sp,
-                            fontWeight = FontWeight.Bold,
-                            fontFamily = BebasNeue
-                        )
-                    }
-
-                    item {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(280.dp)
-                                .padding(top = 8.dp, bottom = 16.dp),
-                            horizontalArrangement = Arrangement.spacedBy(14.dp)
-                        ) {
-                            repeat(6) {
-                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    ShimmerBox(width = 170.dp, height = 240.dp)
-                                }
                             }
                         }
                     }
