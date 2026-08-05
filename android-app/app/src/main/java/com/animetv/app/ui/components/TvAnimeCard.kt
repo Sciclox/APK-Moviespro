@@ -76,6 +76,7 @@ fun TvAnimeCard(
                     .data(anime.image)
                     .crossfade(true)
                     .size(300, 450)
+                    .placeholder(android.graphics.drawable.ColorDrawable(android.graphics.Color.DKGRAY))
                     .build(),
                 contentDescription = anime.title,
                 contentScale = ContentScale.Crop,
@@ -281,7 +282,11 @@ fun TvHistoryCard(
                 .background(Color.Black)
         ) {
             AsyncImage(
-                model = historyItem.animeImage.ifBlank { historyItem.backdrop ?: "" },
+                model = ImageRequest.Builder(LocalContext.current)
+                    .data(historyItem.animeImage.ifBlank { historyItem.backdrop ?: "" })
+                    .crossfade(true)
+                    .placeholder(android.graphics.drawable.ColorDrawable(android.graphics.Color.DKGRAY))
+                    .build(),
                 contentDescription = historyItem.animeTitle,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
@@ -402,6 +407,7 @@ fun TvEpisodeCard(
                     .data(episodeItem.image)
                     .crossfade(true)
                     .size(300, 450)
+                    .placeholder(android.graphics.drawable.ColorDrawable(android.graphics.Color.DKGRAY))
                     .build(),
                 contentDescription = episodeItem.title,
                 contentScale = ContentScale.Crop,

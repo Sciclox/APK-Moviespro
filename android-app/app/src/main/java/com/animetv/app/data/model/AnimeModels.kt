@@ -1,12 +1,15 @@
 package com.animetv.app.data.model
 
+import androidx.compose.runtime.Immutable
 import com.google.gson.annotations.SerializedName
 
+@Immutable
 data class ApiResponse<T>(
     @SerializedName("success") val success: Boolean,
     @SerializedName("data") val data: T
 )
 
+@Immutable
 data class RecentEpisodeItem(
     @SerializedName("id") val id: String,
     @SerializedName("slug") val slug: String,
@@ -18,6 +21,7 @@ data class RecentEpisodeItem(
     @SerializedName("dateText") val dateText: String? = null
 )
 
+@Immutable
 data class AnimeItem(
     @SerializedName("id") val id: String,
     @SerializedName("title") val title: String,
@@ -29,6 +33,7 @@ data class AnimeItem(
     @SerializedName("synopsis") val synopsis: String? = null
 )
 
+@Immutable
 data class EpisodeItem(
     @SerializedName("id") val id: String,
     @SerializedName("number") val number: Int,
@@ -39,6 +44,7 @@ data class EpisodeItem(
     @SerializedName("slug") val slug: String
 )
 
+@Immutable
 data class AnimeDetail(
     @SerializedName("id") val id: String,
     @SerializedName("title") val title: String,
@@ -56,6 +62,7 @@ data class AnimeDetail(
     @SerializedName("episodes") val episodes: List<EpisodeItem>
 )
 
+@Immutable
 data class StreamSource(
     @SerializedName("server") val server: String,
     @SerializedName("title") val title: String,
@@ -64,12 +71,14 @@ data class StreamSource(
     @SerializedName("audio") val audio: String?
 )
 
+@Immutable
 data class WatchResponse(
     @SerializedName("animeTitle") val animeTitle: String,
     @SerializedName("episodeNumber") val episodeNumber: Int,
     @SerializedName("servers") val servers: List<StreamSource>
 )
 
+@Immutable
 data class WatchHistoryItem(
     @SerializedName("animeId") val animeId: String,
     @SerializedName("animeSlug") val animeSlug: String,

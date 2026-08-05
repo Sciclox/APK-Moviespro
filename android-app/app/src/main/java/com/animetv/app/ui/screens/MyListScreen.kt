@@ -253,7 +253,7 @@ fun MyListScreen(
                                     horizontalArrangement = Arrangement.spacedBy(14.dp),
                                     contentPadding = PaddingValues(end = 36.dp)
                                 ) {
-                                    itemsIndexed(popularSuggestions.take(10)) { index, anime ->
+                                    itemsIndexed(items = popularSuggestions.take(10), key = { _, anime -> anime.id }) { index, anime ->
                                         var inList by remember { mutableStateOf(MyListManager.isInList(context, anime.id)) }
 
                                         Column(

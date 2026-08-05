@@ -549,7 +549,7 @@ fun PlayerScreen(
         }
     }
 
-    DisposableEffect(Unit) {
+    DisposableEffect(episode.slug) {
         onDispose {
             try {
                 val prefs = context.getSharedPreferences("player_positions", Context.MODE_PRIVATE)

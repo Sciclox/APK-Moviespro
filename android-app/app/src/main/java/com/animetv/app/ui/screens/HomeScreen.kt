@@ -211,7 +211,7 @@ fun HomeScreen(
                                 horizontalArrangement = Arrangement.spacedBy(14.dp),
                                 contentPadding = PaddingValues(start = 36.dp, top = 8.dp, bottom = 16.dp, end = 36.dp)
                             ) {
-                                itemsIndexed(top10Items) { rankIndex, anime ->
+                                itemsIndexed(items = top10Items, key = { _, anime -> anime.id }) { rankIndex, anime ->
                                     val cardFocusRequester = remember(anime.id) { FocusRequester() }
                                     TvTop10Card(
                                         anime = anime,
@@ -249,7 +249,7 @@ fun HomeScreen(
                                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                                 contentPadding = PaddingValues(start = 36.dp, top = 8.dp, bottom = 16.dp, end = 36.dp)
                             ) {
-                                items(watchHistory) { historyItem ->
+                                items(items = watchHistory, key = { it.animeId }) { historyItem ->
                                     val cardFocusRequester = remember(historyItem.animeId) { FocusRequester() }
 
                                     LaunchedEffect(isScreenActive, lastSelectedAnime) {
@@ -313,7 +313,7 @@ fun HomeScreen(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 contentPadding = PaddingValues(start = 36.dp, top = 8.dp, bottom = 16.dp, end = 36.dp)
                             ) {
-                                items(latestEpisodesList) { episodeItem ->
+                                items(items = latestEpisodesList, key = { it.id }) { episodeItem ->
                                     val cardFocusRequester = remember(episodeItem.id) { FocusRequester() }
 
                                     com.animetv.app.ui.components.TvEpisodeCard(
@@ -368,7 +368,7 @@ fun HomeScreen(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             contentPadding = PaddingValues(start = 36.dp, top = 8.dp, bottom = 16.dp, end = 36.dp)
                         ) {
-                            items(releasingRowItems) { anime ->
+                            items(items = releasingRowItems, key = { it.id }) { anime ->
                                 val cardFocusRequester = remember(anime.id) { FocusRequester() }
 
                                 LaunchedEffect(isScreenActive, lastSelectedAnime) {
@@ -416,7 +416,7 @@ fun HomeScreen(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             contentPadding = PaddingValues(start = 36.dp, top = 8.dp, bottom = 16.dp, end = 36.dp)
                         ) {
-                            items(heroList.reversed()) { anime ->
+                            items(items = heroList.reversed(), key = { it.id }) { anime ->
                                 val cardFocusRequester = remember(anime.id) { FocusRequester() }
 
                                 LaunchedEffect(isScreenActive, lastSelectedAnime) {
@@ -464,7 +464,7 @@ fun HomeScreen(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             contentPadding = PaddingValues(start = 36.dp, top = 8.dp, bottom = 16.dp, end = 36.dp)
                         ) {
-                            items(catalogList.reversed()) { anime ->
+                            items(items = catalogList.reversed(), key = { it.id }) { anime ->
                                 val cardFocusRequester = remember(anime.id) { FocusRequester() }
 
                                 LaunchedEffect(isScreenActive, lastSelectedAnime) {

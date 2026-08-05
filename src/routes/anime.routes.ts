@@ -1,5 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { ScraperService } from '../services/scraper.service';
+import axios from 'axios';
+import * as cheerio from 'cheerio';
 
 const router = Router();
 
@@ -153,7 +155,6 @@ router.get('/proxy/m3u8', async (req: Request, res: Response) => {
       return;
     }
 
-    const axios = (await import('axios')).default;
     const { data: manifest } = await axios.get(url, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -202,14 +203,13 @@ router.get('/proxy/ts', async (req: Request, res: Response) => {
       return;
     }
 
-    const axios = (await import('axios')).default;
     const response = await axios.get(url, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Referer': 'https://jkanime.net/',
         'Origin': 'https://jkanime.net',
       },
-      timeout: 15000,
+      timeout: 8000,
       responseType: 'arraybuffer',
     });
 
@@ -241,8 +241,6 @@ router.get('/proxy/video', async (req: Request, res: Response) => {
       return;
     }
 
-    const axios = (await import('axios')).default;
-    const cheerio = (await import('cheerio')).default;
     const DEFAULT_HEADERS = {
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
     };
@@ -258,6 +256,9 @@ router.get('/proxy/video', async (req: Request, res: Response) => {
       
       const cached = resolvedStreamCache.get(embedUrl);
       if (cached && (Date.now() - cached.timestamp < 30 * 60 * 1000) && !forceRefresh) {
+        // LRU pattern: move to end
+        resolvedStreamCache.delete(embedUrl);
+        resolvedStreamCache.set(embedUrl, cached);
         return { directUrl: cached.directUrl, refererHeader: cached.refererHeader };
       }
 
@@ -292,7 +293,7 @@ router.get('/proxy/video', async (req: Request, res: Response) => {
       if (!extractedUrl && embedUrl.includes('filemoon')) {
         try {
           const { data: html } = await axios.get(embedUrl, { headers: DEFAULT_HEADERS, timeout: 4000 });
-          const packedMatch = html.match(/eval\(function\(p,a,c,k,e,d\)\{.*\}\('(.+?)',(\d+),(\d+),'(.+?)'\.split\('\|'\)/s);
+          const packedMatch = html.match(/eval\(function\(p,a,c,k,e,d\)\{.*?\}\('(.+?)',(\d+),(\d+),'(.+?)'\.split\('\|'\)/s);
           if (packedMatch) {
             const p = packedMatch[1];
             const a = parseInt(packedMatch[2], 10);
@@ -342,6 +343,10 @@ router.get('/proxy/video', async (req: Request, res: Response) => {
       }
 
       if (extractedUrl) {
+        if (resolvedStreamCache.size >= 200 && !resolvedStreamCache.has(embedUrl)) {
+          const firstKey = resolvedStreamCache.keys().next().value;
+          resolvedStreamCache.delete(firstKey);
+        }
         resolvedStreamCache.set(embedUrl, {
           directUrl: extractedUrl,
           refererHeader: referer,
@@ -375,7 +380,7 @@ router.get('/proxy/video', async (req: Request, res: Response) => {
       streamResponse = await axios.get(resolved.directUrl, {
         headers: buildStreamHeaders(resolved.refererHeader),
         responseType: 'stream',
-        timeout: 15000,
+        timeout: 8000,
       });
     } catch (fetchErr) {
       // Token expired or link dead — force fresh resolution and retry once
@@ -384,7 +389,7 @@ router.get('/proxy/video', async (req: Request, res: Response) => {
         streamResponse = await axios.get(resolved.directUrl, {
           headers: buildStreamHeaders(resolved.refererHeader),
           responseType: 'stream',
-          timeout: 15000,
+          timeout: 8000,
         });
       } else {
         throw fetchErr;

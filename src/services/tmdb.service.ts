@@ -80,7 +80,7 @@ export class TMDBService {
       }
     }
 
-    for (const queryTitle of candidates) {
+    const fetchPromises = candidates.map(async (queryTitle) => {
       try {
         const url = `${CONFIG.ANIMEVERSE_BASE_URL}/api/v1/anime/enrich?title=${encodeURIComponent(queryTitle)}`;
         const { data } = await axios.get(url, {
@@ -113,6 +113,14 @@ export class TMDBService {
         }
       } catch (err: any) {
         console.warn(`[TMDBService] Enrich failed for "${queryTitle}":`, err?.message || err);
+      }
+      throw new Error('No valid metadata found');
+    });
+
+    const results = await Promise.allSettled(fetchPromises);
+    for (const result of results) {
+      if (result.status === 'fulfilled' && result.value) {
+        return result.value;
       }
     }
 

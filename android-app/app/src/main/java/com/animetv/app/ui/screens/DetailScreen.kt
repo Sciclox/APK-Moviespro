@@ -541,7 +541,7 @@ fun DetailScreen(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             contentPadding = PaddingValues(bottom = 4.dp)
                         ) {
-                            items(episodeBatches.size) { idx ->
+                            items(count = episodeBatches.size, key = { idx -> episodeBatches[idx].first().id }) { idx ->
                                 val batch = episodeBatches[idx]
                                 val startEp = batch.first().number
                                 val endEp = batch.last().number
@@ -601,7 +601,7 @@ fun DetailScreen(
                         horizontalArrangement = Arrangement.spacedBy(14.dp),
                         contentPadding = PaddingValues(top = 12.dp, bottom = 20.dp, end = 24.dp)
                     ) {
-                        items(displayEpisodes.size) { idx ->
+                        items(count = displayEpisodes.size, key = { idx -> displayEpisodes[idx].id }) { idx ->
                             val ep = displayEpisodes[idx]
                             val epHistory = watchHistoryList.find {
                                 (it.animeSlug == anime.slug || it.animeId == anime.id) && it.episodeNumber == ep.number
@@ -659,7 +659,7 @@ fun DetailScreen(
                             horizontalArrangement = Arrangement.spacedBy(14.dp),
                             contentPadding = PaddingValues(top = 8.dp, bottom = 16.dp, end = 24.dp)
                         ) {
-                            items(recommendedList.size) { idx ->
+                            items(count = recommendedList.size, key = { idx -> recommendedList[idx].id }) { idx ->
                                 val recAnime = recommendedList[idx]
                                 val isFirst = idx == 0
                                 val isLast = idx == recommendedList.lastIndex

@@ -37,6 +37,7 @@ interface CacheEntry<T> {
 
 class MemoryCache {
   private cache = new Map<string, CacheEntry<any>>();
+  private maxEntries = 500;
 
   get<T>(key: string): T | null {
     const entry = this.cache.get(key);
@@ -45,10 +46,17 @@ class MemoryCache {
       this.cache.delete(key);
       return null;
     }
+    // LRU: Move to end (most recently used)
+    this.cache.delete(key);
+    this.cache.set(key, entry);
     return entry.data as T;
   }
 
   set<T>(key: string, data: T, ttlSeconds: number): void {
+    if (this.cache.size >= this.maxEntries && !this.cache.has(key)) {
+      const firstKey = this.cache.keys().next().value;
+      this.cache.delete(firstKey);
+    }
     this.cache.set(key, {
       data,
       expiresAt: Date.now() + ttlSeconds * 1000,
@@ -929,52 +937,6 @@ export class ScraperService {
         // continue
       }
       return results;
-    };
-
-    const resolveEmbedToDirectStream = async (embedUrl: string): Promise<string | null> => {
-      try {
-        if (embedUrl.includes('filemoon')) {
-          const { data: html } = await axios.get(embedUrl, { headers: DEFAULT_HEADERS, timeout: 3500 });
-          const packedMatch = html.match(/eval\(function\(p,a,c,k,e,d\)\{.*\}\('(.+?)',(\d+),(\d+),'(.+?)'\.split\('\|'\)/s);
-          if (packedMatch) {
-            const p = packedMatch[1];
-            const a = parseInt(packedMatch[2], 10);
-            const c = parseInt(packedMatch[3], 10);
-            const k = packedMatch[4].split('|');
-            let currentC = c;
-            let result = p;
-            while (currentC--) {
-              if (k[currentC]) {
-                result = result.replace(new RegExp('\\b' + currentC.toString(a) + '\\b', 'g'), k[currentC]);
-              }
-            }
-            const m3u8 = result.match(/(https?:\/\/[^\s"'<>]+\.m3u8[^\s"'<>]*)/i);
-            if (m3u8) return m3u8[1];
-          }
-        }
-        if (embedUrl.includes('mp4upload')) {
-          const { data: html } = await axios.get(embedUrl, { headers: DEFAULT_HEADERS, timeout: 3500 });
-          const mp4Match = html.match(/src:\s*["'](https?:\/\/[^"']+\.mp4[^"']*)["']/i) || html.match(/(https?:\/\/[^\s"'<>]+\.mp4[^\s"'<>]*)/i);
-          if (mp4Match && mp4Match[1]) return mp4Match[1];
-        }
-        if (embedUrl.includes('ok.ru')) {
-          const secureUrl = embedUrl.replace('http://', 'https://');
-          const { data: html } = await axios.get(secureUrl, { headers: DEFAULT_HEADERS, timeout: 3500 });
-          const optionsAttr = cheerio.load(html)('div[data-options]').attr('data-options');
-          if (optionsAttr) {
-            const decoded = optionsAttr.replace(/&quot;/g, '"').replace(/&amp;/g, '&');
-            const json = JSON.parse(decoded);
-            const flashvars = JSON.parse(json.flashvars.metadata);
-            if (flashvars.videos && flashvars.videos.length > 0) {
-              const preferred = flashvars.videos.find((v: any) => v.name === 'hd') || flashvars.videos.find((v: any) => v.name === 'sd') || flashvars.videos[0];
-              if (preferred && preferred.url) return preferred.url;
-            }
-          }
-        }
-      } catch {
-        // ignore
-      }
-      return null;
     };
 
     const extractSecondaryProvider = async (targetSlug: string, targetEp: number): Promise<StreamSource[]> => {

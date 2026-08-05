@@ -3,11 +3,13 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import animeRoutes from './routes/anime.routes';
 import { CONFIG } from './config/constants';
+import compression from 'compression';
 
 dotenv.config();
 
 const app = express();
 
+app.use(compression());
 app.use(cors());
 app.use(express.json());
 

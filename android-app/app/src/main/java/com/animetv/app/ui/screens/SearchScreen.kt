@@ -340,7 +340,7 @@ fun SearchScreen(
                         item { Text("No se encontraron resultados.", color = NetflixLightGrey, fontSize = 14.sp) }
                     } else {
                         val rows = list.chunked(4)
-                        itemsIndexed(rows) { rowIndex, rowItems ->
+                        itemsIndexed(items = rows, key = { _, row -> row.first().id }) { rowIndex, rowItems ->
                             Row(
                                 modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
