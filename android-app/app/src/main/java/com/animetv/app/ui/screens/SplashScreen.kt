@@ -25,8 +25,8 @@ import kotlinx.coroutines.launch
 fun SplashScreen(
     onFinished: () -> Unit
 ) {
-    // Scale animation: 0.85 -> 1.1 -> 1.0
-    val scaleAnim = remember { Animatable(0.85f) }
+    // Scale animation: 0.75 -> 1.28 -> 1.0
+    val scaleAnim = remember { Animatable(0.75f) }
     // Alpha animation: 0 -> 1
     val alphaAnim = remember { Animatable(0f) }
     // Fade out at end
@@ -41,21 +41,21 @@ fun SplashScreen(
             showColdStartMessage = true
         }
 
-        // Phase 1: Fade in + Scale up the logo
+        // Phase 1: Fade in + Zoom scale up logo
         alphaAnim.animateTo(
             targetValue = 1f,
             animationSpec = tween(durationMillis = 650, easing = EaseOutCubic)
         )
 
         scaleAnim.animateTo(
-            targetValue = 1.1f,
-            animationSpec = tween(durationMillis = 700, easing = EaseOutCubic)
+            targetValue = 1.28f,
+            animationSpec = tween(durationMillis = 750, easing = EaseOutCubic)
         )
 
-        // Phase 2: Settle to normal scale
+        // Phase 2: Settle smoothly to normal scale
         scaleAnim.animateTo(
             targetValue = 1.0f,
-            animationSpec = tween(durationMillis = 350, easing = EaseInOutCubic)
+            animationSpec = tween(durationMillis = 400, easing = EaseInOutCubic)
         )
 
         // Hold for a moment
