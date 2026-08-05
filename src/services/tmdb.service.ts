@@ -123,7 +123,8 @@ export class TMDBService {
   /**
    * Fetch AniList media info (episodes count, genres, native title)
    */
-  static async getAniListMetadata(title: string): Promise<Partial<AniListMedia> | null> {
+  static async getAniListMetadata(title: string | string[]): Promise<Partial<AniListMedia> | null> {
+    const titles = Array.isArray(title) ? title : [title];
     const query = `
       query ($search: String) {
         Media (search: $search, type: ANIME) {
@@ -148,20 +149,26 @@ export class TMDBService {
       }
     `;
 
-    try {
-      const response = await axios.post(
-        CONFIG.ANILIST_API_URL,
-        {
-          query,
-          variables: { search: title },
-        },
-        { timeout: 4000 }
-      );
+    for (const t of titles) {
+      if (!t) continue;
+      try {
+        const response = await axios.post(
+          CONFIG.ANILIST_API_URL,
+          {
+            query,
+            variables: { search: t },
+          },
+          { timeout: 4000 }
+        );
 
-      return response.data?.data?.Media || null;
-    } catch {
-      return null;
+        const media = response.data?.data?.Media;
+        if (media) return media;
+      } catch {
+        // Try next title candidate
+      }
     }
+
+    return null;
   }
 
   /**
