@@ -308,8 +308,8 @@ fun SearchScreen(
                     Text(
                         text = when {
                             searchQuery.isNotBlank() -> "Resultados para \"$searchQuery\""
-                            selectedGenreSlug.isNotBlank() -> "Directorio JKAnime - $selectedGenreLabel"
-                            else -> "Directorio JKAnime - Todos los Animes"
+                            selectedGenreSlug.isNotBlank() -> selectedGenreLabel
+                            else -> "Todos los Animes"
                         },
                         color = Color.White,
                         fontSize = 20.sp,
