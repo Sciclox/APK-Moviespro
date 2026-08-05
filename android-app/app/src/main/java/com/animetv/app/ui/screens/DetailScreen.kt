@@ -254,8 +254,9 @@ fun DetailScreen(
         if (isLoading) {
             Column(
                 modifier = Modifier
-                    .padding(start = 72.dp, top = 36.dp)
-                    .width(500.dp)
+                    .fillMaxSize()
+                    .padding(start = 72.dp, top = 36.dp, end = 48.dp, bottom = 48.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 val loadingBackRequester = remember { FocusRequester() }
                 Button(
@@ -284,12 +285,62 @@ fun DetailScreen(
                         fontSize = 13.sp
                     )
                 }
-                Spacer(modifier = Modifier.height(20.dp))
-                ShimmerBox(width = 320.dp, height = 40.dp)
-                Spacer(modifier = Modifier.height(12.dp))
-                ShimmerBox(width = 240.dp, height = 20.dp)
-                Spacer(modifier = Modifier.height(16.dp))
-                ShimmerBox(width = 500.dp, height = 80.dp)
+
+                // Title + Metadata Skeleton
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    ShimmerBox(width = 110.dp, height = 18.dp)
+                    ShimmerBox(width = 380.dp, height = 40.dp)
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        ShimmerBox(width = 65.dp, height = 20.dp)
+                        ShimmerBox(width = 45.dp, height = 20.dp)
+                        ShimmerBox(width = 85.dp, height = 20.dp)
+                        ShimmerBox(width = 60.dp, height = 20.dp)
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        ShimmerBox(width = 70.dp, height = 22.dp)
+                        ShimmerBox(width = 80.dp, height = 22.dp)
+                        ShimmerBox(width = 75.dp, height = 22.dp)
+                    }
+                }
+
+                // Synopsis Skeleton
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    ShimmerBox(width = 540.dp, height = 14.dp)
+                    ShimmerBox(width = 500.dp, height = 14.dp)
+                    ShimmerBox(width = 420.dp, height = 14.dp)
+                }
+
+                // Action Buttons Skeleton
+                Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                    ShimmerBox(width = 190.dp, height = 40.dp)
+                    ShimmerBox(width = 130.dp, height = 40.dp)
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                // Episodes Section Skeleton Header & Row
+                ShimmerBox(width = 110.dp, height = 24.dp)
+                Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                    repeat(5) {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            ShimmerBox(width = 200.dp, height = 115.dp)
+                            ShimmerBox(width = 130.dp, height = 14.dp)
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                // Recommended Anime Section Skeleton Header & Row
+                ShimmerBox(width = 160.dp, height = 24.dp)
+                Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                    repeat(6) {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            ShimmerBox(width = 140.dp, height = 200.dp)
+                            ShimmerBox(width = 110.dp, height = 14.dp)
+                        }
+                    }
+                }
             }
         } else {
             LazyColumn(
