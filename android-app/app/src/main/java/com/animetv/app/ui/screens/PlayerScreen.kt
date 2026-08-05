@@ -16,6 +16,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Dns
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Forward10
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.Pause
@@ -922,20 +923,53 @@ fun PlayerScreen(
                             }
                         }
 
-                        Column(horizontalAlignment = Alignment.End) {
-                            Text(
-                                text = anime?.title ?: "ANIME TV",
-                                color = Color.White,
-                                fontSize = 20.sp,
-                                fontWeight = FontWeight.Bold,
-                                fontFamily = BebasNeue
-                            )
-                            Text(
-                                text = subtitleText,
-                                color = NetflixLightGrey,
-                                fontSize = 14.sp,
-                                fontFamily = Inter
-                            )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            Button(
+                                onClick = { showServerMenu = true },
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .focusProperties {
+                                        down = seekBarFocusRequester
+                                    },
+                                scale = ButtonDefaults.scale(focusedScale = 1.0f),
+                                colors = ButtonDefaults.colors(
+                                    containerColor = Color.White.copy(alpha = 0.25f),
+                                    contentColor = Color.White,
+                                    focusedContainerColor = Color.White,
+                                    focusedContentColor = Color.Black
+                                ),
+                                border = ButtonDefaults.border(
+                                    focusedBorder = Border(
+                                        border = BorderStroke(2.dp, Color.White),
+                                        shape = androidx.compose.foundation.shape.CircleShape
+                                    )
+                                ),
+                                shape = ButtonDefaults.shape(shape = androidx.compose.foundation.shape.CircleShape),
+                                contentPadding = PaddingValues(0.dp)
+                            ) {
+                                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                    Icon(Icons.Default.Settings, contentDescription = "Servidores", modifier = Modifier.size(18.dp))
+                                }
+                            }
+
+                            Column(horizontalAlignment = Alignment.End) {
+                                Text(
+                                    text = anime?.title ?: "ANIME TV",
+                                    color = Color.White,
+                                    fontSize = 20.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    fontFamily = BebasNeue
+                                )
+                                Text(
+                                    text = subtitleText,
+                                    color = NetflixLightGrey,
+                                    fontSize = 14.sp,
+                                    fontFamily = Inter
+                                )
+                            }
                         }
                     }
 
@@ -1262,6 +1296,48 @@ fun PlayerScreen(
                         }
                     }
                 }
+            }
+        }
+
+        // Floating Skip Intro Button (Visible between 5s and 90s, only for anime series)
+        val showSkipIntro = remember(currentTimeMs, skipIntroDismissed, isMovie) {
+            !isMovie && !skipIntroDismissed && currentTimeMs in 5000L..90000L
+        }
+        AnimatedVisibility(
+            visible = showSkipIntro,
+            enter = fadeIn() + slideInHorizontally(initialOffset = { it }),
+            exit = fadeOut() + slideOutHorizontally(targetOffset = { it }),
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = 48.dp, bottom = 120.dp)
+        ) {
+            Button(
+                onClick = {
+                    exoPlayer.seekTo(90000L) // Skip typical 1m 30s anime intro
+                    skipIntroDismissed = true
+                    try { playButtonFocusRequester.requestFocus() } catch (_: Exception) {}
+                },
+                colors = ButtonDefaults.colors(
+                    containerColor = Color.White,
+                    contentColor = Color.Black,
+                    focusedContainerColor = Color.White,
+                    focusedContentColor = Color.Black
+                ),
+                border = ButtonDefaults.border(
+                    focusedBorder = Border(
+                        border = BorderStroke(2.dp, Color.White),
+                        shape = RoundedCornerShape(4.dp)
+                    )
+                ),
+                shape = ButtonDefaults.shape(shape = RoundedCornerShape(4.dp)),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+            ) {
+                Text(
+                    text = "Saltar Intro  ⏩",
+                    fontFamily = Inter,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp
+                )
             }
         }
 

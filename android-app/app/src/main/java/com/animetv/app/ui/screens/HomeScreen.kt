@@ -94,11 +94,15 @@ fun HomeScreen(
     }
 
     val watchHistory = remember { mutableStateListOf<com.animetv.app.data.model.WatchHistoryItem>() }
+    val myList = remember { mutableStateListOf<AnimeItem>() }
 
-    DisposableEffect(context) {
-        watchHistory.clear()
-        watchHistory.addAll(com.animetv.app.data.repository.WatchHistoryManager.getHistory(context))
-        onDispose {}
+    LaunchedEffect(isScreenActive) {
+        if (isScreenActive) {
+            watchHistory.clear()
+            watchHistory.addAll(com.animetv.app.data.repository.WatchHistoryManager.getHistory(context))
+            myList.clear()
+            myList.addAll(com.animetv.app.data.repository.MyListManager.getSavedAnimes(context))
+        }
     }
 
     val rowWatchHistoryIndex = 2
@@ -287,6 +291,45 @@ fun HomeScreen(
                                                 if (it.isFocused) {
                                                     onFocusItem(cardFocusRequester)
                                                     scrollToRow(rowWatchHistoryIndex)
+                                                }
+                                            }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // ROW: MI LISTA (My List)
+                if (myList.isNotEmpty()) {
+                    item {
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            Text(
+                                text = "Mi Lista",
+                                color = NetflixLightGrey,
+                                fontSize = 15.sp,
+                                fontFamily = Inter,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(start = 36.dp, bottom = 8.dp)
+                            )
+                            TvLazyRow(
+                                modifier = Modifier.fillMaxWidth().height(310.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                contentPadding = PaddingValues(start = 36.dp, top = 8.dp, bottom = 16.dp, end = 36.dp)
+                            ) {
+                                items(items = myList, key = { it.id }) { anime ->
+                                    val cardFocusRequester = remember(anime.id) { FocusRequester() }
+
+                                    TvAnimeCard(
+                                        anime = anime,
+                                        onClick = { onAnimeSelect(anime) },
+                                        modifier = Modifier
+                                            .width(190.dp)
+                                            .focusRequester(cardFocusRequester)
+                                            .onFocusChanged {
+                                                if (it.isFocused) {
+                                                    onFocusItem(cardFocusRequester)
+                                                    scrollToRow(2 + (if (watchHistory.isNotEmpty()) 1 else 0))
                                                 }
                                             }
                                     )

@@ -33,6 +33,9 @@ import com.animetv.app.ui.theme.NetflixLightGrey
 import com.animetv.app.ui.theme.NetflixRed
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import com.animetv.app.data.repository.SearchHistoryManager
+import androidx.tv.foundation.lazy.list.TvLazyRow
+import androidx.tv.foundation.lazy.list.items
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
@@ -187,6 +190,9 @@ fun SearchScreen(
                 if (res.success) {
                     searchResults = res.data
                     onSearchStateChange(searchQuery, res.data)
+                    if (res.data.isNotEmpty()) {
+                        SearchHistoryManager.addQuery(context, searchQuery)
+                    }
                 }
             } catch (_: Exception) {
             } finally {
@@ -304,6 +310,47 @@ fun SearchScreen(
                 verticalArrangement = Arrangement.spacedBy(10.dp),
                 contentPadding = PaddingValues(bottom = 60.dp)
             ) {
+                // Recent Searches Row
+                val recentQueries = remember(searchQuery) {
+                    SearchHistoryManager.getHistory(context)
+                }
+                if (searchQuery.isBlank() && recentQueries.isNotEmpty()) {
+                    item {
+                        Column(modifier = Modifier.padding(bottom = 12.dp)) {
+                            Text(
+                                text = "BÚSQUEDAS RECIENTES",
+                                color = NetflixLightGrey,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = Inter
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            TvLazyRow(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                contentPadding = PaddingValues(vertical = 4.dp)
+                            ) {
+                                items(items = recentQueries, key = { it }) { queryText ->
+                                    Button(
+                                        onClick = {
+                                            searchQuery = queryText
+                                        },
+                                        colors = ButtonDefaults.colors(
+                                            containerColor = Color.White.copy(alpha = 0.1f),
+                                            contentColor = Color.White,
+                                            focusedContainerColor = Color.White,
+                                            focusedContentColor = Color.Black
+                                        ),
+                                        shape = ButtonDefaults.shape(shape = RoundedCornerShape(4.dp)),
+                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                                    ) {
+                                        Text(queryText, fontSize = 12.sp, fontFamily = Inter)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
                 item {
                     Text(
                         text = when {
