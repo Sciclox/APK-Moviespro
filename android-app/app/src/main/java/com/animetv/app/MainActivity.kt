@@ -516,15 +516,15 @@ class MainActivity : ComponentActivity() {
 
                         // Player Screen Overlay
                         AnimatedContent(
-                            targetState = if (currentScreen == TvScreen.PLAYER) selectedEpisode else null,
+                            targetState = (currentScreen == TvScreen.PLAYER),
                             modifier = Modifier.fillMaxSize(),
                             transitionSpec = {
                                 fadeIn(tween(400, delayMillis = 300, easing = LinearOutSlowInEasing)) togetherWith
                                         fadeOut(tween(350, easing = FastOutLinearInEasing))
                             },
                             label = "player_transition"
-                        ) { playerEp ->
-                            if (playerEp != null && selectedAnime != null) {
+                        ) { isPlayerActive ->
+                            if (isPlayerActive && selectedEpisode != null && selectedAnime != null) {
                                 val playerEpItem = selectedEpisode!!
                                 val animeSlug = selectedAnime!!.slug
                                 val currentEpNum = playerEpItem.number

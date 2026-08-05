@@ -94,6 +94,7 @@ fun PlayerScreen(
     var countdownSeconds by remember { mutableIntStateOf(10) }
     var quickSeekIcon by remember { mutableStateOf<String?>(null) }
     var preloadedNextStreamUrl by remember { mutableStateOf<String?>(null) }
+    var hasNextEpisodeAvailable by remember { mutableStateOf(true) }
 
     // Multi-server state & auto-fallback
     var serverList by remember { mutableStateOf<List<StreamSource>>(emptyList()) }
@@ -408,7 +409,7 @@ fun PlayerScreen(
 
     // Active 10-second countdown timer for next episode auto-play
     LaunchedEffect(showNextEpCountdown) {
-        if (showNextEpCountdown && onNextEpisode != null) {
+        if (showNextEpCountdown && onNextEpisode != null && hasNextEpisodeAvailable) {
             countdownSeconds = 10
             while (countdownSeconds > 0 && showNextEpCountdown) {
                 delay(1000)
@@ -424,7 +425,7 @@ fun PlayerScreen(
     }
 
     LaunchedEffect(currentTimeMs, durationMs) {
-        if (onNextEpisode != null && !nextEpCountdownDismissed && durationMs > 30_000 && (durationMs - currentTimeMs) in 1..15_000) {
+        if (onNextEpisode != null && hasNextEpisodeAvailable && !nextEpCountdownDismissed && durationMs > 30_000 && (durationMs - currentTimeMs) in 1..15_000) {
             if (!showNextEpCountdown && countdownSeconds > 0) {
                 showNextEpCountdown = true
             }
@@ -433,7 +434,7 @@ fun PlayerScreen(
 
     // Silent Background Pre-fetching for Next Episode when reaching 75% progress
     LaunchedEffect(currentTimeMs, durationMs) {
-        if (onNextEpisode != null && durationMs > 60_000 && currentTimeMs >= (durationMs * 0.75f) && preloadedNextStreamUrl == null) {
+        if (onNextEpisode != null && hasNextEpisodeAvailable && durationMs > 60_000 && currentTimeMs >= (durationMs * 0.75f) && preloadedNextStreamUrl == null) {
             scope.launch {
                 try {
                     var animeSlug = anime?.slug?.ifBlank { null }
@@ -458,6 +459,7 @@ fun PlayerScreen(
         skipIntroDismissed = false
         nextEpCountdownDismissed = false
         errorMessage = null
+        preloadedNextStreamUrl = null
         scope.launch {
             try {
                 var animeSlug = anime?.slug?.ifBlank { null }
@@ -465,6 +467,17 @@ fun PlayerScreen(
                     ?: ""
                 animeSlug = animeSlug.replace(Regex("-(episode|episodio)-\\d+$", RegexOption.IGNORE_CASE), "").replace(Regex("/$"), "")
                 val epNum = episode.number.toString()
+
+                // Check total episodes count via anime details API
+                try {
+                    val detailsRes = ApiClient.apiService.getAnimeDetails(animeSlug)
+                    if (detailsRes.success && detailsRes.data.episodes.isNotEmpty()) {
+                        val maxEp = detailsRes.data.episodes.maxOfOrNull { it.number } ?: detailsRes.data.episodes.size
+                        hasNextEpisodeAvailable = episode.number < maxEp
+                    }
+                } catch (e: Exception) {
+                    // Keep default fallback if details fetch fails
+                }
 
                 val res = ApiClient.apiService.getStreamSources(animeSlug, epNum)
                 if (res.success && res.data.servers.isNotEmpty()) {
@@ -488,46 +501,47 @@ fun PlayerScreen(
                     currentServerIndex = preferredIdx
                     streamUrl = res.data.servers[preferredIdx].url
                     lastSelectedServerName = res.data.servers[preferredIdx].server
+                } else {
+                    errorMessage = "El Episodio ${episode.number} no está disponible."
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
+                errorMessage = "Error al obtener las fuentes del Episodio ${episode.number}."
             } finally {
-                if (streamUrl.isNullOrEmpty()) {
-                    // Full-length reliable fallback stream (Big Buck Bunny - Google hosted)
-                    streamUrl = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"
-                }
-                streamUrl?.let { url ->
-                    val isHls = url.contains(".m3u8") || serverList.getOrNull(currentServerIndex)?.format == "hls"
-                    val mediaItem = if (isHls) {
-                        MediaItem.Builder()
-                            .setUri(Uri.parse(url))
-                            .setMimeType(MimeTypes.APPLICATION_M3U8)
-                            .build()
-                    } else {
-                        MediaItem.Builder()
-                            .setUri(Uri.parse(url))
-                            .setMimeType(MimeTypes.VIDEO_MP4)
-                            .build()
-                    }
+                if (!streamUrl.isNullOrEmpty() && errorMessage == null) {
+                    streamUrl?.let { url ->
+                        val isHls = url.contains(".m3u8") || serverList.getOrNull(currentServerIndex)?.format == "hls"
+                        val mediaItem = if (isHls) {
+                            MediaItem.Builder()
+                                .setUri(Uri.parse(url))
+                                .setMimeType(MimeTypes.APPLICATION_M3U8)
+                                .build()
+                        } else {
+                            MediaItem.Builder()
+                                .setUri(Uri.parse(url))
+                                .setMimeType(MimeTypes.VIDEO_MP4)
+                                .build()
+                        }
 
-                    val mediaSource = if (isHls) {
-                        HlsMediaSource.Factory(httpDataSourceFactory).createMediaSource(mediaItem)
-                    } else {
-                        DefaultMediaSourceFactory(httpDataSourceFactory).createMediaSource(mediaItem)
-                    }
+                        val mediaSource = if (isHls) {
+                            HlsMediaSource.Factory(httpDataSourceFactory).createMediaSource(mediaItem)
+                        } else {
+                            DefaultMediaSourceFactory(httpDataSourceFactory).createMediaSource(mediaItem)
+                        }
 
-                    exoPlayer.setMediaSource(mediaSource)
-                    exoPlayer.prepare()
-                    exoPlayer.play()
-                    
-                    val prefs = context.getSharedPreferences("player_positions", Context.MODE_PRIVATE)
-                    val historyMatch = com.animetv.app.data.repository.WatchHistoryManager.getHistory(context)
-                        .find { (it.animeSlug == anime?.slug || it.animeId == anime?.id) && it.episodeNumber == episode.number }
-                    val savedPosition = historyMatch?.lastPositionMs?.takeIf { it > 5_000 }
-                        ?: prefs.getLong(episode.slug, 0L)
-                    val totalDuration = exoPlayer.duration
-                    if (savedPosition > 5_000 && (totalDuration <= 0 || savedPosition < totalDuration - 15_000)) {
-                        exoPlayer.seekTo(savedPosition)
+                        exoPlayer.setMediaSource(mediaSource)
+                        exoPlayer.prepare()
+                        exoPlayer.play()
+                        
+                        val prefs = context.getSharedPreferences("player_positions", Context.MODE_PRIVATE)
+                        val historyMatch = com.animetv.app.data.repository.WatchHistoryManager.getHistory(context)
+                            .find { (it.animeSlug == anime?.slug || it.animeId == anime?.id) && it.episodeNumber == episode.number }
+                        val savedPosition = historyMatch?.lastPositionMs?.takeIf { it > 5_000 }
+                            ?: prefs.getLong(episode.slug, 0L)
+                        val totalDuration = exoPlayer.duration
+                        if (savedPosition > 5_000 && (totalDuration <= 0 || savedPosition < totalDuration - 15_000)) {
+                            exoPlayer.seekTo(savedPosition)
+                        }
                     }
                 }
                 isLoading = false
@@ -681,7 +695,7 @@ fun PlayerScreen(
 
         // Next Episode Countdown Overlay Card
         AnimatedVisibility(
-            visible = showNextEpCountdown && onNextEpisode != null,
+            visible = showNextEpCountdown && onNextEpisode != null && hasNextEpisodeAvailable,
             enter = fadeIn() + slideInHorizontally { it },
             exit = fadeOut() + slideOutHorizontally { it },
             modifier = Modifier
@@ -1220,7 +1234,7 @@ fun PlayerScreen(
                             }
 
                             // Next Episode Button
-                            if (!isMovie && onNextEpisode != null) {
+                            if (!isMovie && onNextEpisode != null && hasNextEpisodeAvailable) {
                                 Button(
                                     onClick = { onNextEpisode() },
                                     modifier = Modifier.size(42.dp),

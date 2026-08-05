@@ -748,14 +748,21 @@ export class ScraperService {
         slug: `${slug}/1`,
       });
     } else {
-      const isReleasingStatus = meta?.status === 'RELEASING';
       for (let i = 0; i < totalEpisodes; i++) {
         const epNum = i + 1;
         const jkStill = jkStills[i];
 
-        // Stop adding ghost episodes if this episode does not exist yet on JKAnime for short releasing shows
-        if (i > 0 && !jkStill && (isSequel || isReleasingStatus || jkMeta.epCount === 0) && !isLongRunning) {
+        // Stop adding ghost episodes if epNum exceeds verified JKAnime epCount
+        if (jkMeta.epCount > 0 && epNum > jkMeta.epCount && !isLongRunning) {
           break;
+        }
+
+        // Stop adding ghost episodes if this episode page does not exist on JKAnime
+        if (i > 0 && !jkStill && !isLongRunning) {
+          const nextStill = jkStills[i + 1];
+          if (!nextStill) {
+            break;
+          }
         }
 
         const stillImg = jkStill || seasonFallbackImage;
