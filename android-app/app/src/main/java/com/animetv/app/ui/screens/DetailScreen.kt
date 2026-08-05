@@ -66,6 +66,8 @@ fun DetailScreen(
     var isLoading by remember { mutableStateOf(true) }
     var selectedBatchIndex by remember { mutableIntStateOf(0) }
     var recommendedList by remember { mutableStateOf<List<AnimeItem>>(emptyList()) }
+    var lastPlayedEpNum by remember { mutableIntStateOf(-1) }
+    val episodeFocusRequesters = remember { mutableStateMapOf<Int, FocusRequester>() }
 
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
@@ -167,14 +169,28 @@ fun DetailScreen(
         } catch (_: Exception) {}
     }
 
-    // Auto focus on PLAY button when screen opens or when returning from PlayerScreen
+    // Auto focus restoration on PLAY button or last played episode card when returning from PlayerScreen
     LaunchedEffect(isScreenActive, isLoading) {
         if (isScreenActive && !isLoading) {
-            delay(200)
+            delay(250)
             try {
-                playButtonFocusRequester.requestFocus()
+                val targetEpNum = if (lastPlayedEpNum != -1) lastPlayedEpNum else (currentAnimeHistory?.episodeNumber ?: -1)
+                
+                if (targetEpNum != -1 && episodeFocusRequesters.containsKey(targetEpNum)) {
+                    val batchIdx = episodeBatches.indexOfFirst { b -> b.any { it.number == targetEpNum } }
+                    if (batchIdx != -1 && batchIdx != selectedBatchIndex) {
+                        selectedBatchIndex = batchIdx
+                        delay(100)
+                    }
+                    listState.animateScrollToItem(5)
+                    delay(100)
+                    episodeFocusRequesters[targetEpNum]?.requestFocus()
+                } else {
+                    playButtonFocusRequester.requestFocus()
+                }
             } catch (e: Exception) {
                 e.printStackTrace()
+                try { playButtonFocusRequester.requestFocus() } catch (_: Exception) {}
             }
         }
     }
@@ -629,17 +645,24 @@ fun DetailScreen(
                             val isFirst = idx == 0
                             val isLast = idx == displayEpisodes.lastIndex
 
+                            val epRequester = episodeFocusRequesters.getOrPut(ep.number) { FocusRequester() }
+
                             TvEpisodeCard(
                                 episode = ep,
-                                onClick = { onPlayEpisode(ep) },
+                                onClick = {
+                                    lastPlayedEpNum = ep.number
+                                    onPlayEpisode(ep)
+                                },
                                 progressFraction = progressFraction,
                                 modifier = Modifier
+                                    .focusRequester(epRequester)
                                     .focusProperties {
                                         if (isFirst) left = FocusRequester.Cancel
                                         if (isLast) right = FocusRequester.Cancel
                                     }
                                     .onFocusChanged { focusState ->
                                         if (focusState.isFocused) {
+                                            lastPlayedEpNum = ep.number
                                             scope.launch { listState.animateScrollToItem(5) }
                                         }
                                     }
