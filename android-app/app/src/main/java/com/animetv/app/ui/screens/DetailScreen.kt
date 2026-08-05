@@ -3,6 +3,7 @@ package com.animetv.app.ui.screens
 import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.ui.draw.blur
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -219,6 +220,12 @@ fun DetailScreen(
         label = "blur"
     )
 
+    val loadingOverlayAlpha by animateFloatAsState(
+        targetValue = if (isLoading) 0.65f else 0f,
+        animationSpec = tween(durationMillis = 600),
+        label = "loadingOverlayAlpha"
+    )
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -250,6 +257,15 @@ fun DetailScreen(
                     )
                 )
         )
+
+        // Android 9-11 TV Compatibility Scrim Overlay
+        if (loadingOverlayAlpha > 0f) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = loadingOverlayAlpha))
+            )
+        }
 
         if (isLoading) {
             Column(
