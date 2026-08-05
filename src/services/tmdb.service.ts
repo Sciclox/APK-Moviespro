@@ -69,15 +69,21 @@ export class TMDBService {
     for (const queryTitle of candidates) {
       try {
         const url = `${CONFIG.ANIMEVERSE_BASE_URL}/api/v1/anime/enrich?title=${encodeURIComponent(queryTitle)}`;
-        const { data } = await axios.get(url, { timeout: 4000 });
+        const { data } = await axios.get(url, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'application/json',
+          },
+          timeout: 7000,
+        });
 
         if (data) {
           const details = data.details || data.tmdb || {};
           const overview = details.overview || null;
-          const backdropPath = details.backdrop_path ? `${CONFIG.TMDB_IMAGE_BASE}${details.backdrop_path}` : null;
-          const posterPath = details.poster_path ? `${CONFIG.TMDB_IMAGE_BASE}${details.poster_path}` : null;
-          const voteAverage = details.vote_average ? Math.round(details.vote_average * 10) / 10 : null;
-          const year = details.first_air_date ? parseInt(details.first_air_date.split('-')[0], 10) : null;
+          const backdropPath = details.backdrop_path ? `${CONFIG.TMDB_IMAGE_BASE}${details.backdrop_path}` : (data.anilist?.bannerImage || null);
+          const posterPath = details.poster_path ? `${CONFIG.TMDB_IMAGE_BASE}${details.poster_path}` : (data.anilist?.coverImage?.extraLarge || null);
+          const voteAverage = details.vote_average ? Math.round(details.vote_average * 10) / 10 : (data.anilist?.averageScore ? Math.round(data.anilist.averageScore / 10 * 10) / 10 : null);
+          const year = details.first_air_date ? parseInt(details.first_air_date.split('-')[0], 10) : (data.anilist?.seasonYear || null);
           const episodeStills: Record<string, string> = data.episodeStills || {};
 
           if (backdropPath || overview) {
@@ -91,8 +97,8 @@ export class TMDBService {
             };
           }
         }
-      } catch {
-        // Try next candidate
+      } catch (err: any) {
+        console.warn(`[TMDBService] Enrich failed for "${queryTitle}":`, err?.message || err);
       }
     }
 
