@@ -267,104 +267,12 @@ fun DetailScreen(
             )
         }
 
-        if (isLoading) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(start = 72.dp, top = 36.dp, end = 48.dp, bottom = 48.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
-            ) {
-                val loadingBackRequester = remember { FocusRequester() }
-                Button(
-                    onClick = { onBack() },
-                    modifier = Modifier.focusRequester(loadingBackRequester),
-                    scale = ButtonDefaults.scale(focusedScale = 1.08f),
-                    colors = ButtonDefaults.colors(
-                        containerColor = Color.White.copy(alpha = 0.25f),
-                        contentColor = Color.White,
-                        focusedContainerColor = Color.White,
-                        focusedContentColor = Color.Black
-                    ),
-                    border = ButtonDefaults.border(
-                        focusedBorder = Border(
-                            border = BorderStroke(2.dp, Color.White),
-                            shape = RoundedCornerShape(4.dp)
-                        )
-                    ),
-                    shape = ButtonDefaults.shape(shape = RoundedCornerShape(4.dp)),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
-                ) {
-                    Text(
-                        text = "←  ATRÁS",
-                        fontFamily = Inter,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 13.sp
-                    )
-                }
-
-                // Title + Metadata Skeleton
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    ShimmerBox(width = 110.dp, height = 18.dp)
-                    ShimmerBox(width = 380.dp, height = 40.dp)
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        ShimmerBox(width = 65.dp, height = 20.dp)
-                        ShimmerBox(width = 45.dp, height = 20.dp)
-                        ShimmerBox(width = 85.dp, height = 20.dp)
-                        ShimmerBox(width = 60.dp, height = 20.dp)
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        ShimmerBox(width = 70.dp, height = 22.dp)
-                        ShimmerBox(width = 80.dp, height = 22.dp)
-                        ShimmerBox(width = 75.dp, height = 22.dp)
-                    }
-                }
-
-                // Synopsis Skeleton
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    ShimmerBox(width = 540.dp, height = 14.dp)
-                    ShimmerBox(width = 500.dp, height = 14.dp)
-                    ShimmerBox(width = 420.dp, height = 14.dp)
-                }
-
-                // Action Buttons Skeleton
-                Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                    ShimmerBox(width = 190.dp, height = 40.dp)
-                    ShimmerBox(width = 130.dp, height = 40.dp)
-                }
-
-                Spacer(modifier = Modifier.height(4.dp))
-
-                // Episodes Section Skeleton Header & Row
-                ShimmerBox(width = 110.dp, height = 24.dp)
-                Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                    repeat(5) {
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            ShimmerBox(width = 200.dp, height = 115.dp)
-                            ShimmerBox(width = 130.dp, height = 14.dp)
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(4.dp))
-
-                // Recommended Anime Section Skeleton Header & Row
-                ShimmerBox(width = 160.dp, height = 24.dp)
-                Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                    repeat(6) {
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            ShimmerBox(width = 140.dp, height = 200.dp)
-                            ShimmerBox(width = 110.dp, height = 14.dp)
-                        }
-                    }
-                }
-            }
-        } else {
-            LazyColumn(
-                state = listState,
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(start = 72.dp, top = 36.dp, end = 48.dp, bottom = 48.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
-            ) {
+        LazyColumn(
+            state = listState,
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(start = 72.dp, top = 36.dp, end = 48.dp, bottom = 48.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
                 // Item 1: ATRÁS Navigation Button (Row 1)
                 item {
                     Button(
@@ -687,54 +595,71 @@ fun DetailScreen(
 
                 // Item 6: Horizontal Episode List (Row 4)
                 item {
-                    val displayEpisodes = if (isMovie) {
-                        allEpisodes.take(1)
-                    } else if (episodeBatches.isNotEmpty()) {
-                        episodeBatches.getOrNull(selectedBatchIndex) ?: allEpisodes
-                    } else {
-                        allEpisodes
-                    }
-
-                    TvLazyRow(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(185.dp),
-                        horizontalArrangement = Arrangement.spacedBy(14.dp),
-                        contentPadding = PaddingValues(top = 12.dp, bottom = 20.dp, end = 24.dp)
-                    ) {
-                        items(displayEpisodes.size) { idx ->
-                            val ep = displayEpisodes[idx]
-                            val epHistory = watchHistoryList.find {
-                                (it.animeSlug == anime.slug || it.animeId == anime.id) && it.episodeNumber == ep.number
+                    if (isLoading) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(185.dp)
+                                .padding(top = 12.dp, bottom = 20.dp),
+                            horizontalArrangement = Arrangement.spacedBy(14.dp)
+                        ) {
+                            repeat(5) {
+                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    ShimmerBox(width = 200.dp, height = 115.dp)
+                                    ShimmerBox(width = 130.dp, height = 14.dp)
+                                }
                             }
-                            val progressFraction = if (epHistory != null && epHistory.durationMs > 0) {
-                                (epHistory.lastPositionMs.toFloat() / epHistory.durationMs.toFloat())
-                            } else null
-                            val isFirst = idx == 0
-                            val isLast = idx == displayEpisodes.lastIndex
+                        }
+                    } else {
+                        val displayEpisodes = if (isMovie) {
+                            allEpisodes.take(1)
+                        } else if (episodeBatches.isNotEmpty()) {
+                            episodeBatches.getOrNull(selectedBatchIndex) ?: allEpisodes
+                        } else {
+                            allEpisodes
+                        }
 
-                            val epRequester = episodeFocusRequesters.getOrPut(ep.number) { FocusRequester() }
+                        TvLazyRow(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(185.dp),
+                            horizontalArrangement = Arrangement.spacedBy(14.dp),
+                            contentPadding = PaddingValues(top = 12.dp, bottom = 20.dp, end = 24.dp)
+                        ) {
+                            items(displayEpisodes.size) { idx ->
+                                val ep = displayEpisodes[idx]
+                                val epHistory = watchHistoryList.find {
+                                    (it.animeSlug == anime.slug || it.animeId == anime.id) && it.episodeNumber == ep.number
+                                }
+                                val progressFraction = if (epHistory != null && epHistory.durationMs > 0) {
+                                    (epHistory.lastPositionMs.toFloat() / epHistory.durationMs.toFloat())
+                                } else null
+                                val isFirst = idx == 0
+                                val isLast = idx == displayEpisodes.lastIndex
 
-                            TvEpisodeCard(
-                                episode = ep,
-                                onClick = {
-                                    lastPlayedEpNum = ep.number
-                                    onPlayEpisode(ep)
-                                },
-                                progressFraction = progressFraction,
-                                modifier = Modifier
-                                    .focusRequester(epRequester)
-                                    .focusProperties {
-                                        if (isFirst) left = FocusRequester.Cancel
-                                        if (isLast) right = FocusRequester.Cancel
-                                    }
-                                    .onFocusChanged { focusState ->
-                                        if (focusState.isFocused) {
-                                            lastPlayedEpNum = ep.number
-                                            scope.launch { listState.animateScrollToItem(5) }
+                                val epRequester = episodeFocusRequesters.getOrPut(ep.number) { FocusRequester() }
+
+                                TvEpisodeCard(
+                                    episode = ep,
+                                    onClick = {
+                                        lastPlayedEpNum = ep.number
+                                        onPlayEpisode(ep)
+                                    },
+                                    progressFraction = progressFraction,
+                                    modifier = Modifier
+                                        .focusRequester(epRequester)
+                                        .focusProperties {
+                                            if (isFirst) left = FocusRequester.Cancel
+                                            if (isLast) right = FocusRequester.Cancel
                                         }
-                                    }
-                            )
+                                        .onFocusChanged { focusState ->
+                                            if (focusState.isFocused) {
+                                                lastPlayedEpNum = ep.number
+                                                scope.launch { listState.animateScrollToItem(5) }
+                                            }
+                                        }
+                                )
+                            }
                         }
                     }
                 }
@@ -780,6 +705,33 @@ fun DetailScreen(
                                             }
                                         }
                                 )
+                            }
+                        }
+                    }
+                } else if (isLoading) {
+                    item {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = "Animes Similares",
+                            color = Color.White,
+                            fontSize = 22.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = BebasNeue
+                        )
+                    }
+
+                    item {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(280.dp)
+                                .padding(top = 8.dp, bottom = 16.dp),
+                            horizontalArrangement = Arrangement.spacedBy(14.dp)
+                        ) {
+                            repeat(6) {
+                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    ShimmerBox(width = 170.dp, height = 240.dp)
+                                }
                             }
                         }
                     }

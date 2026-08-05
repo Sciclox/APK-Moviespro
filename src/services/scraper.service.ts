@@ -544,7 +544,7 @@ export class ScraperService {
       const url = `${CONFIG.JKANIME_BASE_URL}/${slug}/${epNum}/`;
       const { data: html } = await axios.get(url, {
         headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
-        timeout: 2500,
+        timeout: 1200,
       });
       const m = html.match(/(https:\/\/cdn\.jkdesa\.com\/assets\/images\/animes\/video\/image(?:_thumb)?\/[^"'\s>]+)/);
       if (m && m[1]) {
@@ -560,6 +560,12 @@ export class ScraperService {
    * Get Anime Detail, Spanish Synopsis, Episode Stills and Metadata
    */
   static async getAnimeDetails(slugInput: string): Promise<AnimeDetail> {
+    const cacheKey = `anime_detail_v2_${slugInput.toLowerCase()}`;
+    const cached = apiCache.get<AnimeDetail>(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
     const slug = await ScraperService.resolveJkSlug(slugInput);
     const cleanTitleText = slug.replace(/-/g, ' ');
 
@@ -729,7 +735,7 @@ export class ScraperService {
     const isLongRunning = totalEpisodes > 50 || slug.includes('one-piece') || slug.includes('naruto') || slug.includes('detective-conan') || slug.includes('dragon-ball');
 
     // Concurrently fetch real native episode preview stills directly from JKAnime episode pages
-    const epCountToFetch = isMovie ? 1 : Math.min(totalEpisodes, 25);
+    const epCountToFetch = isMovie ? 1 : Math.min(totalEpisodes, 15);
     const jkStillsPromises = Array.from({ length: epCountToFetch }, (_, i) =>
       ScraperService.fetchJkEpisodeStill(slug, i + 1)
     );
@@ -812,7 +818,7 @@ export class ScraperService {
           .trim()
       : null;
 
-    return {
+    const resultDetail: AnimeDetail = {
       id: slug,
       title: displayTitle,
       englishTitle: formattedEnglishTitle,
@@ -828,6 +834,9 @@ export class ScraperService {
       type: mediaType,
       episodes: episodes,
     };
+
+    apiCache.set(cacheKey, resultDetail, 3600); // 1-hour in-memory cache
+    return resultDetail;
   }
 
   /**
