@@ -36,30 +36,35 @@ export class TMDBService {
   /**
    * Fetch metadata enriched with 100% Spanish synopsis & episode stills from TMDB / AnimeVerse
    */
-  static async getSpanishMetadata(title: string): Promise<EnrichedMetadata | null> {
+  static async getSpanishMetadata(title: string | string[]): Promise<EnrichedMetadata | null> {
     if (!title) return null;
 
+    const inputTitles = Array.isArray(title) ? title : [title];
     const candidates: string[] = [];
 
-    // 1. Prioritize specific movie subtitle after '//' or ':' FIRST (e.g. "Unanswered//butterfly" -> Movie 1654313)
-    if (title.includes('//')) {
-      const afterSlash = title.split('//').pop()?.trim();
-      if (afterSlash && !candidates.includes(afterSlash)) candidates.push(afterSlash);
-    }
+    for (const t of inputTitles) {
+      if (!t || typeof t !== 'string') continue;
+      
+      // 1. Prioritize specific movie subtitle after '//' or ':' FIRST (e.g. "Unanswered//butterfly" -> Movie 1654313)
+      if (t.includes('//')) {
+        const afterSlash = t.split('//').pop()?.trim();
+        if (afterSlash && !candidates.includes(afterSlash)) candidates.push(afterSlash);
+      }
 
-    if (title.includes(':')) {
-      const afterColon = title.split(':').pop()?.trim();
-      if (afterColon && !candidates.includes(afterColon)) candidates.push(afterColon);
-    }
+      if (t.includes(':')) {
+        const afterColon = t.split(':').pop()?.trim();
+        if (afterColon && !candidates.includes(afterColon)) candidates.push(afterColon);
+      }
 
-    // 2. Cleaned title without punctuation
-    if (title.includes('//') || title.includes(':') || title.includes('-')) {
-      const clean = title.replace(/\/\//g, ' ').replace(/:/g, ' ').replace(/\s+/g, ' ').trim();
-      if (clean && !candidates.includes(clean)) candidates.push(clean);
-    }
+      // 2. Cleaned title without punctuation
+      if (t.includes('//') || t.includes(':') || t.includes('-')) {
+        const clean = t.replace(/\/\//g, ' ').replace(/:/g, ' ').replace(/\s+/g, ' ').trim();
+        if (clean && !candidates.includes(clean)) candidates.push(clean);
+      }
 
-    // 3. Full original title as fallback
-    if (!candidates.includes(title)) candidates.push(title);
+      // 3. Full original title
+      if (!candidates.includes(t)) candidates.push(t);
+    }
 
     for (const queryTitle of candidates) {
       try {

@@ -74,8 +74,7 @@ fun SearchScreen(
 
     val genreCategories = remember {
         listOf(
-            "" to "Todos",
-            "tipo:animes" to "Animes (Series)",
+            "tipo:animes" to "Animes",
             "tipo:peliculas" to "Películas",
             "tipo:especiales" to "Especiales",
             "tipo:ovas" to "OVAs",
@@ -213,7 +212,7 @@ fun SearchScreen(
             // LEFT: Keyboard and Categories
             LazyColumn(
                 modifier = Modifier
-                    .width(232.dp)
+                    .width(224.dp)
                     .fillMaxHeight(),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 contentPadding = PaddingValues(bottom = 40.dp)
@@ -227,6 +226,12 @@ fun SearchScreen(
                         navFocusRequester = navFocusRequester,
                         onRightDpad = {
                             try { firstCardFocusRequester.requestFocus() } catch (_: Exception) {}
+                        },
+                        modifier = Modifier.onFocusChanged { focusState ->
+                            if (focusState.hasFocus && selectedGenreSlug.isNotEmpty()) {
+                                selectedGenreSlug = ""
+                                selectedGenreLabel = "Todos"
+                            }
                         }
                     )
                 }
@@ -255,7 +260,27 @@ fun SearchScreen(
                                     focusedContentColor = Color.Black
                                 ),
                                 shape = ButtonDefaults.shape(shape = RoundedCornerShape(50)),
-                                modifier = Modifier.fillMaxWidth().height(36.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(36.dp)
+                                    .onFocusChanged { focusState ->
+                                        if (focusState.isFocused && selectedGenreSlug != slug) {
+                                            searchQuery = ""
+                                            selectedGenreSlug = slug
+                                            selectedGenreLabel = label
+                                            scope.launch {
+                                                try { listState.scrollToItem(0) } catch (_: Exception) {}
+                                            }
+                                        }
+                                    }
+                                    .onKeyEvent { keyEvent ->
+                                        if (keyEvent.type == KeyEventType.KeyDown &&
+                                            keyEvent.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DPAD_RIGHT
+                                        ) {
+                                            try { firstCardFocusRequester.requestFocus() } catch (_: Exception) {}
+                                            true
+                                        } else false
+                                    },
                                 contentPadding = PaddingValues(horizontal = 12.dp)
                             ) {
                                 Text(
@@ -293,9 +318,20 @@ fun SearchScreen(
                 }
 
                 if (isSearching || (searchQuery.isBlank() && isLoadingCatalog && catalogList.isEmpty())) {
-                    item {
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            repeat(4) { ShimmerBox(width = 140.dp, height = 210.dp) }
+                    items(2) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            repeat(4) {
+                                ShimmerBox(
+                                    width = 140.dp,
+                                    height = 210.dp,
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
                         }
                     }
                 } else {

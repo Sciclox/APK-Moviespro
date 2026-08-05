@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.foundation.lazy.list.TvLazyRow
 import androidx.tv.foundation.lazy.list.items
+import androidx.tv.foundation.lazy.list.itemsIndexed
 import androidx.tv.material3.*
 import coil.compose.AsyncImage
 import androidx.compose.ui.platform.LocalContext
@@ -34,6 +35,7 @@ import com.animetv.app.data.model.AnimeDetail
 import com.animetv.app.data.model.AnimeItem
 import com.animetv.app.data.model.EpisodeItem
 import com.animetv.app.data.repository.MyListManager
+import com.animetv.app.data.repository.WatchHistoryManager
 import com.animetv.app.ui.components.ShimmerBox
 import com.animetv.app.ui.components.TvEpisodeCard
 import com.animetv.app.ui.theme.BebasNeue
@@ -54,14 +56,16 @@ fun DetailScreen(
     anime: AnimeItem,
     isScreenActive: Boolean = false,
     onBack: () -> Unit,
-    onPlayEpisode: (EpisodeItem) -> Unit
+    onPlayEpisode: (EpisodeItem) -> Unit,
+    onAnimeSelect: ((AnimeItem) -> Unit)? = null
 ) {
     val context = LocalContext.current
     var isInMyList by remember(anime.id) { mutableStateOf(MyListManager.isInList(context, anime.id)) }
     var detail by remember { mutableStateOf<AnimeDetail?>(null) }
     var isLoading by remember { mutableStateOf(true) }
-    var selectedSeason by remember { mutableStateOf(1) }
-    var expandedSeasonMenu by remember { mutableStateOf(false) }
+    var selectedBatchIndex by remember { mutableIntStateOf(0) }
+    var recommendedList by remember { mutableStateOf<List<AnimeItem>>(emptyList()) }
+
     val scope = rememberCoroutineScope()
     val backButtonFocusRequester = remember { FocusRequester() }
     val listState = rememberLazyListState()
@@ -124,6 +128,12 @@ fun DetailScreen(
         }
     }
 
+    // Watch history for smart "Continuar" button & episode progress indicators
+    val watchHistoryList = remember(isScreenActive, anime.id) { WatchHistoryManager.getHistory(context) }
+    val currentAnimeHistory = remember(watchHistoryList, anime.id, anime.slug) {
+        watchHistoryList.find { it.animeSlug == anime.slug || it.animeId == anime.id }
+    }
+
     LaunchedEffect(anime.slug) {
         scope.launch {
             try {
@@ -139,6 +149,20 @@ fun DetailScreen(
         }
     }
 
+    // Load recommended/similar anime based on genre
+    LaunchedEffect(anime.slug, detail?.genres) {
+        val firstGenre = detail?.genres?.firstOrNull()
+        try {
+            val res = ApiClient.apiService.getCatalog(
+                genre = firstGenre?.lowercase()?.replace(" ", "-"),
+                page = 1
+            )
+            if (res.success && res.data.isNotEmpty()) {
+                recommendedList = res.data.filter { it.id != anime.id && it.slug != anime.slug }.take(10)
+            }
+        } catch (_: Exception) {}
+    }
+
     // Auto focus on ATRÁS button when screen opens or when returning from PlayerScreen
     LaunchedEffect(isScreenActive, isLoading) {
         if (isScreenActive) {
@@ -152,6 +176,24 @@ fun DetailScreen(
     }
 
     val allEpisodes = if (detail?.episodes.isNullOrEmpty()) fallbackEpisodes else detail!!.episodes
+
+    // Group episodes into batches of 30 for long series
+    val batchSize = 30
+    val episodeBatches = remember(allEpisodes) {
+        if (allEpisodes.size > batchSize) {
+            allEpisodes.chunked(batchSize)
+        } else {
+            emptyList()
+        }
+    }
+
+    // Smart episode selection for main play button
+    val resumeEpisodeNum = currentAnimeHistory?.episodeNumber ?: 1
+    val resumeEpisode = remember(allEpisodes, resumeEpisodeNum) {
+        allEpisodes.find { it.number == resumeEpisodeNum }
+            ?: allEpisodes.firstOrNull()
+            ?: fallbackEpisodes.first()
+    }
 
     val blurRadius by animateDpAsState(
         targetValue = if (isLoading) 20.dp else 0.dp,
@@ -190,8 +232,6 @@ fun DetailScreen(
                     )
                 )
         )
-
-
 
         if (isLoading) {
             Column(
@@ -317,16 +357,20 @@ fun DetailScreen(
                             lineHeight = 38.sp
                         )
 
-
-
                         Spacer(modifier = Modifier.height(14.dp))
 
-                        // Badges Row
+                        // Badges Row with Dynamic Score
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(10.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("98% Coincidencia", color = Color(0xFF46D369), fontSize = 13.sp, fontWeight = FontWeight.Bold, fontFamily = Inter)
+                            val currentDetail = detail
+                            val scoreText = if (currentDetail?.score != null && currentDetail.score > 0) {
+                                "★ ${String.format("%.1f", currentDetail.score)}"
+                            } else {
+                                "98% Coincidencia"
+                            }
+                            Text(scoreText, color = Color(0xFF46D369), fontSize = 13.sp, fontWeight = FontWeight.Bold, fontFamily = Inter)
                             Text("${detail?.year ?: 2024}", color = NetflixLightGrey, fontSize = 13.sp, fontWeight = FontWeight.Medium, fontFamily = Inter)
 
                             val statusText = detail?.status ?: "FINALIZADO"
@@ -387,14 +431,18 @@ fun DetailScreen(
                     )
                 }
 
-                // Item 4: Action Buttons with unified Netflix TV style
+                // Item 4: Action Buttons with Smart "Continuar" Button
                 item {
                     Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                        val firstEp = detail?.episodes?.firstOrNull() ?: fallbackEpisodes.first()
+                        val playButtonText = when {
+                            isMovie -> "▶  REPRODUCIR PELÍCULA"
+                            currentAnimeHistory != null -> "▶  CONTINUAR EP. $resumeEpisodeNum"
+                            else -> "▶  REPRODUCIR EP. 1"
+                        }
 
-                        // REPRODUCIR Button
+                        // REPRODUCIR / CONTINUAR Button
                         Button(
-                            onClick = { onPlayEpisode(firstEp) },
+                            onClick = { onPlayEpisode(resumeEpisode) },
                             scale = ButtonDefaults.scale(focusedScale = 1.08f),
                             colors = ButtonDefaults.colors(
                                 containerColor = Color.White.copy(alpha = 0.25f),
@@ -411,7 +459,7 @@ fun DetailScreen(
                             shape = ButtonDefaults.shape(shape = RoundedCornerShape(4.dp))
                         ) {
                             Text(
-                                text = if (isMovie) "▶  REPRODUCIR PELÍCULA" else "▶  REPRODUCIR EP. 1",
+                                text = playButtonText,
                                 fontWeight = FontWeight.Black,
                                 fontSize = 13.sp,
                                 fontFamily = Inter
@@ -461,10 +509,48 @@ fun DetailScreen(
                     )
                 }
 
-                // Item 6: Horizontal Episode List / Movie Item (TvLazyRow)
+                // Item 5b: Episode Batch Selector (For long series > 30 episodes)
+                if (episodeBatches.isNotEmpty() && !isMovie) {
+                    item {
+                        TvLazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            contentPadding = PaddingValues(bottom = 4.dp)
+                        ) {
+                            itemsIndexed(episodeBatches) { idx, batch ->
+                                val startEp = batch.first().number
+                                val endEp = batch.last().number
+                                val isSelected = selectedBatchIndex == idx
+                                Button(
+                                    onClick = { selectedBatchIndex = idx },
+                                    scale = ButtonDefaults.scale(focusedScale = 1.05f),
+                                    colors = ButtonDefaults.colors(
+                                        containerColor = if (isSelected) NetflixRed else Color.White.copy(alpha = 0.15f),
+                                        contentColor = Color.White,
+                                        focusedContainerColor = Color.White,
+                                        focusedContentColor = Color.Black
+                                    ),
+                                    shape = ButtonDefaults.shape(shape = RoundedCornerShape(50)),
+                                    modifier = Modifier.height(32.dp),
+                                    contentPadding = PaddingValues(horizontal = 14.dp)
+                                ) {
+                                    Text(
+                                        text = "EP $startEp - $endEp",
+                                        fontSize = 12.sp,
+                                        fontFamily = Inter,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Item 6: Horizontal Episode List with Progress Bar Indicators
                 item {
                     val displayEpisodes = if (isMovie) {
                         allEpisodes.take(1)
+                    } else if (episodeBatches.isNotEmpty()) {
+                        episodeBatches.getOrNull(selectedBatchIndex) ?: allEpisodes
                     } else {
                         allEpisodes
                     }
@@ -477,10 +563,50 @@ fun DetailScreen(
                         contentPadding = PaddingValues(top = 12.dp, bottom = 20.dp, end = 24.dp)
                     ) {
                         items(displayEpisodes) { ep ->
+                            val epHistory = watchHistoryList.find {
+                                (it.animeSlug == anime.slug || it.animeId == anime.id) && it.episodeNumber == ep.number
+                            }
+                            val progressFraction = if (epHistory != null && epHistory.durationMs > 0) {
+                                (epHistory.lastPositionMs.toFloat() / epHistory.durationMs.toFloat())
+                            } else null
+
                             TvEpisodeCard(
                                 episode = ep,
-                                onClick = { onPlayEpisode(ep) }
+                                onClick = { onPlayEpisode(ep) },
+                                progressFraction = progressFraction
                             )
+                        }
+                    }
+                }
+
+                // Item 7: Recommended / Similar Anime Section
+                if (recommendedList.isNotEmpty()) {
+                    item {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = "Animes Similares",
+                            color = Color.White,
+                            fontSize = 22.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = BebasNeue
+                        )
+                    }
+
+                    item {
+                        TvLazyRow(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(280.dp),
+                            horizontalArrangement = Arrangement.spacedBy(14.dp),
+                            contentPadding = PaddingValues(top = 8.dp, bottom = 16.dp, end = 24.dp)
+                        ) {
+                            items(recommendedList) { recAnime ->
+                                com.animetv.app.ui.components.TvAnimeCard(
+                                    anime = recAnime,
+                                    onClick = { onAnimeSelect?.invoke(recAnime) },
+                                    modifier = Modifier.width(170.dp)
+                                )
+                            }
                         }
                     }
                 }

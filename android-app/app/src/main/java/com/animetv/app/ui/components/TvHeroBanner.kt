@@ -136,7 +136,7 @@ fun TvHeroBanner(
         Box(
             modifier = modifier
                 .fillMaxWidth()
-                .padding(horizontal = 36.dp)
+                .padding(start = 36.dp, end = 36.dp, bottom = 16.dp)
                 .height(380.dp)
                 .shadow(
                     elevation = 20.dp,

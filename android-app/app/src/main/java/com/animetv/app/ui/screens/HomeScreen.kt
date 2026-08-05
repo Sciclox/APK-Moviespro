@@ -63,6 +63,7 @@ fun HomeScreen(
     isLoading: Boolean,
     onAnimeSelect: (AnimeItem) -> Unit,
     onEpisodeSelect: ((com.animetv.app.data.model.RecentEpisodeItem) -> Unit)? = null,
+    onWatchHistorySelect: ((com.animetv.app.data.model.WatchHistoryItem) -> Unit)? = null,
     playButtonFocusRequester: FocusRequester,
     navFocusRequester: FocusRequester,
     onFocusItem: (FocusRequester) -> Unit = {}
@@ -167,7 +168,7 @@ fun HomeScreen(
             LazyColumn(
                 state = listState,
                 modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
                 contentPadding = PaddingValues(top = 68.dp, bottom = 64.dp)
             ) {
 
@@ -264,17 +265,21 @@ fun HomeScreen(
                                     com.animetv.app.ui.components.TvHistoryCard(
                                         historyItem = historyItem,
                                         onClick = {
-                                            onAnimeSelect(
-                                                AnimeItem(
-                                                    id = historyItem.animeId,
-                                                    title = historyItem.animeTitle,
-                                                    slug = historyItem.animeSlug,
-                                                    image = historyItem.animeImage,
-                                                    backdrop = historyItem.backdrop,
-                                                    type = "TV",
-                                                    synopsis = null
+                                            if (onWatchHistorySelect != null) {
+                                                onWatchHistorySelect(historyItem)
+                                            } else {
+                                                onAnimeSelect(
+                                                    AnimeItem(
+                                                        id = historyItem.animeId,
+                                                        title = historyItem.animeTitle,
+                                                        slug = historyItem.animeSlug,
+                                                        image = historyItem.animeImage,
+                                                        backdrop = historyItem.backdrop,
+                                                        type = "TV",
+                                                        synopsis = null
+                                                    )
                                                 )
-                                            )
+                                            }
                                         },
                                         modifier = Modifier
                                             .focusRequester(cardFocusRequester)

@@ -521,7 +521,10 @@ fun PlayerScreen(
                     exoPlayer.play()
                     
                     val prefs = context.getSharedPreferences("player_positions", Context.MODE_PRIVATE)
-                    val savedPosition = prefs.getLong(episode.slug, 0L)
+                    val historyMatch = com.animetv.app.data.repository.WatchHistoryManager.getHistory(context)
+                        .find { (it.animeSlug == anime?.slug || it.animeId == anime?.id) && it.episodeNumber == episode.number }
+                    val savedPosition = historyMatch?.lastPositionMs?.takeIf { it > 5_000 }
+                        ?: prefs.getLong(episode.slug, 0L)
                     val totalDuration = exoPlayer.duration
                     if (savedPosition > 5_000 && (totalDuration <= 0 || savedPosition < totalDuration - 15_000)) {
                         exoPlayer.seekTo(savedPosition)

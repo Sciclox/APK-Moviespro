@@ -311,6 +311,26 @@ class MainActivity : ComponentActivity() {
                                                     )
                                                     pushScreen(TvScreen.DETAIL)
                                                 },
+                                                onWatchHistorySelect = { historyItem ->
+                                                    selectedAnime = AnimeItem(
+                                                        id = historyItem.animeId,
+                                                        title = historyItem.animeTitle,
+                                                        slug = historyItem.animeSlug,
+                                                        image = historyItem.animeImage,
+                                                        backdrop = historyItem.backdrop,
+                                                        type = "TV",
+                                                        synopsis = null
+                                                    )
+                                                    val epTitle = historyItem.episodeTitle.ifEmpty { "Episodio ${historyItem.episodeNumber}" }
+                                                    val epSlug = if (historyItem.animeSlug.contains("/")) historyItem.animeSlug else "${historyItem.animeSlug}/${historyItem.episodeNumber}"
+                                                    selectedEpisode = EpisodeItem(
+                                                        id = "${historyItem.animeSlug}-episode-${historyItem.episodeNumber}",
+                                                        number = historyItem.episodeNumber,
+                                                        title = epTitle,
+                                                        slug = epSlug
+                                                    )
+                                                    pushScreen(TvScreen.PLAYER)
+                                                },
                                                 playButtonFocusRequester = homePlayButtonFocusRequester,
                                                 navFocusRequester = homeNavFocusRequester,
                                                 onFocusItem = { lastFocusedRequester = it }
@@ -485,6 +505,9 @@ class MainActivity : ComponentActivity() {
                                         onPlayEpisode = { episode ->
                                             selectedEpisode = episode
                                             pushScreen(TvScreen.PLAYER)
+                                        },
+                                        onAnimeSelect = { newAnime ->
+                                            selectedAnime = newAnime
                                         }
                                     )
                                 }

@@ -29,6 +29,7 @@ import com.animetv.app.ui.theme.NetflixRed
 fun TvEpisodeCard(
     episode: EpisodeItem,
     onClick: () -> Unit,
+    progressFraction: Float? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -120,7 +121,7 @@ fun TvEpisodeCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .align(Alignment.BottomStart)
-                    .padding(8.dp)
+                    .padding(start = 8.dp, end = 8.dp, bottom = if (progressFraction != null && progressFraction > 0.03f) 12.dp else 8.dp)
             ) {
                 Text(
                     text = episode.title,
@@ -131,6 +132,23 @@ fun TvEpisodeCard(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
+            }
+
+            if (progressFraction != null && progressFraction > 0.03f) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(3.dp)
+                        .align(Alignment.BottomStart)
+                        .background(Color.White.copy(alpha = 0.3f))
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .fillMaxWidth(fraction = progressFraction.coerceIn(0f, 1f))
+                            .background(NetflixRed)
+                    )
+                }
             }
         }
     }

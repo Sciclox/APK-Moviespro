@@ -204,7 +204,7 @@ fun LatinoScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(380.dp)
-                            .padding(horizontal = 36.dp)
+                            .padding(start = 36.dp, end = 36.dp, bottom = 16.dp)
                     ) {
                         ShimmerBox(width = 1200.dp, height = 380.dp)
                     }
