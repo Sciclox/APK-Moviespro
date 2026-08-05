@@ -491,8 +491,6 @@ fun DetailScreen(
                         Button(
                             onClick = {
                                 isInMyList = MyListManager.toggleAnime(context, anime)
-                                val msg = if (isInMyList) "¡Añadido a tu lista!" else "Eliminado de tu lista"
-                                android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_SHORT).show()
                             },
                             modifier = Modifier
                                 .focusProperties {

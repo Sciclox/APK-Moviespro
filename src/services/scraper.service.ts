@@ -1,8 +1,22 @@
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import { CONFIG } from '../config/constants';
+import '../config/httpAgent'; // Enable HTTP Keep-Alive
 import { AnimeItem, AnimeDetail, WatchResponse, StreamSource, EpisodeItem, RecentEpisodeItem } from '../types/anime';
 import { TMDBService } from './tmdb.service';
+
+const inFlightRequests = new Map<string, Promise<any>>();
+
+function deduplicateRequest<T>(key: string, fn: () => Promise<T>): Promise<T> {
+  if (inFlightRequests.has(key)) {
+    return inFlightRequests.get(key) as Promise<T>;
+  }
+  const promise = fn().finally(() => {
+    inFlightRequests.delete(key);
+  });
+  inFlightRequests.set(key, promise);
+  return promise;
+}
 
 function cleanSlug(rawSlug: string): string {
   if (!rawSlug) return 'anime';
@@ -890,9 +904,8 @@ export class ScraperService {
           timeout: 4500,
         });
 
-        const playerUrls = epHtml.match(/https?:\/\/jkanime\.net\/jkplayer\/[^"'\s<>]+/g) || [];
-        for (let i = 0; i < Math.min(playerUrls.length, 6); i++) {
-          const playerUrl = playerUrls[i];
+        const playerUrls = (epHtml.match(/https?:\/\/jkanime\.net\/jkplayer\/[^"'\s<>]+/g) || []).slice(0, 6);
+        const playerPromises = playerUrls.map(async (playerUrl: string, idx: number) => {
           try {
             const { data: playerHtml } = await axios.get(playerUrl, {
               headers: {
@@ -907,32 +920,38 @@ export class ScraperService {
 
             if (m3u8Match && m3u8Match[1]) {
               const proxyUrl = `${backendBase}/api/v1/proxy/m3u8?url=${encodeURIComponent(m3u8Match[1])}`;
-              if (!results.some(s => s.url === proxyUrl)) {
-                results.push({
-                  server: `JKAnime HLS ${results.length + 1}`,
-                  title: `Servidor Principal ${results.length + 1} (HLS)`,
-                  url: proxyUrl,
-                  format: 'hls',
-                  audio: 'sub',
-                  isDirect: true,
-                });
-              }
+              return {
+                server: `JKAnime HLS ${idx + 1}`,
+                title: `Servidor Principal ${idx + 1} (HLS)`,
+                url: proxyUrl,
+                format: 'hls' as const,
+                audio: 'sub',
+                isDirect: true,
+              };
             } else if (mp4Match && mp4Match[1]) {
               const rawMp4 = mp4Match[1];
               const proxyUrl = `${backendBase}/api/v1/proxy/video?url=${encodeURIComponent(rawMp4)}`;
-              if (!results.some(s => s.url === proxyUrl)) {
-                results.push({
-                  server: `JKAnime MP4 Direct`,
-                  title: `Servidor Principal MP4 Direct`,
-                  url: proxyUrl,
-                  format: 'mp4',
-                  audio: 'sub',
-                  isDirect: true,
-                });
-              }
+              return {
+                server: `JKAnime MP4 Direct`,
+                title: `Servidor Principal MP4 Direct`,
+                url: proxyUrl,
+                format: 'mp4' as const,
+                audio: 'sub',
+                isDirect: true,
+              };
             }
           } catch {
-            // continue
+            return null;
+          }
+          return null;
+        });
+
+        const settled = await Promise.allSettled(playerPromises);
+        for (const res of settled) {
+          if (res.status === 'fulfilled' && res.value) {
+            if (!results.some(s => s.url === res.value!.url)) {
+              results.push(res.value);
+            }
           }
         }
       } catch {
