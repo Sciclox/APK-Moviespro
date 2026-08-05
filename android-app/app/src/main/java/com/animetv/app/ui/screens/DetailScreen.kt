@@ -242,9 +242,10 @@ fun DetailScreen(
                     .padding(start = 72.dp, top = 36.dp)
                     .width(500.dp)
             ) {
+                val loadingBackRequester = remember { FocusRequester() }
                 Button(
                     onClick = { onBack() },
-                    modifier = Modifier.focusRequester(backButtonFocusRequester),
+                    modifier = Modifier.focusRequester(loadingBackRequester),
                     scale = ButtonDefaults.scale(focusedScale = 1.08f),
                     colors = ButtonDefaults.colors(
                         containerColor = Color.White.copy(alpha = 0.25f),
@@ -452,7 +453,6 @@ fun DetailScreen(
                             modifier = Modifier
                                 .focusRequester(playButtonFocusRequester)
                                 .focusProperties {
-                                    up = backButtonFocusRequester
                                     left = FocusRequester.Cancel
                                 }
                                 .onFocusChanged { focusState ->
@@ -490,7 +490,6 @@ fun DetailScreen(
                             },
                             modifier = Modifier
                                 .focusProperties {
-                                    up = backButtonFocusRequester
                                     right = FocusRequester.Cancel
                                 },
                             scale = ButtonDefaults.scale(focusedScale = 1.08f),
