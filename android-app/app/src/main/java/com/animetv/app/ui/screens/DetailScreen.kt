@@ -452,6 +452,7 @@ fun DetailScreen(
                             modifier = Modifier
                                 .focusRequester(playButtonFocusRequester)
                                 .focusProperties {
+                                    up = backButtonFocusRequester
                                     left = FocusRequester.Cancel
                                 }
                                 .onFocusChanged { focusState ->
@@ -489,6 +490,7 @@ fun DetailScreen(
                             },
                             modifier = Modifier
                                 .focusProperties {
+                                    up = backButtonFocusRequester
                                     right = FocusRequester.Cancel
                                 },
                             scale = ButtonDefaults.scale(focusedScale = 1.08f),
