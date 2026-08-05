@@ -633,20 +633,22 @@ export class ScraperService {
         let altJapanese: string | null = null;
 
         $('.sinopsis, .info-cap, div, li, p, span, td').each((_, el) => {
-          const text = $(el).text().replace(/\s+/g, ' ').trim();
-          if (text.includes('Ingles') || text.includes('English')) {
-            const m = text.match(/(?:Ingles|English)\s*:?\s*([^\n\r<]+)/i);
+          const rawText = $(el).text().replace(/\s+/g, ' ').trim();
+          const normText = rawText.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+          if (/ingles|english/i.test(normText) && !altEnglish) {
+            const m = normText.match(/(?:ingles|english)\s*:?\s*([^\n\r<]+)/i);
             if (m && m[1] && m[1].trim().length > 1) {
-              const candidate = m[1].split(/(?:Japones|Japanese|Sinonimos|Tipo)/i)[0].trim();
+              const candidate = m[1].split(/(?:japones|japanese|sinonimos|tipo)/i)[0].trim();
               if (candidate && candidate.length < 100 && !candidate.toLowerCase().includes('titulos')) {
                 altEnglish = candidate;
               }
             }
           }
-          if (text.includes('Japones') || text.includes('Japanese')) {
-            const m = text.match(/(?:Japones|Japanese)\s*:?\s*([^\n\r<]+)/i);
+          if (/japones|japanese/i.test(normText) && !altJapanese) {
+            const m = normText.match(/(?:japones|japanese)\s*:?\s*([^\n\r<]+)/i);
             if (m && m[1] && m[1].trim().length > 1) {
-              const candidate = m[1].split(/(?:Ingles|English|Sinonimos|Tipo)/i)[0].trim();
+              const candidate = m[1].split(/(?:ingles|english|sinonimos|tipo)/i)[0].trim();
               if (candidate && candidate.length < 100 && !candidate.toLowerCase().includes('titulos')) {
                 altJapanese = candidate;
               }
@@ -680,13 +682,10 @@ export class ScraperService {
 
     const jkMeta = await jkDataPromise;
 
-    const titleCandidates: string[] = [cleanTitleText];
-    if (jkMeta.altEnglish && !titleCandidates.includes(jkMeta.altEnglish)) {
-      titleCandidates.push(jkMeta.altEnglish);
-    }
-    if (jkMeta.altJapanese && !titleCandidates.includes(jkMeta.altJapanese)) {
-      titleCandidates.push(jkMeta.altJapanese);
-    }
+    const titleCandidates: string[] = [];
+    if (jkMeta.altEnglish) titleCandidates.push(jkMeta.altEnglish);
+    if (jkMeta.altJapanese) titleCandidates.push(jkMeta.altJapanese);
+    if (!titleCandidates.includes(cleanTitleText)) titleCandidates.push(cleanTitleText);
 
     let meta: Partial<import('./tmdb.service').AniListMedia> | null = null;
     for (const cand of titleCandidates) {
