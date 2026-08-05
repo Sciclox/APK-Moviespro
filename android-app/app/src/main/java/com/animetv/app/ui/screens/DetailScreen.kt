@@ -19,6 +19,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.key.*
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -299,7 +300,7 @@ fun DetailScreen(
                             .onFocusChanged { focusState ->
                                 if (focusState.isFocused) {
                                     scope.launch {
-                                        listState.animateScrollToItem(0)
+                                        listState.animateScrollToItem(0, 0)
                                     }
                                 }
                             },
@@ -455,6 +456,17 @@ fun DetailScreen(
                                 .focusProperties {
                                     left = FocusRequester.Cancel
                                 }
+                                .onPreviewKeyEvent { keyEvent ->
+                                    if (keyEvent.type == KeyEventType.KeyDown && keyEvent.nativeKeyEvent.keyCode == android.view.KeyEvent.KEYCODE_DPAD_UP) {
+                                        scope.launch {
+                                            listState.animateScrollToItem(0, 0)
+                                            try { backButtonFocusRequester.requestFocus() } catch (_: Exception) {}
+                                        }
+                                        true
+                                    } else {
+                                        false
+                                    }
+                                }
                                 .onFocusChanged { focusState ->
                                     if (focusState.isFocused) {
                                         scope.launch { listState.animateScrollToItem(1) }
@@ -491,6 +503,17 @@ fun DetailScreen(
                             modifier = Modifier
                                 .focusProperties {
                                     right = FocusRequester.Cancel
+                                }
+                                .onPreviewKeyEvent { keyEvent ->
+                                    if (keyEvent.type == KeyEventType.KeyDown && keyEvent.nativeKeyEvent.keyCode == android.view.KeyEvent.KEYCODE_DPAD_UP) {
+                                        scope.launch {
+                                            listState.animateScrollToItem(0, 0)
+                                            try { backButtonFocusRequester.requestFocus() } catch (_: Exception) {}
+                                        }
+                                        true
+                                    } else {
+                                        false
+                                    }
                                 },
                             scale = ButtonDefaults.scale(focusedScale = 1.08f),
                             colors = ButtonDefaults.colors(
