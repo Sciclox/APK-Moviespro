@@ -23,6 +23,9 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import com.animetv.app.data.api.ApiClient
 import com.animetv.app.data.model.AnimeItem
@@ -137,17 +140,35 @@ class MainActivity : ComponentActivity() {
                 }
 
                 // API Revalidation
+                // Parallel API revalidation — all 4 calls launch simultaneously
                 LaunchedEffect(Unit) {
                     try {
-                        val heroRes = ApiClient.apiService.getHeroBanners()
-                        val catalogRes = ApiClient.apiService.getCatalog(genre = "Accion")
-                        val releasingRes = ApiClient.apiService.getLatest()
-                        val latestEpRes = ApiClient.apiService.getLatestEpisodes()
+                        coroutineScope {
+                            val heroDeferred = async { ApiClient.apiService.getHeroBanners() }
+                            val catalogDeferred = async { ApiClient.apiService.getCatalog(genre = "Accion") }
+                            val releasingDeferred = async { ApiClient.apiService.getLatest() }
+                            val latestEpDeferred = async { ApiClient.apiService.getLatestEpisodes() }
 
-                        if (heroRes.success && heroRes.data.isNotEmpty()) homeHeroList = heroRes.data
-                        if (catalogRes.success && catalogRes.data.isNotEmpty()) homeCatalogList = catalogRes.data
-                        if (releasingRes.success && releasingRes.data.isNotEmpty()) homeReleasingList = releasingRes.data
-                        if (latestEpRes.success && latestEpRes.data.isNotEmpty()) homeLatestEpisodesList = latestEpRes.data
+                            try {
+                                val heroRes = heroDeferred.await()
+                                if (heroRes.success && heroRes.data.isNotEmpty()) homeHeroList = heroRes.data
+                            } catch (_: Exception) {}
+
+                            try {
+                                val catalogRes = catalogDeferred.await()
+                                if (catalogRes.success && catalogRes.data.isNotEmpty()) homeCatalogList = catalogRes.data
+                            } catch (_: Exception) {}
+
+                            try {
+                                val releasingRes = releasingDeferred.await()
+                                if (releasingRes.success && releasingRes.data.isNotEmpty()) homeReleasingList = releasingRes.data
+                            } catch (_: Exception) {}
+
+                            try {
+                                val latestEpRes = latestEpDeferred.await()
+                                if (latestEpRes.success && latestEpRes.data.isNotEmpty()) homeLatestEpisodesList = latestEpRes.data
+                            } catch (_: Exception) {}
+                        }
 
                         HomeCacheManager.saveHomeData(context, homeHeroList, homeCatalogList, homeReleasingList)
                     } catch (e: Exception) {
