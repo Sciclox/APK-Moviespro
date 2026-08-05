@@ -8,6 +8,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -19,20 +20,19 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.input.key.*
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.*
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.foundation.lazy.list.TvLazyRow
 import androidx.tv.foundation.lazy.list.items
-import androidx.tv.foundation.lazy.list.itemsIndexed
 import androidx.tv.material3.*
 import coil.compose.AsyncImage
-import androidx.compose.ui.platform.LocalContext
 import com.animetv.app.data.api.ApiClient
 import com.animetv.app.data.model.AnimeDetail
 import com.animetv.app.data.model.AnimeItem
@@ -49,7 +49,6 @@ import com.animetv.app.ui.theme.NetflixLightGrey
 import com.animetv.app.ui.theme.NetflixRed
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import androidx.compose.foundation.lazy.rememberLazyListState
 
 @OptIn(ExperimentalTvMaterial3Api::class, androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
@@ -169,7 +168,18 @@ fun DetailScreen(
         } catch (_: Exception) {}
     }
 
-    // Auto focus restoration on PLAY button or last played episode card when returning from PlayerScreen
+    // Group episodes into batches of 30 for long series
+    val batchSize = 30
+    val allEpisodes = if (detail?.episodes.isNullOrEmpty()) fallbackEpisodes else detail!!.episodes
+    val episodeBatches = remember(allEpisodes) {
+        if (allEpisodes.size > batchSize) {
+            allEpisodes.chunked(batchSize)
+        } else {
+            emptyList()
+        }
+    }
+
+    // Auto focus restoration
     LaunchedEffect(isScreenActive, isLoading) {
         if (isScreenActive && !isLoading) {
             delay(250)
@@ -177,8 +187,8 @@ fun DetailScreen(
                 val targetEpNum = if (lastPlayedEpNum != -1) lastPlayedEpNum else (currentAnimeHistory?.episodeNumber ?: -1)
                 
                 if (targetEpNum != -1 && episodeFocusRequesters.containsKey(targetEpNum)) {
-                    val batchIdx = episodeBatches.indexOfFirst { b -> b.any { it.number == targetEpNum } }
-                    if (batchIdx != -1 && batchIdx != selectedBatchIndex) {
+                    val batchIdx = (targetEpNum - 1) / batchSize
+                    if (episodeBatches.isNotEmpty() && batchIdx in episodeBatches.indices && batchIdx != selectedBatchIndex) {
                         selectedBatchIndex = batchIdx
                         delay(100)
                     }
@@ -192,18 +202,6 @@ fun DetailScreen(
                 e.printStackTrace()
                 try { playButtonFocusRequester.requestFocus() } catch (_: Exception) {}
             }
-        }
-    }
-
-    val allEpisodes = if (detail?.episodes.isNullOrEmpty()) fallbackEpisodes else detail!!.episodes
-
-    // Group episodes into batches of 30 for long series
-    val batchSize = 30
-    val episodeBatches = remember(allEpisodes) {
-        if (allEpisodes.size > batchSize) {
-            allEpisodes.chunked(batchSize)
-        } else {
-            emptyList()
         }
     }
 
@@ -389,8 +387,9 @@ fun DetailScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             val currentDetail = detail
-                            val scoreText = if (currentDetail?.score != null && currentDetail.score > 0) {
-                                "★ ${String.format("%.1f", currentDetail.score)}"
+                            val score = currentDetail?.score
+                            val scoreText = if (score != null && score > 0) {
+                                "★ ${String.format("%.1f", score)}"
                             } else {
                                 "98% Coincidencia"
                             }
@@ -576,7 +575,8 @@ fun DetailScreen(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             contentPadding = PaddingValues(bottom = 4.dp)
                         ) {
-                            itemsIndexed(episodeBatches) { idx, batch ->
+                            items(episodeBatches.size) { idx ->
+                                val batch = episodeBatches[idx]
                                 val startEp = batch.first().number
                                 val endEp = batch.last().number
                                 val isSelected = selectedBatchIndex == idx
@@ -635,7 +635,8 @@ fun DetailScreen(
                         horizontalArrangement = Arrangement.spacedBy(14.dp),
                         contentPadding = PaddingValues(top = 12.dp, bottom = 20.dp, end = 24.dp)
                     ) {
-                        itemsIndexed(displayEpisodes) { idx, ep ->
+                        items(displayEpisodes.size) { idx ->
+                            val ep = displayEpisodes[idx]
                             val epHistory = watchHistoryList.find {
                                 (it.animeSlug == anime.slug || it.animeId == anime.id) && it.episodeNumber == ep.number
                             }
@@ -692,7 +693,8 @@ fun DetailScreen(
                             horizontalArrangement = Arrangement.spacedBy(14.dp),
                             contentPadding = PaddingValues(top = 8.dp, bottom = 16.dp, end = 24.dp)
                         ) {
-                            itemsIndexed(recommendedList) { idx, recAnime ->
+                            items(recommendedList.size) { idx ->
+                                val recAnime = recommendedList[idx]
                                 val isFirst = idx == 0
                                 val isLast = idx == recommendedList.lastIndex
 

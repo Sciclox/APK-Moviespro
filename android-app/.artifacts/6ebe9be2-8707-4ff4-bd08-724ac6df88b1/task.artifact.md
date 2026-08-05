@@ -1,4 +1,6 @@
-- [ ] Fix syntax and structure in `HomeScreen.kt`
-- [ ] Implement `focusProperties` guard in `MainActivity.kt`
-- [ ] Stabilize `requestFocus` calls in `DetailScreen.kt` and `MyListScreen.kt`
-- [ ] Run `app:assembleDebug` and verify stability
+- [x] Fix syntax and structure in `HomeScreen.kt`
+- [x] Implement `focusProperties` guard in `MainActivity.kt`
+- [x] Stabilize `requestFocus` calls in `DetailScreen.kt` and `MyListScreen.kt`
+- [x] Run `app:assembleDebug` and verify stability
+- [x] Fix compilation errors in `DetailScreen.kt` (Score smart cast, itemsIndexed)
+- [x] Fix coroutine error in `SplashScreen.kt`
