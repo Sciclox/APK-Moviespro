@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.foundation.lazy.list.TvLazyRow
 import androidx.tv.foundation.lazy.list.items
+import androidx.tv.foundation.lazy.list.itemsIndexed
 import androidx.tv.material3.*
 import com.animetv.app.data.model.AnimeItem
 import com.animetv.app.data.repository.HomeCacheManager
@@ -252,14 +253,16 @@ fun MyListScreen(
                                     horizontalArrangement = Arrangement.spacedBy(14.dp),
                                     contentPadding = PaddingValues(end = 36.dp)
                                 ) {
-                                    items(popularSuggestions.take(10)) { anime ->
+                                    itemsIndexed(popularSuggestions.take(10)) { index, anime ->
                                         var inList by remember { mutableStateOf(MyListManager.isInList(context, anime.id)) }
 
                                         Column(
                                             modifier = Modifier.width(175.dp),
                                             verticalArrangement = Arrangement.spacedBy(8.dp)
                                         ) {
-                                            val cardFocusRequester = remember(anime.id) { FocusRequester() }
+                                            val cardFocusRequester = remember(anime.id) {
+                                                if (myListAnimes.isEmpty() && index == 0) firstCardFocusRequester else FocusRequester()
+                                            }
                                             TvAnimeCard(
                                                 anime = anime,
                                                 onClick = { onAnimeSelect(anime) },
