@@ -284,32 +284,39 @@ fun MyListScreen(
                                                     inList = MyListManager.isInList(context, anime.id)
                                                     myListAnimes = MyListManager.getSavedAnimes(context)
                                                 },
-                                                shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(6.dp)),
+                                                shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(8.dp)),
                                                 colors = ClickableSurfaceDefaults.colors(
-                                                    containerColor = if (inList) Color.White.copy(alpha = 0.2f) else NetflixRed,
-                                                    contentColor = Color.White,
-                                                    focusedContainerColor = Color.White,
-                                                    focusedContentColor = Color.Black
+                                                    containerColor = if (inList) Color(0xFF2ECC71).copy(alpha = 0.2f) else Color.White.copy(alpha = 0.15f),
+                                                    contentColor = if (inList) Color(0xFF2ECC71) else Color.White,
+                                                    focusedContainerColor = if (inList) Color(0xFF2ECC71) else NetflixRed,
+                                                    focusedContentColor = if (inList) Color.Black else Color.White
                                                 ),
-                                                scale = ClickableSurfaceDefaults.scale(focusedScale = 1.05f),
+                                                border = ClickableSurfaceDefaults.border(
+                                                    focusedBorder = Border(
+                                                        border = BorderStroke(2.dp, Color.White),
+                                                        shape = RoundedCornerShape(8.dp)
+                                                    )
+                                                ),
+                                                scale = ClickableSurfaceDefaults.scale(focusedScale = 1.0f),
                                                 modifier = Modifier.fillMaxWidth()
                                             ) {
                                                 Row(
                                                     horizontalArrangement = Arrangement.Center,
                                                     verticalAlignment = Alignment.CenterVertically,
-                                                    modifier = Modifier.padding(vertical = 6.dp)
+                                                    modifier = Modifier.padding(vertical = 7.dp, horizontal = 8.dp)
                                                 ) {
                                                     Icon(
                                                         imageVector = if (inList) Icons.Default.Check else Icons.Default.BookmarkBorder,
                                                         contentDescription = null,
-                                                        modifier = Modifier.size(16.dp)
+                                                        modifier = Modifier.size(15.dp)
                                                     )
                                                     Spacer(modifier = Modifier.width(6.dp))
                                                     Text(
-                                                        text = if (inList) "En Lista" else "+ Lista",
-                                                        fontSize = 12.sp,
+                                                        text = if (inList) "EN MI LISTA" else "+ MI LISTA",
+                                                        fontSize = 11.sp,
                                                         fontFamily = Inter,
-                                                        fontWeight = FontWeight.Bold
+                                                        fontWeight = FontWeight.Bold,
+                                                        letterSpacing = 0.5.sp
                                                     )
                                                 }
                                             }
