@@ -303,6 +303,10 @@ fun SearchScreen(
 
             Spacer(modifier = Modifier.width(32.dp))
 
+            val recentQueries = remember(searchQuery) {
+                SearchHistoryManager.getHistory(context)
+            }
+
             // RIGHT: Directorio Results / Infinite Scroll Grid
             LazyColumn(
                 state = listState,
@@ -310,10 +314,6 @@ fun SearchScreen(
                 verticalArrangement = Arrangement.spacedBy(10.dp),
                 contentPadding = PaddingValues(bottom = 60.dp)
             ) {
-                // Recent Searches Row
-                val recentQueries = remember(searchQuery) {
-                    SearchHistoryManager.getHistory(context)
-                }
                 if (searchQuery.isBlank() && recentQueries.isNotEmpty()) {
                     item {
                         Column(modifier = Modifier.padding(bottom = 12.dp)) {

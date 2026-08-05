@@ -1305,8 +1305,8 @@ fun PlayerScreen(
         }
         AnimatedVisibility(
             visible = showSkipIntro,
-            enter = fadeIn() + slideInHorizontally(initialOffset = { it }),
-            exit = fadeOut() + slideOutHorizontally(targetOffset = { it }),
+            enter = fadeIn() + slideInHorizontally(initialOffsetX = { it }),
+            exit = fadeOut() + slideOutHorizontally(targetOffsetX = { it }),
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(end = 48.dp, bottom = 120.dp)
