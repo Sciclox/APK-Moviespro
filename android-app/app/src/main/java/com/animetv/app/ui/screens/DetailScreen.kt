@@ -17,6 +17,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -46,11 +48,9 @@ import com.animetv.app.ui.theme.NetflixLightGrey
 import com.animetv.app.ui.theme.NetflixRed
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.ui.focus.onFocusChanged
 
-@OptIn(ExperimentalTvMaterial3Api::class)
+@OptIn(ExperimentalTvMaterial3Api::class, androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
 fun DetailScreen(
     anime: AnimeItem,
@@ -67,8 +67,11 @@ fun DetailScreen(
     var recommendedList by remember { mutableStateOf<List<AnimeItem>>(emptyList()) }
 
     val scope = rememberCoroutineScope()
-    val backButtonFocusRequester = remember { FocusRequester() }
     val listState = rememberLazyListState()
+
+    // Focus Requesters
+    val backButtonFocusRequester = remember { FocusRequester() }
+    val playButtonFocusRequester = remember { FocusRequester() }
 
     val isMovie = remember(detail, anime) {
         val rawType = (detail?.type ?: anime.type ?: "TV").uppercase()
@@ -163,12 +166,12 @@ fun DetailScreen(
         } catch (_: Exception) {}
     }
 
-    // Auto focus on ATRÁS button when screen opens or when returning from PlayerScreen
+    // Auto focus on PLAY button when screen opens or when returning from PlayerScreen
     LaunchedEffect(isScreenActive, isLoading) {
-        if (isScreenActive) {
+        if (isScreenActive && !isLoading) {
             delay(200)
             try {
-                backButtonFocusRequester.requestFocus()
+                playButtonFocusRequester.requestFocus()
             } catch (e: Exception) {
                 e.printStackTrace()
             }
@@ -241,8 +244,7 @@ fun DetailScreen(
             ) {
                 Button(
                     onClick = { onBack() },
-                    modifier = Modifier
-                        .focusRequester(backButtonFocusRequester),
+                    modifier = Modifier.focusRequester(backButtonFocusRequester),
                     scale = ButtonDefaults.scale(focusedScale = 1.08f),
                     colors = ButtonDefaults.colors(
                         containerColor = Color.White.copy(alpha = 0.25f),
@@ -280,7 +282,7 @@ fun DetailScreen(
                 contentPadding = PaddingValues(start = 72.dp, top = 36.dp, end = 48.dp, bottom = 48.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                // Item 1: ATRÁS Navigation Button as top item in LazyColumn
+                // Item 1: ATRÁS Navigation Button (Row 1)
                 item {
                     Button(
                         onClick = {
@@ -289,6 +291,10 @@ fun DetailScreen(
                         },
                         modifier = Modifier
                             .focusRequester(backButtonFocusRequester)
+                            .focusProperties {
+                                left = FocusRequester.Cancel
+                                right = FocusRequester.Cancel
+                            }
                             .onFocusChanged { focusState ->
                                 if (focusState.isFocused) {
                                     scope.launch {
@@ -431,7 +437,7 @@ fun DetailScreen(
                     )
                 }
 
-                // Item 4: Action Buttons with Smart "Continuar" Button
+                // Item 4: Action Buttons Row (Row 2)
                 item {
                     Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                         val playButtonText = when {
@@ -443,6 +449,16 @@ fun DetailScreen(
                         // REPRODUCIR / CONTINUAR Button
                         Button(
                             onClick = { onPlayEpisode(resumeEpisode) },
+                            modifier = Modifier
+                                .focusRequester(playButtonFocusRequester)
+                                .focusProperties {
+                                    left = FocusRequester.Cancel
+                                }
+                                .onFocusChanged { focusState ->
+                                    if (focusState.isFocused) {
+                                        scope.launch { listState.animateScrollToItem(1) }
+                                    }
+                                },
                             scale = ButtonDefaults.scale(focusedScale = 1.08f),
                             colors = ButtonDefaults.colors(
                                 containerColor = Color.White.copy(alpha = 0.25f),
@@ -471,6 +487,10 @@ fun DetailScreen(
                             onClick = {
                                 isInMyList = MyListManager.toggleAnime(context, anime)
                             },
+                            modifier = Modifier
+                                .focusProperties {
+                                    right = FocusRequester.Cancel
+                                },
                             scale = ButtonDefaults.scale(focusedScale = 1.08f),
                             colors = ButtonDefaults.colors(
                                 containerColor = if (isInMyList) Color(0xFF2ECC71).copy(alpha = 0.25f) else Color.White.copy(alpha = 0.25f),
@@ -509,7 +529,7 @@ fun DetailScreen(
                     )
                 }
 
-                // Item 5b: Episode Batch Selector (For long series > 30 episodes)
+                // Item 5b: Episode Batch Selector (Row 3 - for long series > 30 episodes)
                 if (episodeBatches.isNotEmpty() && !isMovie) {
                     item {
                         TvLazyRow(
@@ -520,8 +540,22 @@ fun DetailScreen(
                                 val startEp = batch.first().number
                                 val endEp = batch.last().number
                                 val isSelected = selectedBatchIndex == idx
+                                val isFirst = idx == 0
+                                val isLast = idx == episodeBatches.lastIndex
+
                                 Button(
                                     onClick = { selectedBatchIndex = idx },
+                                    modifier = Modifier
+                                        .height(32.dp)
+                                        .focusProperties {
+                                            if (isFirst) left = FocusRequester.Cancel
+                                            if (isLast) right = FocusRequester.Cancel
+                                        }
+                                        .onFocusChanged { focusState ->
+                                            if (focusState.isFocused) {
+                                                scope.launch { listState.animateScrollToItem(4) }
+                                            }
+                                        },
                                     scale = ButtonDefaults.scale(focusedScale = 1.05f),
                                     colors = ButtonDefaults.colors(
                                         containerColor = if (isSelected) NetflixRed else Color.White.copy(alpha = 0.15f),
@@ -530,7 +564,6 @@ fun DetailScreen(
                                         focusedContentColor = Color.Black
                                     ),
                                     shape = ButtonDefaults.shape(shape = RoundedCornerShape(50)),
-                                    modifier = Modifier.height(32.dp),
                                     contentPadding = PaddingValues(horizontal = 14.dp)
                                 ) {
                                     Text(
@@ -545,7 +578,7 @@ fun DetailScreen(
                     }
                 }
 
-                // Item 6: Horizontal Episode List with Progress Bar Indicators
+                // Item 6: Horizontal Episode List (Row 4)
                 item {
                     val displayEpisodes = if (isMovie) {
                         allEpisodes.take(1)
@@ -562,24 +595,36 @@ fun DetailScreen(
                         horizontalArrangement = Arrangement.spacedBy(14.dp),
                         contentPadding = PaddingValues(top = 12.dp, bottom = 20.dp, end = 24.dp)
                     ) {
-                        items(displayEpisodes) { ep ->
+                        itemsIndexed(displayEpisodes) { idx, ep ->
                             val epHistory = watchHistoryList.find {
                                 (it.animeSlug == anime.slug || it.animeId == anime.id) && it.episodeNumber == ep.number
                             }
                             val progressFraction = if (epHistory != null && epHistory.durationMs > 0) {
                                 (epHistory.lastPositionMs.toFloat() / epHistory.durationMs.toFloat())
                             } else null
+                            val isFirst = idx == 0
+                            val isLast = idx == displayEpisodes.lastIndex
 
                             TvEpisodeCard(
                                 episode = ep,
                                 onClick = { onPlayEpisode(ep) },
-                                progressFraction = progressFraction
+                                progressFraction = progressFraction,
+                                modifier = Modifier
+                                    .focusProperties {
+                                        if (isFirst) left = FocusRequester.Cancel
+                                        if (isLast) right = FocusRequester.Cancel
+                                    }
+                                    .onFocusChanged { focusState ->
+                                        if (focusState.isFocused) {
+                                            scope.launch { listState.animateScrollToItem(5) }
+                                        }
+                                    }
                             )
                         }
                     }
                 }
 
-                // Item 7: Recommended / Similar Anime Section
+                // Item 7: Recommended / Similar Anime Section (Row 5)
                 if (recommendedList.isNotEmpty()) {
                     item {
                         Spacer(modifier = Modifier.height(12.dp))
@@ -600,11 +645,24 @@ fun DetailScreen(
                             horizontalArrangement = Arrangement.spacedBy(14.dp),
                             contentPadding = PaddingValues(top = 8.dp, bottom = 16.dp, end = 24.dp)
                         ) {
-                            items(recommendedList) { recAnime ->
+                            itemsIndexed(recommendedList) { idx, recAnime ->
+                                val isFirst = idx == 0
+                                val isLast = idx == recommendedList.lastIndex
+
                                 com.animetv.app.ui.components.TvAnimeCard(
                                     anime = recAnime,
                                     onClick = { onAnimeSelect?.invoke(recAnime) },
-                                    modifier = Modifier.width(170.dp)
+                                    modifier = Modifier
+                                        .width(170.dp)
+                                        .focusProperties {
+                                            if (isFirst) left = FocusRequester.Cancel
+                                            if (isLast) right = FocusRequester.Cancel
+                                        }
+                                        .onFocusChanged { focusState ->
+                                            if (focusState.isFocused) {
+                                                scope.launch { listState.animateScrollToItem(7) }
+                                            }
+                                        }
                                 )
                             }
                         }
