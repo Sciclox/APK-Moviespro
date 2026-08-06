@@ -878,6 +878,28 @@ export class ScraperService {
       }
     }
 
+    // Root title fallback: if still no backdrop, try stripping season/arc suffixes to find main series banner
+    let rootBackdrop: string | null = null;
+    if (!validSpanishMeta?.backdrop && !finalKitsuMeta && !meta?.bannerImage) {
+      const rootQuery = slug
+        .replace(/-(?:yuukaku-hen|mugen-ressha-hen|katana-kaji-no-sato-hen|hashira-geiko-hen|2nd-season|3rd-season|4th-season|final-season|part-\d+|season-\d+|tv|ova|movie).*/i, '')
+        .replace(/-/g, ' ')
+        .trim();
+      if (rootQuery && rootQuery.length > 3) {
+        try {
+          const rootMeta = await TMDBService.getSpanishMetadata(rootQuery);
+          if (rootMeta?.backdrop) {
+            rootBackdrop = rootMeta.backdrop;
+          } else {
+            const rootAniList = await TMDBService.getAniListMetadata(rootQuery);
+            if (rootAniList?.bannerImage) {
+              rootBackdrop = rootAniList.bannerImage;
+            }
+          }
+        } catch (_e) {}
+      }
+    }
+
     const isMovie = meta?.format === 'MOVIE' || cleanTitleText.toLowerCase().includes('movie') || cleanTitleText.toLowerCase().includes('pelicula') || cleanTitleText.toLowerCase().includes('película');
     const mediaType = isMovie ? 'PELÍCULA' : (meta?.format === 'SPECIAL' || meta?.format === 'OVA' ? 'ESPECIAL' : 'SERIE');
 
@@ -977,6 +999,8 @@ export class ScraperService {
           .trim()
       : null;
 
+    const firstEpisodeStill = jkStills.find(s => s && s.length > 10 && !s.includes('covers/')) || null;
+
     const resultDetail: AnimeDetail = {
       id: slug,
       title: displayTitle,
@@ -985,7 +1009,7 @@ export class ScraperService {
       slug: slug,
       synopsis: finalSynopsis,
       image: meta?.coverImage?.extraLarge || validSpanishMeta?.image || jkMeta.seasonCover || 'https://cdn.animeav1.com/covers/222.jpg',
-      backdrop: validSpanishMeta?.backdrop || finalKitsuMeta || meta?.bannerImage || jkMeta.seasonCover || meta?.coverImage?.extraLarge || null,
+      backdrop: validSpanishMeta?.backdrop || finalKitsuMeta || meta?.bannerImage || rootBackdrop || firstEpisodeStill || jkMeta.seasonCover || meta?.coverImage?.extraLarge || null,
       genres: (jkMeta.jkGenres && jkMeta.jkGenres.length > 0) ? jkMeta.jkGenres : (meta?.genres || ['Acción', 'Aventura', 'Fantasía']),
       status: formattedStatus,
       score: validSpanishMeta?.score || (meta?.averageScore ? meta.averageScore / 10 : 8.5),

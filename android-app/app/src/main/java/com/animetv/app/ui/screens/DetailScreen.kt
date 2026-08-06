@@ -258,7 +258,10 @@ fun DetailScreen(
     ) {
         // Hero Backdrop Background
         AsyncImage(
-            model = detail?.backdrop ?: anime.backdrop ?: anime.image,
+            model = detail?.backdrop.takeIf { !it.isNullOrBlank() }
+                ?: detail?.episodes?.firstOrNull { !it.image.isNullOrBlank() }?.image
+                ?: anime.backdrop.takeIf { !it.isNullOrBlank() }
+                ?: anime.image,
             contentDescription = anime.title,
             contentScale = ContentScale.Crop,
             modifier = Modifier
