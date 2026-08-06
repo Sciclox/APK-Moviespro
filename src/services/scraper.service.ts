@@ -100,13 +100,17 @@ export class ScraperService {
           topItems.map(async (item, index) => {
             if (index < 8) {
               try {
-                const spanishMeta = await TMDBService.getSpanishMetadata(item.title);
-                if (spanishMeta && spanishMeta.backdrop) {
+                const [spanishMeta, aniListMeta] = await Promise.all([
+                  TMDBService.getSpanishMetadata(item.title),
+                  TMDBService.getAniListMetadata(item.title),
+                ]);
+                const backdropUrl = aniListMeta?.bannerImage || spanishMeta?.backdrop || null;
+                if (backdropUrl) {
                   return {
                     ...item,
                     title: cleanTitle(item.title, item.slug),
-                    backdrop: spanishMeta.backdrop,
-                    synopsis: spanishMeta.synopsis || item.synopsis,
+                    backdrop: backdropUrl,
+                    synopsis: spanishMeta?.synopsis || item.synopsis,
                   };
                 }
               } catch (_e) {}
@@ -413,12 +417,16 @@ export class ScraperService {
             rawItems.map(async (animeItem, idx) => {
               if (idx < 10 || cleanTipo === 'peliculas' || cleanCategoria === 'latino' || cleanCategoria === 'donghua') {
                 try {
-                  const spanishMeta = await TMDBService.getSpanishMetadata(animeItem.title);
-                  if (spanishMeta && spanishMeta.backdrop) {
+                  const [spanishMeta, aniListMeta] = await Promise.all([
+                    TMDBService.getSpanishMetadata(animeItem.title),
+                    TMDBService.getAniListMetadata(animeItem.title),
+                  ]);
+                  const backdropUrl = aniListMeta?.bannerImage || spanishMeta?.backdrop || null;
+                  if (backdropUrl) {
                     return {
                       ...animeItem,
-                      backdrop: spanishMeta.backdrop,
-                      synopsis: spanishMeta.synopsis || animeItem.synopsis,
+                      backdrop: backdropUrl,
+                      synopsis: spanishMeta?.synopsis || animeItem.synopsis,
                     };
                   }
                 } catch (_e) {}
