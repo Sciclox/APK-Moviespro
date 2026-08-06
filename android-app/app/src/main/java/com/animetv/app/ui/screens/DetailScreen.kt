@@ -630,8 +630,7 @@ fun DetailScreen(
                                         .focusProperties {
                                             if (isFirst) left = FocusRequester.Cancel
                                             if (isLast) right = FocusRequester.Cancel
-                                        }
-
+                                        },
                                     scale = ButtonDefaults.scale(focusedScale = 1.0f),
                                     colors = ButtonDefaults.colors(
                                         containerColor = if (isSelected) NetflixRed else Color.White.copy(alpha = 0.15f),
