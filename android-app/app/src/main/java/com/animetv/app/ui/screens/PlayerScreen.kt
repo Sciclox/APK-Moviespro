@@ -1415,8 +1415,14 @@ object PlaybackTelemetryTracker {
     }
 
     fun recordT1() {
-        t1 = System.currentTimeMillis()
-        val elapsed = if (t0 > 0) t1 - t0 else 0
+        val now = System.currentTimeMillis()
+        if (t0 == 0L) {
+            t0 = now
+            android.util.Log.d("PlayerTelemetry", "==================================================")
+            android.util.Log.d("PlayerTelemetry", "⏱️ [T0] Initialized playback tracking at $t0 ms")
+        }
+        t1 = now
+        val elapsed = t1 - t0
         android.util.Log.d("PlayerTelemetry", "⏱️ [T1] PlayerScreen LaunchedEffect started (+$elapsed ms since T0)")
     }
 
