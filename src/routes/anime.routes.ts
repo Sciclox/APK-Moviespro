@@ -198,10 +198,19 @@ router.get('/proxy/m3u8', async (req: Request, res: Response) => {
 
 /**
  * @route GET /api/v1/proxy/ts
- * @desc Proxy TS video segments with required headers
+ * @desc Proxy TS video segments using progressive stream piping with AbortController
  */
 router.get('/proxy/ts', async (req: Request, res: Response) => {
   const startTime = Date.now();
+  const controller = new AbortController();
+
+  // Abort upstream connection if Android TV closes request early
+  req.on('close', () => {
+    if (!res.writableEnded) {
+      controller.abort();
+    }
+  });
+
   try {
     const url = extractFullTargetUrl(req);
     if (!url) {
@@ -216,17 +225,37 @@ router.get('/proxy/ts', async (req: Request, res: Response) => {
         'Origin': 'https://jkanime.net',
       },
       timeout: 8000,
-      responseType: 'arraybuffer',
+      responseType: 'stream',
+      signal: controller.signal,
     });
 
-    const sizeKB = Math.round((Buffer.from(response.data).length) / 1024);
-    res.setHeader('Content-Type', 'video/mp2t');
+    const ttfb = Date.now() - startTime;
+
+    const contentType = response.headers['content-type'];
+    const contentLength = response.headers['content-length'];
+
+    res.setHeader('Content-Type', typeof contentType === 'string' ? contentType : 'video/mp2t');
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Cache-Control', 'public, max-age=86400');
-    console.log(`[Telemetry /ts] ⏱️ Segment (${sizeKB} KB) arraybuffer loaded in ${Date.now() - startTime} ms`);
-    res.send(Buffer.from(response.data));
+    if (contentLength) {
+      res.setHeader('Content-Length', String(contentLength));
+    }
+
+    console.log(`[Telemetry /ts STREAM] ⚡ TTFB to first byte: ${ttfb} ms`);
+
+    response.data.on('error', (err: any) => {
+      if (!res.headersSent) {
+        res.status(502).json({ success: false, error: 'Stream error' });
+      } else {
+        res.destroy();
+      }
+    });
+
+    response.data.pipe(res);
   } catch (error: any) {
-    res.status(502).json({ success: false, error: 'Segment fetch failed' });
+    if (!res.headersSent) {
+      res.status(502).json({ success: false, error: 'Segment fetch failed' });
+    }
   }
 });
 
