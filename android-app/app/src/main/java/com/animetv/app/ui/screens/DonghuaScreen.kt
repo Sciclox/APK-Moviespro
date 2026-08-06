@@ -106,7 +106,7 @@ fun DonghuaScreen(
         hasMorePages = true
 
         val cacheKey = "donghua:all:1"
-        val cachedDonghua = CatalogCacheManager.get(cacheKey)
+        val cachedDonghua = CatalogCacheManager.get(context, cacheKey)
 
         if (cachedDonghua != null && cachedDonghua.isNotEmpty()) {
             donghuaList.clear()
@@ -142,29 +142,33 @@ fun DonghuaScreen(
                                 donghuaList.clear()
                                 donghuaList.addAll(fullList)
                             }
-                            CatalogCacheManager.put(cacheKey, fullList)
+                            CatalogCacheManager.put(context, cacheKey, fullList)
                             HomeCacheManager.saveDonghuaHeroData(context, fullList.take(5))
                         }
                     } catch (_: Exception) {}
                 }
 
-                // 2. Fetch popular donghua genres in parallel so all rows render together
-                val genreJobs = allSections.map { (genreSlug, _) ->
-                    async(Dispatchers.IO) {
-                        val genreCacheKey = "donghua:$genreSlug:1"
-                        if (CatalogCacheManager.get(genreCacheKey) == null) {
-                            try {
-                                val res = ApiClient.apiService.getCatalog(categoria = "donghua", genre = genreSlug, page = 1)
-                                if (res.success && res.data.isNotEmpty()) {
-                                    CatalogCacheManager.put(genreCacheKey, res.data)
+                // 2. Fetch popular donghua genres in smooth batches of 3
+                val genreJob = async(Dispatchers.IO) {
+                    for (batch in allSections.chunked(3)) {
+                        batch.map { (genreSlug, _) ->
+                            async(Dispatchers.IO) {
+                                val genreCacheKey = "donghua:$genreSlug:1"
+                                if (CatalogCacheManager.get(context, genreCacheKey) == null) {
+                                    try {
+                                        val res = ApiClient.apiService.getCatalog(categoria = "donghua", genre = genreSlug, page = 1)
+                                        if (res.success && res.data.isNotEmpty()) {
+                                            CatalogCacheManager.put(context, genreCacheKey, res.data)
+                                        }
+                                    } catch (_: Exception) {}
                                 }
-                            } catch (_: Exception) {}
-                        }
+                            }
+                        }.awaitAll()
                     }
                 }
 
                 mainJob.await()
-                genreJobs.awaitAll()
+                genreJob.await()
             }
         } catch (_: Exception) {
         } finally {
@@ -278,35 +282,35 @@ fun GenreDonghuaRowSection(
     onFocusItem: (FocusRequester) -> Unit,
     onFocused: (() -> Unit)? = null
 ) {
+    val context = LocalContext.current
     val animeList = remember { mutableStateListOf<AnimeItem>() }
     var isLoading by remember { mutableStateOf(false) }
     var hasFetched by remember { mutableStateOf(false) }
 
-    // Lazy load with In-Memory Cache Optimization
+    // Lazy load with In-Memory + Disk Cache Optimization
     LaunchedEffect(genreSlug) {
         if (!hasFetched) {
             hasFetched = true
 
             val cacheKey = "donghua:$genreSlug:1"
-            val cachedAnime = CatalogCacheManager.get(cacheKey)
+            val cachedAnime = CatalogCacheManager.get(context, cacheKey)
             if (cachedAnime != null && cachedAnime.isNotEmpty()) {
                 animeList.clear()
                 animeList.addAll(cachedAnime)
                 isLoading = false
             } else {
                 isLoading = true
-            }
-
-            try {
-                val res = ApiClient.apiService.getCatalog(categoria = "donghua", genre = genreSlug, page = 1)
-                if (res.success && res.data.isNotEmpty()) {
-                    animeList.clear()
-                    animeList.addAll(res.data)
-                    CatalogCacheManager.put(cacheKey, res.data)
+                try {
+                    val res = ApiClient.apiService.getCatalog(categoria = "donghua", genre = genreSlug, page = 1)
+                    if (res.success && res.data.isNotEmpty()) {
+                        animeList.clear()
+                        animeList.addAll(res.data)
+                        CatalogCacheManager.put(context, cacheKey, res.data)
+                    }
+                } catch (_: Exception) {
+                } finally {
+                    isLoading = false
                 }
-            } catch (_: Exception) {
-            } finally {
-                isLoading = false
             }
         }
     }

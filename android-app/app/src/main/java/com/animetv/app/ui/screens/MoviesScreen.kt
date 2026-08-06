@@ -134,7 +134,7 @@ fun MoviesScreen(
         hasMorePages = true
 
         val cacheKey = "peliculas:all:1"
-        val cachedMovies = CatalogCacheManager.get(cacheKey)
+        val cachedMovies = CatalogCacheManager.get(context, cacheKey)
 
         if (cachedMovies != null && cachedMovies.isNotEmpty()) {
             moviesList.clear()
@@ -170,29 +170,33 @@ fun MoviesScreen(
                                 moviesList.clear()
                                 moviesList.addAll(fullList)
                             }
-                            CatalogCacheManager.put(cacheKey, fullList)
+                            CatalogCacheManager.put(context, cacheKey, fullList)
                             HomeCacheManager.saveMoviesHeroData(context, fullList.take(5))
                         }
                     } catch (_: Exception) {}
                 }
 
-                // 3. Fetch popular movie genres in parallel so all rows render together
-                val genreJobs = allSections.map { (genreSlug, _) ->
-                    async(Dispatchers.IO) {
-                        val genreCacheKey = "peliculas:$genreSlug:1"
-                        if (CatalogCacheManager.get(genreCacheKey) == null) {
-                            try {
-                                val res = ApiClient.apiService.getCatalog(tipo = "peliculas", genre = genreSlug, page = 1)
-                                if (res.success && res.data.isNotEmpty()) {
-                                    CatalogCacheManager.put(genreCacheKey, res.data)
+                // 3. Fetch popular movie genres in smooth batches of 3
+                val genreJob = async(Dispatchers.IO) {
+                    for (batch in allSections.chunked(3)) {
+                        batch.map { (genreSlug, _) ->
+                            async(Dispatchers.IO) {
+                                val genreCacheKey = "peliculas:$genreSlug:1"
+                                if (CatalogCacheManager.get(context, genreCacheKey) == null) {
+                                    try {
+                                        val res = ApiClient.apiService.getCatalog(tipo = "peliculas", genre = genreSlug, page = 1)
+                                        if (res.success && res.data.isNotEmpty()) {
+                                            CatalogCacheManager.put(context, genreCacheKey, res.data)
+                                        }
+                                    } catch (_: Exception) {}
                                 }
-                            } catch (_: Exception) {}
-                        }
+                            }
+                        }.awaitAll()
                     }
                 }
 
                 mainJob.await()
-                genreJobs.awaitAll()
+                genreJob.await()
             }
         } catch (_: Exception) {
         } finally {
@@ -306,35 +310,35 @@ fun GenreMovieRowSection(
     onFocusItem: (FocusRequester) -> Unit,
     onFocused: (() -> Unit)? = null
 ) {
+    val context = LocalContext.current
     val movies = remember { mutableStateListOf<AnimeItem>() }
     var isLoading by remember { mutableStateOf(false) }
     var hasFetched by remember { mutableStateOf(false) }
 
-    // Lazy load with In-Memory Cache Optimization
+    // Lazy load with In-Memory + Disk Cache Optimization
     LaunchedEffect(genreSlug) {
         if (!hasFetched) {
             hasFetched = true
 
             val cacheKey = "peliculas:$genreSlug:1"
-            val cachedMovies = CatalogCacheManager.get(cacheKey)
+            val cachedMovies = CatalogCacheManager.get(context, cacheKey)
             if (cachedMovies != null && cachedMovies.isNotEmpty()) {
                 movies.clear()
                 movies.addAll(cachedMovies)
                 isLoading = false
             } else {
                 isLoading = true
-            }
-
-            try {
-                val res = ApiClient.apiService.getCatalog(tipo = "peliculas", genre = genreSlug, page = 1)
-                if (res.success && res.data.isNotEmpty()) {
-                    movies.clear()
-                    movies.addAll(res.data)
-                    CatalogCacheManager.put(cacheKey, res.data)
+                try {
+                    val res = ApiClient.apiService.getCatalog(tipo = "peliculas", genre = genreSlug, page = 1)
+                    if (res.success && res.data.isNotEmpty()) {
+                        movies.clear()
+                        movies.addAll(res.data)
+                        CatalogCacheManager.put(context, cacheKey, res.data)
+                    }
+                } catch (_: Exception) {
+                } finally {
+                    isLoading = false
                 }
-            } catch (_: Exception) {
-            } finally {
-                isLoading = false
             }
         }
     }

@@ -108,7 +108,7 @@ fun LatinoScreen(
         hasMorePages = true
 
         val cacheKey = "latino:all:1"
-        val cachedLatino = CatalogCacheManager.get(cacheKey)
+        val cachedLatino = CatalogCacheManager.get(context, cacheKey)
 
         if (cachedLatino != null && cachedLatino.isNotEmpty()) {
             latinoList.clear()
@@ -144,29 +144,33 @@ fun LatinoScreen(
                                 latinoList.clear()
                                 latinoList.addAll(fullList)
                             }
-                            CatalogCacheManager.put(cacheKey, fullList)
+                            CatalogCacheManager.put(context, cacheKey, fullList)
                             HomeCacheManager.saveLatinoHeroData(context, fullList.take(5))
                         }
                     } catch (_: Exception) {}
                 }
 
-                // 2. Fetch popular latino genres in parallel so all rows render together
-                val genreJobs = allSections.map { (genreSlug, _) ->
-                    async(Dispatchers.IO) {
-                        val genreCacheKey = "latino:$genreSlug:1"
-                        if (CatalogCacheManager.get(genreCacheKey) == null) {
-                            try {
-                                val res = ApiClient.apiService.getCatalog(categoria = "latino", genre = genreSlug, page = 1)
-                                if (res.success && res.data.isNotEmpty()) {
-                                    CatalogCacheManager.put(genreCacheKey, res.data)
+                // 2. Fetch popular latino genres in smooth batches of 3 to avoid throttling
+                val genreJob = async(Dispatchers.IO) {
+                    for (batch in allSections.chunked(3)) {
+                        batch.map { (genreSlug, _) ->
+                            async(Dispatchers.IO) {
+                                val genreCacheKey = "latino:$genreSlug:1"
+                                if (CatalogCacheManager.get(context, genreCacheKey) == null) {
+                                    try {
+                                        val res = ApiClient.apiService.getCatalog(categoria = "latino", genre = genreSlug, page = 1)
+                                        if (res.success && res.data.isNotEmpty()) {
+                                            CatalogCacheManager.put(context, genreCacheKey, res.data)
+                                        }
+                                    } catch (_: Exception) {}
                                 }
-                            } catch (_: Exception) {}
-                        }
+                            }
+                        }.awaitAll()
                     }
                 }
 
                 mainJob.await()
-                genreJobs.awaitAll()
+                genreJob.await()
             }
         } catch (_: Exception) {
         } finally {
@@ -280,35 +284,35 @@ fun GenreLatinoRowSection(
     onFocusItem: (FocusRequester) -> Unit,
     onFocused: (() -> Unit)? = null
 ) {
+    val context = LocalContext.current
     val animeList = remember { mutableStateListOf<AnimeItem>() }
     var isLoading by remember { mutableStateOf(false) }
     var hasFetched by remember { mutableStateOf(false) }
 
-    // Lazy load with In-Memory Cache Optimization
+    // Lazy load with In-Memory + Disk Cache Optimization
     LaunchedEffect(genreSlug) {
         if (!hasFetched) {
             hasFetched = true
 
             val cacheKey = "latino:$genreSlug:1"
-            val cachedAnime = CatalogCacheManager.get(cacheKey)
+            val cachedAnime = CatalogCacheManager.get(context, cacheKey)
             if (cachedAnime != null && cachedAnime.isNotEmpty()) {
                 animeList.clear()
                 animeList.addAll(cachedAnime)
                 isLoading = false
             } else {
                 isLoading = true
-            }
-
-            try {
-                val res = ApiClient.apiService.getCatalog(categoria = "latino", genre = genreSlug, page = 1)
-                if (res.success && res.data.isNotEmpty()) {
-                    animeList.clear()
-                    animeList.addAll(res.data)
-                    CatalogCacheManager.put(cacheKey, res.data)
+                try {
+                    val res = ApiClient.apiService.getCatalog(categoria = "latino", genre = genreSlug, page = 1)
+                    if (res.success && res.data.isNotEmpty()) {
+                        animeList.clear()
+                        animeList.addAll(res.data)
+                        CatalogCacheManager.put(context, cacheKey, res.data)
+                    }
+                } catch (_: Exception) {
+                } finally {
+                    isLoading = false
                 }
-            } catch (_: Exception) {
-            } finally {
-                isLoading = false
             }
         }
     }
