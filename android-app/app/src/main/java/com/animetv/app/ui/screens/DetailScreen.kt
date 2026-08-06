@@ -311,13 +311,13 @@ fun DetailScreen(
                             left = FocusRequester.Cancel
                             right = FocusRequester.Cancel
                         }
-                        .onFocusChanged { focusState ->
-                            if (focusState.isFocused) {
-                                scope.launch {
-                                    listState.animateScrollToItem(0, 0)
-                                }
+                    .onFocusChanged { focusState ->
+                        if (focusState.isFocused) {
+                            scope.launch {
+                                listState.scrollToItem(0, 0)
                             }
-                        },
+                        }
+                    },
                     scale = ButtonDefaults.scale(focusedScale = 1.0f),
                     colors = ButtonDefaults.colors(
                         containerColor = Color.White.copy(alpha = 0.25f),
