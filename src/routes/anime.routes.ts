@@ -122,10 +122,12 @@ function getBackendBase(req: Request): string {
  * @desc Get episode streaming sources for ExoPlayer
  */
 router.get('/anime/watch/*', async (req: Request, res: Response) => {
+  const startTime = Date.now();
   try {
     const episodeSlug = Array.isArray(req.params[0]) ? req.params[0].join('/') : (req.params[0] || '');
     const backendBase = getBackendBase(req);
     const stream = await ScraperService.getStreamSources(episodeSlug, backendBase);
+    console.log(`[Telemetry /watch] ⏱️ Resolved ${episodeSlug} in ${Date.now() - startTime} ms`);
     res.json({ success: true, data: stream });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
@@ -148,6 +150,7 @@ function extractFullTargetUrl(req: Request): string | null {
  * @desc Proxy HLS manifest and rewrite dead CDN domains to working ones
  */
 router.get('/proxy/m3u8', async (req: Request, res: Response) => {
+  const startTime = Date.now();
   try {
     const url = extractFullTargetUrl(req);
     if (!url) {
@@ -186,6 +189,7 @@ router.get('/proxy/m3u8', async (req: Request, res: Response) => {
     res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Cache-Control', 'public, max-age=60');
+    console.log(`[Telemetry /m3u8] ⏱️ Manifest processed in ${Date.now() - startTime} ms`);
     res.send(fixed);
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
@@ -197,6 +201,7 @@ router.get('/proxy/m3u8', async (req: Request, res: Response) => {
  * @desc Proxy TS video segments with required headers
  */
 router.get('/proxy/ts', async (req: Request, res: Response) => {
+  const startTime = Date.now();
   try {
     const url = extractFullTargetUrl(req);
     if (!url) {
@@ -214,9 +219,11 @@ router.get('/proxy/ts', async (req: Request, res: Response) => {
       responseType: 'arraybuffer',
     });
 
+    const sizeKB = Math.round((Buffer.from(response.data).length) / 1024);
     res.setHeader('Content-Type', 'video/mp2t');
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Cache-Control', 'public, max-age=86400');
+    console.log(`[Telemetry /ts] ⏱️ Segment (${sizeKB} KB) arraybuffer loaded in ${Date.now() - startTime} ms`);
     res.send(Buffer.from(response.data));
   } catch (error: any) {
     res.status(502).json({ success: false, error: 'Segment fetch failed' });

@@ -189,6 +189,7 @@ fun PlayerScreen(
                         isLoading = false
                         isBuffering = false
                         currentServerRetryCount = 0
+                        PlaybackTelemetryTracker.recordT11()
                     }
                     override fun onIsPlayingChanged(playing: Boolean) {
                         isPlaying = playing
@@ -198,7 +199,10 @@ fun PlayerScreen(
                     }
                     override fun onPlaybackStateChanged(state: Int) {
                         isBuffering = state == Player.STATE_BUFFERING
-                        if (state == Player.STATE_READY || state == Player.STATE_ENDED) {
+                        if (state == Player.STATE_READY) {
+                            PlaybackTelemetryTracker.recordT10()
+                            isLoading = false
+                        } else if (state == Player.STATE_ENDED) {
                             isLoading = false
                         }
                     }
@@ -479,7 +483,9 @@ fun PlayerScreen(
                     // Keep default fallback if details fetch fails
                 }
 
+                PlaybackTelemetryTracker.recordT2()
                 val res = ApiClient.apiService.getStreamSources(animeSlug, epNum)
+                PlaybackTelemetryTracker.recordT3()
                 if (res.success && res.data.servers.isNotEmpty()) {
                     serverList = res.data.servers
                     // Check if the user previously selected a preferred server
@@ -530,6 +536,7 @@ fun PlayerScreen(
                         }
 
                         exoPlayer.setMediaSource(mediaSource)
+                        PlaybackTelemetryTracker.recordT4()
                         exoPlayer.prepare()
                         exoPlayer.play()
                         
@@ -1389,5 +1396,59 @@ private fun formatTime(ms: Long): String {
         String.format("%02d:%02d:%02d", hours, minutes, seconds)
     } else {
         String.format("%02d:%02d", minutes, seconds)
+    }
+}
+
+object PlaybackTelemetryTracker {
+    private var t0: Long = 0L
+    private var t1: Long = 0L
+    private var t2: Long = 0L
+    private var t3: Long = 0L
+    private var t4: Long = 0L
+    private var t10: Long = 0L
+    private var t11: Long = 0L
+
+    fun recordT0() {
+        t0 = System.currentTimeMillis()
+        android.util.Log.d("PlayerTelemetry", "==================================================")
+        android.util.Log.d("PlayerTelemetry", "⏱️ [T0] User clicked PLAY button at $t0 ms")
+    }
+
+    fun recordT1() {
+        t1 = System.currentTimeMillis()
+        val elapsed = if (t0 > 0) t1 - t0 else 0
+        android.util.Log.d("PlayerTelemetry", "⏱️ [T1] PlayerScreen LaunchedEffect started (+$elapsed ms since T0)")
+    }
+
+    fun recordT2() {
+        t2 = System.currentTimeMillis()
+        val elapsed = if (t0 > 0) t2 - t0 else 0
+        android.util.Log.d("PlayerTelemetry", "⏱️ [T2] Sent /watch API request (+$elapsed ms since T0)")
+    }
+
+    fun recordT3() {
+        t3 = System.currentTimeMillis()
+        val elapsed = if (t0 > 0) t3 - t0 else 0
+        val duration = if (t2 > 0) t3 - t2 else 0
+        android.util.Log.d("PlayerTelemetry", "⏱️ [T3] Received /watch API response in $duration ms (+$elapsed ms since T0)")
+    }
+
+    fun recordT4() {
+        t4 = System.currentTimeMillis()
+        val elapsed = if (t0 > 0) t4 - t0 else 0
+        android.util.Log.d("PlayerTelemetry", "⏱️ [T4] exoPlayer.prepare() called (+$elapsed ms since T0)")
+    }
+
+    fun recordT10() {
+        t10 = System.currentTimeMillis()
+        val elapsed = if (t0 > 0) t10 - t0 else 0
+        android.util.Log.d("PlayerTelemetry", "⏱️ [T10] ExoPlayer state = STATE_READY (+$elapsed ms since T0)")
+    }
+
+    fun recordT11() {
+        t11 = System.currentTimeMillis()
+        val elapsed = if (t0 > 0) t11 - t0 else 0
+        android.util.Log.d("PlayerTelemetry", "⏱️ [T11] 🎬 FIRST FRAME RENDERED ON SCREEN (TOTAL STARTUP TIME: $elapsed ms)")
+        android.util.Log.d("PlayerTelemetry", "==================================================")
     }
 }

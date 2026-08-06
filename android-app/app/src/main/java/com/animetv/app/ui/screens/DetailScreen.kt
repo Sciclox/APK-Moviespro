@@ -465,7 +465,10 @@ fun DetailScreen(
 
                         // REPRODUCIR / CONTINUAR Button
                         Button(
-                            onClick = { onPlayEpisode(resumeEpisode) },
+                            onClick = {
+                                com.animetv.app.ui.screens.PlaybackTelemetryTracker.recordT0()
+                                onPlayEpisode(resumeEpisode)
+                            },
                             modifier = Modifier
                                 .focusRequester(playButtonFocusRequester)
                                 .focusProperties {
