@@ -276,36 +276,29 @@ fun DetailScreen(
                 .blur(blurRadius)
         )
 
-        // Left-to-Right gradient (darker on left for text readability, clear on right)
+        // Left-to-Right gradient (Dark on left for text legibility, 100% clear on right for hero artwork)
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(
                     Brush.horizontalGradient(
-                        colors = listOf(
-                            NetflixBlack.copy(alpha = 0.95f),
-                            NetflixBlack.copy(alpha = 0.75f),
-                            Color.Transparent
-                        ),
-                        startX = 0f,
-                        endX = 1000f
+                        0.0f to NetflixBlack.copy(alpha = 0.9f),
+                        0.35f to NetflixBlack.copy(alpha = 0.6f),
+                        0.7f to Color.Transparent
                     )
                 )
         )
 
-        // Top-to-Bottom gradient (blends smoothly into dark list at bottom)
+        // Top-to-Bottom gradient (Clear on top, soft fade at bottom into episode list)
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(
                     Brush.verticalGradient(
-                        colors = listOf(
-                            Color.Transparent,
-                            NetflixBlack.copy(alpha = 0.6f),
-                            NetflixBlack
-                        ),
-                        startY = 200f,
-                        endY = 1400f
+                        0.0f to Color.Transparent,
+                        0.4f to Color.Transparent,
+                        0.85f to NetflixBlack.copy(alpha = 0.85f),
+                        1.0f to NetflixBlack
                     )
                 )
         )
