@@ -142,31 +142,23 @@ fun PlayerScreen(
         }
     }
 
-    // High-performance OkHttpClient for ExoPlayer HTTP/2 and Range streaming
-    val okHttpClient = remember {
-        okhttp3.OkHttpClient.Builder()
-            .connectTimeout(20, java.util.concurrent.TimeUnit.SECONDS)
-            .readTimeout(20, java.util.concurrent.TimeUnit.SECONDS)
-            .writeTimeout(20, java.util.concurrent.TimeUnit.SECONDS)
-            .followRedirects(true)
-            .followSslRedirects(true)
-            .build()
-    }
+    // High-performance shared OkHttpClient singleton with persistent connection pool
+    val okHttpClient = remember { com.animetv.app.data.api.ApiClient.okHttpClient }
 
-    // DataSource factory backed by OkHttp
+    // DataSource factory backed by shared OkHttp singleton
     val httpDataSourceFactory = remember(okHttpClient) {
         androidx.media3.datasource.okhttp.OkHttpDataSource.Factory(okHttpClient)
             .setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
     }
 
-    // LoadControl optimized for ultra-fast playback start (1.5s initial buffer) and smooth streaming
+    // LoadControl optimized for ultra-fast playback start (750ms initial buffer) and smooth streaming
     val loadControl = remember {
         DefaultLoadControl.Builder()
             .setBufferDurationsMs(
                 15_000, // Min buffer: 15 seconds
                 50_000, // Max buffer: 50 seconds
-                1_500,  // Buffer for playback start: 1.5 seconds (Ultra Fast!)
-                2_500   // Buffer after rebuffer: 2.5 seconds
+                750,    // Buffer for playback start: 750 ms (Ultra Fast!)
+                1_500   // Buffer after rebuffer: 1.5 seconds
             )
             .setPrioritizeTimeOverSizeThresholds(true)
             .build()
