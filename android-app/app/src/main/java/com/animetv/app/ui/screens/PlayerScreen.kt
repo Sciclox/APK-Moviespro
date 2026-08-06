@@ -1,3 +1,9 @@
+@file:OptIn(
+    androidx.media3.common.util.UnstableApi::class,
+    androidx.tv.material3.ExperimentalTvMaterial3Api::class,
+    androidx.compose.ui.ExperimentalComposeUiApi::class
+)
+
 package com.animetv.app.ui.screens
 
 import android.content.Context
@@ -67,7 +73,11 @@ import com.animetv.app.ui.theme.NetflixRed
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalTvMaterial3Api::class)
+@OptIn(
+    ExperimentalTvMaterial3Api::class,
+    androidx.compose.ui.ExperimentalComposeUiApi::class,
+    androidx.media3.common.util.UnstableApi::class
+)
 @Composable
 fun PlayerScreen(
     anime: AnimeItem?,
@@ -891,6 +901,8 @@ fun PlayerScreen(
                                 .focusRequester(backButtonFocusRequester)
                                 .focusProperties {
                                     down = seekBarFocusRequester
+                                    up = FocusRequester.Cancel
+                                    left = FocusRequester.Cancel
                                 },
                             scale = ButtonDefaults.scale(focusedScale = 1.0f),
                             colors = ButtonDefaults.colors(

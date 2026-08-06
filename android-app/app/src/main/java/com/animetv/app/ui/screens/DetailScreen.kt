@@ -12,6 +12,12 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.BookmarkBorder
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material3.Icon
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -282,28 +288,22 @@ fun DetailScreen(
             )
         }
 
-        // Left-to-Right gradient (Dark on left for text legibility, 100% clear on right for hero artwork)
+        // Full screen cinematic dark mask overlay (covers entire background uniformly)
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(
-                    Brush.horizontalGradient(
-                        0.0f to NetflixBlack.copy(alpha = 0.9f),
-                        0.35f to NetflixBlack.copy(alpha = 0.6f),
-                        0.7f to Color.Transparent
-                    )
-                )
+                .background(NetflixBlack.copy(alpha = 0.78f))
         )
 
-        // Top-to-Bottom gradient (Clear on top, soft fade at bottom into episode list)
+        // Top-to-Bottom gradient (soft fade at bottom into NetflixBlack background)
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(
                     Brush.verticalGradient(
                         0.0f to Color.Transparent,
-                        0.4f to Color.Transparent,
-                        0.85f to NetflixBlack.copy(alpha = 0.85f),
+                        0.5f to Color.Transparent,
+                        0.85f to NetflixBlack.copy(alpha = 0.90f),
                         1.0f to NetflixBlack
                     )
                 )
@@ -334,6 +334,7 @@ fun DetailScreen(
                     modifier = Modifier
                         .focusRequester(backButtonFocusRequester)
                         .focusProperties {
+                            up = FocusRequester.Cancel
                             left = FocusRequester.Cancel
                             right = FocusRequester.Cancel
                         }
@@ -344,7 +345,7 @@ fun DetailScreen(
                             }
                         }
                     },
-                    scale = ButtonDefaults.scale(focusedScale = 1.0f),
+                    scale = ButtonDefaults.scale(focusedScale = 1.05f),
                     colors = ButtonDefaults.colors(
                         containerColor = Color.White.copy(alpha = 0.25f),
                         contentColor = Color.White,
@@ -354,18 +355,29 @@ fun DetailScreen(
                     border = ButtonDefaults.border(
                         focusedBorder = Border(
                             border = BorderStroke(2.dp, Color.White),
-                            shape = RoundedCornerShape(4.dp)
+                            shape = RoundedCornerShape(6.dp)
                         )
                     ),
-                    shape = ButtonDefaults.shape(shape = RoundedCornerShape(4.dp)),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                    shape = ButtonDefaults.shape(shape = RoundedCornerShape(6.dp)),
+                    contentPadding = PaddingValues(horizontal = 20.dp, vertical = 10.dp)
                 ) {
-                    Text(
-                        text = "←  ATRÁS",
-                        fontFamily = Inter,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 13.sp
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Atrás",
+                            tint = LocalContentColor.current,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Text(
+                            text = "ATRÁS",
+                            fontFamily = Inter,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp
+                        )
+                    }
                 }
             }
 
@@ -531,11 +543,12 @@ fun DetailScreen(
                 item {
                     Text(
                         text = cleanSynopsisText,
-                        color = NetflixLightGrey,
+                        color = Color.White,
                         fontSize = 14.sp,
                         lineHeight = 22.sp,
                         maxLines = 4,
-                        fontFamily = Inter
+                        fontFamily = Inter,
+                        fontWeight = FontWeight.Normal
                     )
                 }
 
@@ -543,9 +556,9 @@ fun DetailScreen(
                 item {
                     Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                         val playButtonText = when {
-                            isMovie -> "▶  REPRODUCIR PELÍCULA"
-                            currentAnimeHistory != null -> "▶  CONTINUAR EP. $resumeEpisodeNum"
-                            else -> "▶  REPRODUCIR EP. 1"
+                            isMovie -> "REPRODUCIR PELÍCULA"
+                            currentAnimeHistory != null -> "CONTINUAR EP. $resumeEpisodeNum"
+                            else -> "REPRODUCIR EP. 1"
                         }
 
                         // REPRODUCIR / CONTINUAR Button
@@ -574,17 +587,29 @@ fun DetailScreen(
                             border = ButtonDefaults.border(
                                 focusedBorder = Border(
                                     border = BorderStroke(2.dp, Color.White),
-                                    shape = RoundedCornerShape(4.dp)
+                                    shape = RoundedCornerShape(6.dp)
                                 )
                             ),
-                            shape = ButtonDefaults.shape(shape = RoundedCornerShape(4.dp))
+                            shape = ButtonDefaults.shape(shape = RoundedCornerShape(6.dp)),
+                            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 10.dp)
                         ) {
-                            Text(
-                                text = playButtonText,
-                                fontWeight = FontWeight.Black,
-                                fontSize = 13.sp,
-                                fontFamily = Inter
-                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.PlayArrow,
+                                    contentDescription = null,
+                                    tint = LocalContentColor.current,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                                Text(
+                                    text = playButtonText,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp,
+                                    fontFamily = Inter
+                                )
+                            }
                         }
 
                         // + MI LISTA / ✓ EN MI LISTA Button
@@ -606,17 +631,29 @@ fun DetailScreen(
                             border = ButtonDefaults.border(
                                 focusedBorder = Border(
                                     border = BorderStroke(2.dp, Color.White),
-                                    shape = RoundedCornerShape(4.dp)
+                                    shape = RoundedCornerShape(6.dp)
                                 )
                             ),
-                            shape = ButtonDefaults.shape(shape = RoundedCornerShape(4.dp))
+                            shape = ButtonDefaults.shape(shape = RoundedCornerShape(6.dp)),
+                            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 10.dp)
                         ) {
-                            Text(
-                                text = if (isInMyList) "✓  EN MI LISTA" else "+  MI LISTA",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 13.sp,
-                                fontFamily = Inter
-                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = if (isInMyList) Icons.Default.Check else Icons.Default.BookmarkBorder,
+                                    contentDescription = null,
+                                    tint = LocalContentColor.current,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                                Text(
+                                    text = if (isInMyList) "EN MI LISTA" else "MI LISTA",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp,
+                                    fontFamily = Inter
+                                )
+                            }
                         }
                     }
                 }

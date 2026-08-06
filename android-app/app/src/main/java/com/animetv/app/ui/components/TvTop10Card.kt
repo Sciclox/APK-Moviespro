@@ -50,27 +50,11 @@ fun TvTop10Card(
         Box(
             modifier = Modifier.fillMaxSize()
         ) {
-            // LAYER 1 (BEHIND): Giant Rank Number 1..10 in horizontal line
-            Text(
-                text = "$rank",
-                color = if (isFocused) NetflixRed else Color.White.copy(alpha = 0.85f),
-                fontSize = if (rank == 10) 115.sp else 130.sp,
-                fontFamily = BebasNeue,
-                fontWeight = FontWeight.Bold,
-                softWrap = false,
-                maxLines = 1,
-                lineHeight = 115.sp,
-                letterSpacing = if (rank == 10) (-12).sp else (-2).sp,
-                modifier = Modifier
-                    .align(Alignment.CenterStart)
-                    .offset(x = if (rank == 10) (2).dp else 8.dp, y = 6.dp)
-            )
-
-            // LAYER 2 (ON TOP): Poster Image layered on top of the number
+            // LAYER 1: Poster Image on the right
             Box(
                 modifier = Modifier
                     .fillMaxHeight()
-                    .width(135.dp)
+                    .width(140.dp)
                     .align(Alignment.CenterEnd)
                     .clip(RoundedCornerShape(6.dp))
             ) {
@@ -81,6 +65,22 @@ fun TvTop10Card(
                     modifier = Modifier.fillMaxSize()
                 )
             }
+
+            // LAYER 2 (ON TOP): Giant Rank Number 1..10 (ON TOP so number 10 is 100% visible and not cut off)
+            Text(
+                text = "$rank",
+                color = if (isFocused) NetflixRed else Color.White,
+                fontSize = if (rank == 10) 110.sp else 125.sp,
+                fontFamily = BebasNeue,
+                fontWeight = FontWeight.Bold,
+                softWrap = false,
+                maxLines = 1,
+                lineHeight = 110.sp,
+                letterSpacing = if (rank == 10) (-8).sp else (-2).sp,
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .offset(x = 4.dp, y = 6.dp)
+            )
         }
     }
 }

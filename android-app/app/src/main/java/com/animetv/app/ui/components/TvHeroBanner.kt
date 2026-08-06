@@ -4,6 +4,7 @@ import android.graphics.drawable.BitmapDrawable
 import android.view.KeyEvent
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -12,7 +13,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material3.Icon
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
@@ -25,7 +31,10 @@ import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.PlatformTextStyle
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.graphics.ColorUtils
@@ -187,6 +196,41 @@ fun TvHeroBanner(
                     )
             )
 
+            // Thick Horizontal Capsule Pills Indicator (Bottom Right Corner - Pure White)
+            if (cleanHeroList.size > 1) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(bottom = 24.dp, end = 28.dp)
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(Color.Black.copy(alpha = 0.50f))
+                        .padding(horizontal = 14.dp, vertical = 10.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        cleanHeroList.indices.forEach { index ->
+                            val isSelected = index == currentHeroIndex
+                            val capsuleWidth by animateDpAsState(
+                                targetValue = if (isSelected) 36.dp else 14.dp,
+                                animationSpec = tween(durationMillis = 350),
+                                label = "capsuleWidth"
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .width(capsuleWidth)
+                                    .height(8.dp)
+                                    .clip(RoundedCornerShape(20.dp))
+                                    .background(
+                                        if (isSelected) Color.White else Color.White.copy(alpha = 0.30f)
+                                    )
+                            )
+                        }
+                    }
+                }
+            }
+
             // Text Content and Action Buttons
             Column(
                 modifier = Modifier
@@ -224,12 +268,13 @@ fun TvHeroBanner(
 
                 Text(
                     text = activeHero.synopsis ?: "Disfruta de esta increíble producción en calidad Full HD.",
-                    color = NetflixLightGrey,
-                    fontSize = 13.sp,
+                    color = Color.White,
+                    fontSize = 17.sp,
                     fontFamily = Inter,
                     fontWeight = FontWeight.Normal,
-                    maxLines = 2,
-                    lineHeight = 18.sp
+                    maxLines = 3,
+                    lineHeight = 23.sp,
+                    overflow = TextOverflow.Ellipsis
                 )
 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -238,6 +283,7 @@ fun TvHeroBanner(
                     Button(
                         onClick = { onAnimeSelect(activeHero) },
                         modifier = Modifier
+                            .height(44.dp)
                             .focusRequester(firstKeyFocusRequester)
                             .onFocusChanged { focusState ->
                                 isHeroFocused = focusState.isFocused
@@ -267,23 +313,37 @@ fun TvHeroBanner(
                         border = ButtonDefaults.border(
                             focusedBorder = Border(
                                 border = BorderStroke(2.dp, Color.White),
-                                shape = RoundedCornerShape(6.dp)
+                                shape = RoundedCornerShape(24.dp)
                             )
                         ),
-                        shape = ButtonDefaults.shape(shape = RoundedCornerShape(6.dp)),
-                        contentPadding = PaddingValues(horizontal = 24.dp, vertical = 10.dp)
+                        shape = ButtonDefaults.shape(shape = RoundedCornerShape(24.dp)),
+                        contentPadding = PaddingValues(start = 14.dp, end = 22.dp, top = 0.dp, bottom = 0.dp)
                     ) {
-                        Text(
-                            text = "▶ Reproducir",
-                            fontFamily = Inter,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier.fillMaxHeight()
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.PlayArrow,
+                                contentDescription = null,
+                                tint = LocalContentColor.current,
+                                modifier = Modifier.size(31.dp)
+                            )
+                            Text(
+                                text = "Reproducir",
+                                fontFamily = Inter,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                style = TextStyle(platformStyle = PlatformTextStyle(includeFontPadding = false))
+                            )
+                        }
                     }
 
                     Button(
                         onClick = { onAnimeSelect(activeHero) },
                         modifier = Modifier
+                            .height(44.dp)
                             .onFocusChanged { focusState ->
                                 isHeroFocused = focusState.isFocused
                                 if (focusState.isFocused) {
@@ -307,18 +367,24 @@ fun TvHeroBanner(
                         border = ButtonDefaults.border(
                             focusedBorder = Border(
                                 border = BorderStroke(2.dp, Color.White),
-                                shape = RoundedCornerShape(6.dp)
+                                shape = RoundedCornerShape(24.dp)
                             )
                         ),
-                        shape = ButtonDefaults.shape(shape = RoundedCornerShape(6.dp)),
-                        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 10.dp)
+                        shape = ButtonDefaults.shape(shape = RoundedCornerShape(24.dp)),
+                        contentPadding = PaddingValues(horizontal = 22.dp, vertical = 0.dp)
                     ) {
-                        Text(
-                            text = "Más información",
-                            fontFamily = Inter,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold
-                        )
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier.fillMaxHeight()
+                        ) {
+                            Text(
+                                text = "Más info",
+                                fontFamily = Inter,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                style = TextStyle(platformStyle = PlatformTextStyle(includeFontPadding = false))
+                            )
+                        }
                     }
                 }
             }

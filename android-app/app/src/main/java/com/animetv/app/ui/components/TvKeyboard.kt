@@ -64,7 +64,7 @@ fun TvKeyboard(
                 onClick = { onKeyClick(" ") },
                 width = 110.dp,
                 height = 34.dp,
-                onUpDpad = { navFocusRequester?.requestFocus() }
+                onUpDpad = { try { navFocusRequester?.requestFocus() } catch (_: Exception) {} }
             )
             KeyButton(
                 icon = Icons.AutoMirrored.Filled.Backspace,
@@ -73,7 +73,7 @@ fun TvKeyboard(
                 width = 110.dp,
                 height = 34.dp,
                 onRightDpad = onRightDpad,
-                onUpDpad = { navFocusRequester?.requestFocus() }
+                onUpDpad = { try { navFocusRequester?.requestFocus() } catch (_: Exception) {} }
             )
         }
 

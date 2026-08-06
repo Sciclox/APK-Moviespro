@@ -355,6 +355,9 @@ private fun NavPillButton(
                                 onRightDpad()
                             } else false
                         }
+                        KeyEvent.KEYCODE_DPAD_UP -> {
+                            true
+                        }
                         else -> false
                     }
                 } else false

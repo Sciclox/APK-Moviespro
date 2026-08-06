@@ -2,7 +2,6 @@ package com.animetv.app.ui.screens
 
 import android.content.Context
 import android.view.KeyEvent
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -11,7 +10,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -28,7 +26,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.foundation.lazy.list.TvLazyRow
-import androidx.tv.foundation.lazy.list.items
 import androidx.tv.foundation.lazy.list.itemsIndexed
 import androidx.tv.material3.*
 import com.animetv.app.data.model.AnimeItem
@@ -56,9 +53,8 @@ fun MyListScreen(
     val context = LocalContext.current
     val listState = rememberLazyListState()
     var myListAnimes by remember { mutableStateOf(MyListManager.getSavedAnimes(context)) }
-    var selectedFilter by remember { mutableStateOf("Todos") }
 
-    // Read saved playback positions from SharedPreferences
+    // Read saved playback positions from SharedPreferences for progress bar
     val prefs = remember { context.getSharedPreferences("player_positions", Context.MODE_PRIVATE) }
     val savedPositionsMap = remember(myListAnimes) {
         val map = mutableMapOf<String, Long>()
@@ -70,16 +66,6 @@ fun MyListScreen(
         }
         map
     }
-
-    // Filtered list based on selected tab chip
-    val filteredAnimes = remember(myListAnimes, selectedFilter) {
-        when (selectedFilter) {
-            "Continuar Viendo" -> myListAnimes.filter { savedPositionsMap.containsKey(it.slug) }
-            else -> myListAnimes
-        }
-    }
-
-
 
     // Fallback/Popular suggestions for empty state
     val popularSuggestions = remember {
@@ -100,95 +86,20 @@ fun MyListScreen(
             contentPadding = PaddingValues(start = 36.dp, top = 70.dp, end = 36.dp, bottom = 48.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
-            // 1. Header Title & Count Badge
+            // 1. Header Title (Without Count Badge)
             item {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Text(
-                        text = "MI LISTA DE ANIMES",
-                        color = Color.White,
-                        fontSize = 28.sp,
-                        fontFamily = BebasNeue,
-                        fontWeight = FontWeight.Normal
-                    )
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(NetflixRed)
-                            .padding(horizontal = 10.dp, vertical = 2.dp)
-                    ) {
-                        Text(
-                            text = "${myListAnimes.size}",
-                            color = Color.White,
-                            fontSize = 13.sp,
-                            fontFamily = Inter,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
+                Text(
+                    text = "MI LISTA DE ANIMES",
+                    color = Color.White,
+                    fontSize = 28.sp,
+                    fontFamily = BebasNeue,
+                    fontWeight = FontWeight.Normal
+                )
             }
 
-            // 2. Filter Chips (Todos | Continuar Viendo)
-            if (myListAnimes.isNotEmpty()) {
-                item {
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        val filters = listOf("Todos", "Continuar Viendo")
-                        filters.forEachIndexed { index, filterName ->
-                            val isSelected = selectedFilter == filterName
-                            val count = if (filterName == "Continuar Viendo") savedPositionsMap.size else myListAnimes.size
-
-                            val chipFocusRequester = remember(filterName) {
-                                if (index == 0) firstCardFocusRequester else FocusRequester()
-                            }
-
-                            Surface(
-                                onClick = { selectedFilter = filterName },
-                                shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(20.dp)),
-                                colors = ClickableSurfaceDefaults.colors(
-                                    containerColor = if (isSelected) Color.White.copy(alpha = 0.25f) else Color.White.copy(alpha = 0.08f),
-                                    contentColor = Color.White,
-                                    focusedContainerColor = Color.White,
-                                    focusedContentColor = Color.Black
-                                ),
-                                border = ClickableSurfaceDefaults.border(
-                                    focusedBorder = Border(border = BorderStroke(2.dp, Color.White), shape = RoundedCornerShape(20.dp))
-                                ),
-                                scale = ClickableSurfaceDefaults.scale(focusedScale = 1.05f),
-                                modifier = Modifier
-                                    .focusRequester(chipFocusRequester)
-                                    .onFocusChanged {
-                                        if (it.isFocused) {
-                                            onFocusItem(chipFocusRequester)
-                                        }
-                                    }
-                                    .onKeyEvent { keyEvent ->
-                                        if (keyEvent.type == KeyEventType.KeyDown && keyEvent.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DPAD_UP) {
-                                            navFocusRequester.requestFocus()
-                                            true
-                                        } else false
-                                    }
-                            ) {
-                                Text(
-                                    text = "$filterName ($count)",
-                                    fontSize = 13.sp,
-                                    fontFamily = Inter,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-
-            // 3. Main 5-Column Grid or Cinematic Empty State
+            // 2. Main 5-Column Grid or Cinematic Empty State
             item {
-                if (myListAnimes.isEmpty() || filteredAnimes.isEmpty()) {
+                if (myListAnimes.isEmpty()) {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -224,7 +135,7 @@ fun MyListScreen(
                                 )
                                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                     Text(
-                                        text = if (myListAnimes.isEmpty()) "Aún no has guardado animes en tu lista" else "No hay animes en esta categoría",
+                                        text = "Aún no has guardado animes en tu lista",
                                         color = Color.White,
                                         fontSize = 18.sp,
                                         fontFamily = Inter,
@@ -322,7 +233,7 @@ fun MyListScreen(
                     }
                 } else {
                     // 5-Column Grid Layout
-                    val rows = filteredAnimes.chunked(5)
+                    val rows = myListAnimes.chunked(5)
                     Column(
                         modifier = Modifier.fillMaxWidth(),
                         verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -355,9 +266,16 @@ fun MyListScreen(
                                         modifier = Modifier
                                             .weight(1f)
                                             .focusRequester(cardFocusRequester)
+                                            .onFocusChanged { if (it.isFocused) onFocusItem(cardFocusRequester) }
                                             .onKeyEvent { keyEvent ->
                                                 if (keyEvent.type == KeyEventType.KeyDown) {
                                                     when (keyEvent.nativeKeyEvent.keyCode) {
+                                                        KeyEvent.KEYCODE_DPAD_UP -> {
+                                                            if (rowIndex == 0) {
+                                                                try { navFocusRequester.requestFocus() } catch (_: Exception) {}
+                                                                true
+                                                            } else false
+                                                        }
                                                         // Long press / Menu key removes anime from list
                                                         KeyEvent.KEYCODE_MENU, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
                                                             MyListManager.toggleAnime(context, anime)
@@ -409,5 +327,3 @@ fun MyListScreen(
         }
     }
 }
-
-

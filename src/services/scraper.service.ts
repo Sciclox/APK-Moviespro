@@ -104,7 +104,7 @@ export class ScraperService {
                   TMDBService.getSpanishMetadata(item.title),
                   TMDBService.getAniListMetadata(item.title),
                 ]);
-                const backdropUrl = aniListMeta?.bannerImage || spanishMeta?.backdrop || null;
+                const backdropUrl = spanishMeta?.backdrop || aniListMeta?.bannerImage || null;
                 if (backdropUrl) {
                   return {
                     ...item,
@@ -421,7 +421,7 @@ export class ScraperService {
                     TMDBService.getSpanishMetadata(animeItem.title),
                     TMDBService.getAniListMetadata(animeItem.title),
                   ]);
-                  const backdropUrl = aniListMeta?.bannerImage || spanishMeta?.backdrop || null;
+                  const backdropUrl = spanishMeta?.backdrop || aniListMeta?.bannerImage || null;
                   if (backdropUrl) {
                     return {
                       ...animeItem,
@@ -888,7 +888,7 @@ export class ScraperService {
 
     // Root title fallback: if still no backdrop, try stripping season/arc suffixes to find main series banner
     let rootBackdrop: string | null = null;
-    if (!validSpanishMeta?.backdrop && !finalKitsuMeta && !meta?.bannerImage) {
+    if (!validSpanishMeta?.backdrop && !meta?.bannerImage) {
       const rootQuery = slug
         .replace(/-(?:yuukaku-hen|mugen-ressha-hen|katana-kaji-no-sato-hen|hashira-geiko-hen|2nd-season|3rd-season|4th-season|final-season|part-\d+|season-\d+|tv|ova|movie).*/i, '')
         .replace(/-/g, ' ')
@@ -918,7 +918,7 @@ export class ScraperService {
           : (meta?.episodes && meta.episodes > 0 ? meta.episodes : 12));
 
     const stills = validSpanishMeta?.episodeStills || {};
-    const seasonFallbackImage = jkMeta.seasonCover || meta?.bannerImage || meta?.coverImage?.extraLarge || validSpanishMeta?.backdrop || validSpanishMeta?.image || 'https://cdn.animeav1.com/covers/222.jpg';
+    const seasonFallbackImage = jkMeta.seasonCover || validSpanishMeta?.backdrop || meta?.bannerImage || meta?.coverImage?.extraLarge || validSpanishMeta?.image || 'https://cdn.animeav1.com/covers/222.jpg';
 
     const isSequel = /(?:season|part|2nd|3rd|4th|ii|iii|iv)/i.test(slug);
     const isLongRunning = totalEpisodes > 50 || slug.includes('one-piece') || slug.includes('naruto') || slug.includes('detective-conan') || slug.includes('dragon-ball');
@@ -1017,7 +1017,7 @@ export class ScraperService {
       slug: slug,
       synopsis: finalSynopsis,
       image: meta?.coverImage?.extraLarge || validSpanishMeta?.image || jkMeta.seasonCover || 'https://cdn.animeav1.com/covers/222.jpg',
-      backdrop: meta?.bannerImage || validSpanishMeta?.backdrop || finalKitsuMeta || rootBackdrop || firstEpisodeStill || jkMeta.seasonCover || meta?.coverImage?.extraLarge || null,
+      backdrop: validSpanishMeta?.backdrop || meta?.bannerImage || rootBackdrop || finalKitsuMeta || firstEpisodeStill || jkMeta.seasonCover || meta?.coverImage?.extraLarge || null,
       genres: (jkMeta.jkGenres && jkMeta.jkGenres.length > 0) ? jkMeta.jkGenres : (meta?.genres || ['Acción', 'Aventura', 'Fantasía']),
       status: formattedStatus,
       score: validSpanishMeta?.score || (meta?.averageScore ? meta.averageScore / 10 : 8.5),
