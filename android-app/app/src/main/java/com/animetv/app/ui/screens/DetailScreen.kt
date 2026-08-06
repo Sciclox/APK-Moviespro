@@ -167,6 +167,18 @@ fun DetailScreen(
         } catch (_: Exception) {}
     }
 
+    // Silent background pre-fetch for resume/next episode streams so Play button is instant
+    LaunchedEffect(detail?.slug) {
+        if (detail != null) {
+            scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                try {
+                    val targetEp = currentAnimeHistory?.episodeNumber ?: 1
+                    ApiClient.apiService.getStreamSources(anime.slug, targetEp.toString())
+                } catch (_: Exception) {}
+            }
+        }
+    }
+
     // Group episodes into batches of 30 for long series
     val batchSize = 30
     val allEpisodes = if (detail?.episodes.isNullOrEmpty()) fallbackEpisodes else detail!!.episodes

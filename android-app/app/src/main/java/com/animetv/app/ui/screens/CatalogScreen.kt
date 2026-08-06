@@ -42,6 +42,7 @@ fun CatalogScreen(
     navFocusRequester: FocusRequester,
     onFocusItem: (FocusRequester) -> Unit = {}
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     var catalogPage by remember { mutableIntStateOf(1) }
     val catalogList = remember { mutableStateListOf<AnimeItem>() }
     var isLoadingCatalog by remember { mutableStateOf(false) }
@@ -54,12 +55,24 @@ fun CatalogScreen(
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
 
-    // Initial Load for this Categoria / Tipo
+    val cacheKey = remember(categoria, tipo, genre) {
+        "catalog:${categoria ?: "none"}:${tipo ?: "none"}:${genre ?: "none"}:1"
+    }
+
+    // Initial Load with Instant Disk Cache + Network Sync
     LaunchedEffect(categoria, tipo, genre) {
         catalogPage = 1
         hasMorePages = true
-        isLoadingCatalog = true
-        catalogList.clear()
+
+        val cachedData = CatalogCacheManager.get(context, cacheKey)
+        if (cachedData != null && cachedData.isNotEmpty()) {
+            catalogList.clear()
+            catalogList.addAll(cachedData)
+            isLoadingCatalog = false
+        } else {
+            isLoadingCatalog = true
+        }
+
         try {
             val res = ApiClient.apiService.getCatalog(
                 genre = genre,
@@ -70,7 +83,8 @@ fun CatalogScreen(
             if (res.success && res.data.isNotEmpty()) {
                 catalogList.clear()
                 catalogList.addAll(res.data)
-            } else {
+                CatalogCacheManager.put(context, cacheKey, res.data)
+            } else if (cachedData.isNullOrEmpty()) {
                 hasMorePages = false
             }
         } catch (_: Exception) {
@@ -79,15 +93,15 @@ fun CatalogScreen(
         }
     }
 
-    // Infinite Scroll Pagination
+    // Proactive Infinite Scroll Pagination (pre-fetches next page early at 8 rows from end)
     val firstVisibleItemIndex by remember { derivedStateOf { listState.firstVisibleItemIndex } }
     LaunchedEffect(firstVisibleItemIndex, catalogList.size) {
         if (!isLoadingCatalog && hasMorePages && catalogList.isNotEmpty()) {
             val totalRows = (cleanCatalogList.size + 3) / 4
-            if (firstVisibleItemIndex >= totalRows - 5) {
+            if (firstVisibleItemIndex >= totalRows - 8) {
                 isLoadingCatalog = true
                 val nextPage = catalogPage + 1
-                scope.launch {
+                scope.launch(kotlinx.coroutines.Dispatchers.IO) {
                     try {
                         val res = ApiClient.apiService.getCatalog(
                             genre = genre,
@@ -99,7 +113,9 @@ fun CatalogScreen(
                             catalogPage = nextPage
                             val newUniqueItems = res.data.filter { newItem -> catalogList.none { it.id == newItem.id } }
                             if (newUniqueItems.isNotEmpty()) {
-                                catalogList.addAll(newUniqueItems)
+                                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                    catalogList.addAll(newUniqueItems)
+                                }
                             } else {
                                 hasMorePages = false
                             }
