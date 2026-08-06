@@ -88,7 +88,7 @@ export class ScraperService {
    */
   static async getHeroBanners(tipo?: string): Promise<AnimeItem[]> {
     const isMovies = tipo?.toLowerCase() === 'peliculas';
-    const cacheKey = isMovies ? 'hero_banners_v2_peliculas' : 'hero_banners_v2_home';
+    const cacheKey = isMovies ? 'hero_banners_v3_peliculas' : 'hero_banners_v3_home';
     const cached = apiCache.get<AnimeItem[]>(cacheKey);
     if (cached) return cached;
 
