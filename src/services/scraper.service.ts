@@ -584,9 +584,9 @@ export class ScraperService {
    * Get Anime Detail, Spanish Synopsis, Episode Stills and Metadata
    */
   static async getAnimeDetails(slugInput: string): Promise<AnimeDetail> {
-    const cacheKey = `anime_detail_v4_${slugInput.toLowerCase()}`;
+    const cacheKey = `anime_detail_v5_${slugInput.toLowerCase()}`;
     const cached = apiCache.get<AnimeDetail>(cacheKey);
-    if (cached) {
+    if (cached && cached.backdrop) {
       return cached;
     }
 
