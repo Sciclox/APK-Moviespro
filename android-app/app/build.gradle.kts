@@ -39,6 +39,7 @@ android {
 
 dependencies {
     implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.core.splashscreen)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
     implementation(platform(libs.androidx.compose.bom))
@@ -51,6 +52,7 @@ dependencies {
     // Jetpack Compose for Android TV (androidx.tv)
     implementation(libs.androidx.tv.foundation)
     implementation(libs.androidx.tv.material)
+    implementation(libs.androidx.tv.provider)
 
     // Compose Foundation & UI
     implementation(libs.androidx.lifecycle.viewmodel.compose)

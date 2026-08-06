@@ -232,13 +232,13 @@ fun HomeScreen(
                     }
                 }
 
-                // ROW: CONTINUAR MIRANDO (Watch History)
+                // ROW: CONTINUAR VIENDO (Watch History)
                 if (watchHistory.isNotEmpty()) {
                     item {
                         Column(modifier = Modifier.fillMaxWidth()) {
                             Text(
-                                text = "Continuar mirando",
-                                color = NetflixLightGrey,
+                                text = "Continuar viendo",
+                                color = Color.White,
                                 fontSize = 15.sp,
                                 fontFamily = Inter,
                                 fontWeight = FontWeight.Bold,
@@ -302,7 +302,7 @@ fun HomeScreen(
                         Column(modifier = Modifier.fillMaxWidth()) {
                             Text(
                                 text = "Últimos Episodios Subidos",
-                                color = NetflixLightGrey,
+                                color = Color.White,
                                 fontSize = 15.sp,
                                 fontFamily = Inter,
                                 fontWeight = FontWeight.Bold,
@@ -356,7 +356,7 @@ fun HomeScreen(
                     Column(modifier = Modifier.fillMaxWidth()) {
                         Text(
                             text = "En emisión",
-                            color = NetflixLightGrey,
+                            color = Color.White,
                             fontSize = 15.sp,
                             fontFamily = Inter,
                             fontWeight = FontWeight.Bold,
@@ -405,7 +405,7 @@ fun HomeScreen(
                     Column(modifier = Modifier.fillMaxWidth()) {
                         Text(
                             text = "Populares",
-                            color = NetflixLightGrey,
+                            color = Color.White,
                             fontSize = 15.sp,
                             fontFamily = Inter,
                             fontWeight = FontWeight.Bold,
@@ -453,7 +453,7 @@ fun HomeScreen(
                     Column(modifier = Modifier.fillMaxWidth()) {
                         Text(
                             text = "Acción",
-                            color = NetflixLightGrey,
+                            color = Color.White,
                             fontSize = 15.sp,
                             fontFamily = Inter,
                             fontWeight = FontWeight.Bold,

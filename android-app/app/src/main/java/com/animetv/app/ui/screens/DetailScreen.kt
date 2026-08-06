@@ -481,8 +481,8 @@ fun DetailScreen(
                             Text(scoreText, color = Color(0xFF46D369), fontSize = 13.sp, fontWeight = FontWeight.Bold, fontFamily = Inter)
                             Text("${detail?.year ?: 2024}", color = NetflixLightGrey, fontSize = 13.sp, fontWeight = FontWeight.Medium, fontFamily = Inter)
 
-                            val statusText = detail?.status ?: "FINALIZADO"
-                            val isReleasing = statusText.contains("EMISIÓN")
+                            val rawStatus = (detail?.status ?: anime.status ?: "").uppercase()
+                            val isReleasing = rawStatus.contains("EMISI") || rawStatus.contains("RELEASING") || rawStatus.contains("ESTRENO")
                             Box(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(3.dp))
@@ -490,7 +490,7 @@ fun DetailScreen(
                                     .padding(horizontal = 8.dp, vertical = 2.dp)
                             ) {
                                 Text(
-                                    text = if (isMovie) "PELÍCULA HD" else (if (isReleasing) "EN EMISIÓN" else "FINALIZADO"),
+                                    text = if (isMovie) "Película HD" else (if (isReleasing) "En emisión" else "Finalizado"),
                                     color = if (isReleasing && !isMovie) Color(0xFF2ECC71) else NetflixLightGrey,
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,

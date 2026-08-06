@@ -2,6 +2,7 @@ package com.animetv.app
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.animation.*
@@ -62,9 +63,19 @@ enum class TvScreen {
 }
 
 class MainActivity : ComponentActivity() {
+    private var currentActivityIntent by mutableStateOf<android.content.Intent?>(null)
+
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        currentActivityIntent = intent
+    }
+
     @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
+        installSplashScreen()
         super.onCreate(savedInstanceState)
+        currentActivityIntent = intent
         setContent {
             AnimeTvTheme {
                 val context = LocalContext.current
@@ -72,6 +83,42 @@ class MainActivity : ComponentActivity() {
                 val currentScreen = screenStack.lastOrNull() ?: TvScreen.HOME
                 var selectedAnime by remember { mutableStateOf<AnimeItem?>(null) }
                 var selectedEpisode by remember { mutableStateOf<EpisodeItem?>(null) }
+
+                // Deep Link Handler for Android TV 'Seguir viendo' (Watch Next) System Channel
+                LaunchedEffect(currentActivityIntent) {
+                    val intentUri = currentActivityIntent?.data
+                    if (intentUri != null && intentUri.scheme == "animetv" && intentUri.host == "play") {
+                        val animeSlug = intentUri.getQueryParameter("slug") ?: ""
+                        val epNumStr = intentUri.getQueryParameter("ep") ?: "1"
+                        val epNum = epNumStr.toIntOrNull() ?: 1
+
+                        if (animeSlug.isNotBlank()) {
+                            val historyMatch = com.animetv.app.data.repository.WatchHistoryManager.getHistory(context)
+                                .find { it.animeSlug == animeSlug || it.animeId == animeSlug }
+
+                            selectedAnime = AnimeItem(
+                                id = historyMatch?.animeId ?: animeSlug,
+                                title = historyMatch?.animeTitle ?: animeSlug.replace("-", " ")
+                                    .split(" ")
+                                    .joinToString(" ") { it.replaceFirstChar { c -> c.uppercase() } },
+                                slug = animeSlug,
+                                image = historyMatch?.animeImage ?: "",
+                                backdrop = historyMatch?.backdrop
+                            )
+
+                            selectedEpisode = EpisodeItem(
+                                id = "$animeSlug-episode-$epNum",
+                                number = epNum,
+                                title = historyMatch?.episodeTitle?.ifEmpty { "Episodio $epNum" } ?: "Episodio $epNum",
+                                slug = "$animeSlug/$epNum"
+                            )
+
+                            if (screenStack.lastOrNull() != TvScreen.PLAYER) {
+                                screenStack.add(TvScreen.PLAYER)
+                            }
+                        }
+                    }
+                }
 
                 // TopNav Focus Requesters
                 val searchNavFocusRequester = remember { FocusRequester() }

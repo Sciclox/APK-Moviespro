@@ -451,103 +451,104 @@ fun PlayerScreen(
 
     // Fetch streaming video source from API
     LaunchedEffect(episode.slug) {
+        exoPlayer.stop()
+        exoPlayer.clearMediaItems()
         isLoading = true
         skipIntroDismissed = false
         nextEpCountdownDismissed = false
         errorMessage = null
         preloadedNextStreamUrl = null
-        scope.launch {
+        try {
+            var animeSlug = anime?.slug?.ifBlank { null }
+                ?: episode.slug.split("/").firstOrNull()
+                ?: ""
+            animeSlug = animeSlug.replace(Regex("-(episode|episodio)-\\d+$", RegexOption.IGNORE_CASE), "").replace(Regex("/$"), "")
+            val epNum = episode.number.toString()
+
+            // Check total episodes count via anime details API
             try {
-                var animeSlug = anime?.slug?.ifBlank { null }
-                    ?: episode.slug.split("/").firstOrNull()
-                    ?: ""
-                animeSlug = animeSlug.replace(Regex("-(episode|episodio)-\\d+$", RegexOption.IGNORE_CASE), "").replace(Regex("/$"), "")
-                val epNum = episode.number.toString()
-
-                // Check total episodes count via anime details API
-                try {
-                    val detailsRes = ApiClient.apiService.getAnimeDetails(animeSlug)
-                    if (detailsRes.success && detailsRes.data.episodes.isNotEmpty()) {
-                        val maxEp = detailsRes.data.episodes.maxOfOrNull { it.number } ?: detailsRes.data.episodes.size
-                        hasNextEpisodeAvailable = episode.number < maxEp
-                    }
-                } catch (e: Exception) {
-                    // Keep default fallback if details fetch fails
-                }
-
-                PlaybackTelemetryTracker.recordT2()
-                val res = ApiClient.apiService.getStreamSources(animeSlug, epNum)
-                PlaybackTelemetryTracker.recordT3()
-                if (res.success && res.data.servers.isNotEmpty()) {
-                    serverList = res.data.servers
-                    // Check if the user previously selected a preferred server
-                    val savedIdx = if (!lastSelectedServerName.isNullOrEmpty()) {
-                        res.data.servers.indexOfFirst { s ->
-                            s.server.equals(lastSelectedServerName, ignoreCase = true)
-                        }
-                    } else -1
-
-                    val preferredIdx = if (savedIdx != -1) {
-                        savedIdx
-                    } else {
-                        // Smart pre-selection fallback: Prefer HLS (most stable on TV) > Direct MP4 > Proxy
-                        res.data.servers.indexOfFirst { s ->
-                            s.format == "hls" || s.url.contains(".m3u8")
-                        }.takeIf { it != -1 } ?: 0
-                    }
-
-                    currentServerIndex = preferredIdx
-                    streamUrl = res.data.servers[preferredIdx].url
-                    lastSelectedServerName = res.data.servers[preferredIdx].server
-                } else {
-                    errorMessage = "El Episodio ${episode.number} no está disponible."
+                val detailsRes = ApiClient.apiService.getAnimeDetails(animeSlug)
+                if (detailsRes.success && detailsRes.data.episodes.isNotEmpty()) {
+                    val maxEp = detailsRes.data.episodes.maxOfOrNull { it.number } ?: detailsRes.data.episodes.size
+                    hasNextEpisodeAvailable = episode.number < maxEp
                 }
             } catch (e: Exception) {
-                e.printStackTrace()
-                errorMessage = "Error al obtener las fuentes del Episodio ${episode.number}."
-            } finally {
-                if (!streamUrl.isNullOrEmpty() && errorMessage == null) {
-                    streamUrl?.let { url ->
-                        val isHls = url.contains(".m3u8") || serverList.getOrNull(currentServerIndex)?.format == "hls"
-                        val mediaItem = if (isHls) {
-                            MediaItem.Builder()
-                                .setUri(Uri.parse(url))
-                                .setMimeType(MimeTypes.APPLICATION_M3U8)
-                                .build()
-                        } else {
-                            MediaItem.Builder()
-                                .setUri(Uri.parse(url))
-                                .setMimeType(MimeTypes.VIDEO_MP4)
-                                .build()
-                        }
+                // Keep default fallback if details fetch fails
+            }
 
-                        val mediaSource = if (isHls) {
-                            HlsMediaSource.Factory(httpDataSourceFactory).createMediaSource(mediaItem)
-                        } else {
-                            DefaultMediaSourceFactory(httpDataSourceFactory).createMediaSource(mediaItem)
-                        }
+            PlaybackTelemetryTracker.recordT2()
+            val res = ApiClient.apiService.getStreamSources(animeSlug, epNum)
+            PlaybackTelemetryTracker.recordT3()
+            if (res.success && res.data.servers.isNotEmpty()) {
+                serverList = res.data.servers
+                // Check if the user previously selected a preferred server
+                val savedIdx = if (!lastSelectedServerName.isNullOrEmpty()) {
+                    res.data.servers.indexOfFirst { s ->
+                        s.server.equals(lastSelectedServerName, ignoreCase = true)
+                    }
+                } else -1
 
-                        exoPlayer.setMediaSource(mediaSource)
-                        PlaybackTelemetryTracker.recordT4()
-                        exoPlayer.prepare()
-                        exoPlayer.play()
-                        
-                        val prefs = context.getSharedPreferences("player_positions", Context.MODE_PRIVATE)
-                        val historyMatch = com.animetv.app.data.repository.WatchHistoryManager.getHistory(context)
-                            .find { (it.animeSlug == anime?.slug || it.animeId == anime?.id) && it.episodeNumber == episode.number }
-                        val savedPosition = historyMatch?.lastPositionMs?.takeIf { it > 5_000 }
-                            ?: prefs.getLong(episode.slug, 0L)
-                        val totalDuration = exoPlayer.duration
-                        if (savedPosition > 5_000 && (totalDuration <= 0 || savedPosition < totalDuration - 15_000)) {
-                            exoPlayer.seekTo(savedPosition)
-                        }
+                val preferredIdx = if (savedIdx != -1) {
+                    savedIdx
+                } else {
+                    // Smart pre-selection fallback: Prefer HLS (most stable on TV) > Direct MP4 > Proxy
+                    res.data.servers.indexOfFirst { s ->
+                        s.format == "hls" || s.url.contains(".m3u8")
+                    }.takeIf { it != -1 } ?: 0
+                }
+
+                currentServerIndex = preferredIdx
+                streamUrl = res.data.servers[preferredIdx].url
+                lastSelectedServerName = res.data.servers[preferredIdx].server
+            } else {
+                errorMessage = "El Episodio ${episode.number} no está disponible."
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            errorMessage = "Error al obtener las fuentes del Episodio ${episode.number}."
+        } finally {
+            if (!streamUrl.isNullOrEmpty() && errorMessage == null) {
+                streamUrl?.let { url ->
+                    val isHls = url.contains(".m3u8") || serverList.getOrNull(currentServerIndex)?.format == "hls"
+                    val mediaItem = if (isHls) {
+                        MediaItem.Builder()
+                            .setUri(Uri.parse(url))
+                            .setMimeType(MimeTypes.APPLICATION_M3U8)
+                            .build()
+                    } else {
+                        MediaItem.Builder()
+                            .setUri(Uri.parse(url))
+                            .setMimeType(MimeTypes.VIDEO_MP4)
+                            .build()
+                    }
+
+                    val mediaSource = if (isHls) {
+                        HlsMediaSource.Factory(httpDataSourceFactory).createMediaSource(mediaItem)
+                    } else {
+                        DefaultMediaSourceFactory(httpDataSourceFactory).createMediaSource(mediaItem)
+                    }
+
+                    exoPlayer.setMediaSource(mediaSource)
+                    PlaybackTelemetryTracker.recordT4()
+                    exoPlayer.prepare()
+                    exoPlayer.play()
+                    
+                    val prefs = context.getSharedPreferences("player_positions", Context.MODE_PRIVATE)
+                    val historyMatch = com.animetv.app.data.repository.WatchHistoryManager.getHistory(context)
+                        .find { (it.animeSlug == anime?.slug || it.animeId == anime?.id) && it.episodeNumber == episode.number }
+                    val savedPosition = historyMatch?.lastPositionMs?.takeIf { it > 5_000 }
+                        ?: prefs.getLong(episode.slug, 0L)
+                    val totalDuration = exoPlayer.duration
+                    if (savedPosition > 5_000 && (totalDuration <= 0 || savedPosition < totalDuration - 15_000)) {
+                        exoPlayer.seekTo(savedPosition)
                     }
                 }
-                isLoading = false
             }
+            isLoading = false
         }
     }
 
+    // Save watch position on episode change
     DisposableEffect(episode.slug) {
         onDispose {
             try {
@@ -559,12 +560,17 @@ fun PlayerScreen(
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
-            } finally {
-                try {
-                    exoPlayer.release()
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                }
+            }
+        }
+    }
+
+    // Release ExoPlayer instance ONLY when leaving PlayerScreen completely
+    DisposableEffect(Unit) {
+        onDispose {
+            try {
+                exoPlayer.release()
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
         }
     }

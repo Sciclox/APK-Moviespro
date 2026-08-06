@@ -1,5 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <style name="Theme.AnimeTV.Starting" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/splash_bg</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/logo_splash</item>
+        <item name="postSplashScreenTheme">@style/Theme.AnimeTV</item>
+    </style>
+
     <style name="Theme.AnimeTV" parent="@android:style/Theme.NoTitleBar.Fullscreen">
         <item name="android:windowBackground">@color/splash_bg</item>
         <item name="android:windowNoTitle">true</item>

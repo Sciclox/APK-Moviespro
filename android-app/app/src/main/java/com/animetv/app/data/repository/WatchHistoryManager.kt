@@ -65,6 +65,19 @@ object WatchHistoryManager {
 
             currentList.add(0, newItem)
             saveList(context, currentList)
+
+            // Sync with Android TV / Google TV system 'Seguir viendo' (Watch Next) row
+            TvWatchNextManager.updateWatchNext(
+                context = context,
+                animeId = animeId,
+                animeSlug = animeSlug,
+                animeTitle = animeTitle,
+                animeImage = animeImage,
+                episodeNumber = episodeNumber,
+                episodeTitle = episodeTitle,
+                lastPositionMs = lastPositionMs,
+                durationMs = durationMs
+            )
         }
     }
 

@@ -42,7 +42,21 @@ export class TMDBService {
     const inputTitles = Array.isArray(title) ? title : [title];
     const candidates: string[] = [];
 
-    // 1. Full original titles FIRST (e.g. "Assassination Classroom the Movie: Our Time")
+    // 0. Clean noise terms first (e.g. "HUNTER X HUNTER (2011) LATINO" -> "HUNTER X HUNTER")
+    for (const t of inputTitles) {
+      if (!t || typeof t !== 'string') continue;
+      const clean = t
+        .replace(/\s*\([^)]*(?:latino|doblaje|audio|castellano|subtitulado|sub|tv|movie|pelicula|ova|ona|20\d\d|19\d\d)[^)]*\)/gi, '')
+        .replace(/\s+(?:latino|audio latino|doblaje latino|castellano|subtitulado|uncensored|sin censura|completo|hd|4k)\b/gi, '')
+        .replace(/\s*\(\d{4}\)/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+      if (clean && !candidates.includes(clean)) {
+        candidates.push(clean);
+      }
+    }
+
+    // 1. Full original titles SECOND (e.g. "Assassination Classroom the Movie: Our Time")
     for (const t of inputTitles) {
       if (!t || typeof t !== 'string') continue;
       const trimmed = t.trim();
@@ -51,7 +65,7 @@ export class TMDBService {
       }
     }
 
-    // 2. Cleaned full titles without punctuation (e.g. "Assassination Classroom the Movie Our Time")
+    // 2. Cleaned full titles without punctuation
     for (const t of inputTitles) {
       if (!t || typeof t !== 'string') continue;
       if (t.includes('//') || t.includes(':') || t.includes('-')) {
@@ -143,7 +157,27 @@ export class TMDBService {
    * Fetch AniList media info (episodes count, genres, native title)
    */
   static async getAniListMetadata(title: string | string[]): Promise<Partial<AniListMedia> | null> {
-    const titles = Array.isArray(title) ? title : [title];
+    const inputTitles = Array.isArray(title) ? title : [title];
+    const titles: string[] = [];
+
+    // Clean noise terms first (e.g. "HUNTER X HUNTER (2011) LATINO" -> "HUNTER X HUNTER")
+    for (const t of inputTitles) {
+      if (!t || typeof t !== 'string') continue;
+      const clean = t
+        .replace(/\s*\([^)]*(?:latino|doblaje|audio|castellano|subtitulado|sub|tv|movie|pelicula|ova|ona|20\d\d|19\d\d)[^)]*\)/gi, '')
+        .replace(/\s+(?:latino|audio latino|doblaje latino|castellano|subtitulado|uncensored|sin censura|completo|hd|4k)\b/gi, '')
+        .replace(/\s*\(\d{4}\)/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+      if (clean && !titles.includes(clean)) {
+        titles.push(clean);
+      }
+      const trimmed = t.trim();
+      if (trimmed && !titles.includes(trimmed)) {
+        titles.push(trimmed);
+      }
+    }
+
     const query = `
       query ($search: String) {
         Media (search: $search, type: ANIME) {

@@ -3,21 +3,19 @@ package com.animetv.app.ui.screens
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
-import com.animetv.app.ui.theme.BebasNeue
 import com.animetv.app.ui.theme.NetflixBlack
 import com.animetv.app.ui.theme.NetflixRed
+import com.animetv.app.ui.theme.NetflixLightGrey
+import com.animetv.app.ui.theme.Inter
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -25,56 +23,62 @@ import kotlinx.coroutines.launch
 fun SplashScreen(
     onFinished: () -> Unit
 ) {
-    // Scale animation: 0.75 -> 1.28 -> 1.0
-    val scaleAnim = remember { Animatable(0.75f) }
-    // Alpha animation: 0 -> 1
-    val alphaAnim = remember { Animatable(0f) }
-    // Fade out at end
+    val configuration = LocalConfiguration.current
+
+    // 1:1 Seamless continuity scale: starts at 1.0f (exact match with native splash)
+    val scaleAnim = remember { Animatable(1.0f) }
+    // Slide offset animation (0f -> -1.0f for slide out left)
+    val slideAnim = remember { Animatable(0f) }
+    // Alpha animation for smooth exit
     val fadeOutAnim = remember { Animatable(1f) }
 
     var showColdStartMessage by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
-        // Delay timer to show cold-start message if server is waking up
         launch {
             delay(3000)
             showColdStartMessage = true
         }
 
-        // Phase 1: Fade in + Zoom scale up logo
-        alphaAnim.animateTo(
-            targetValue = 1f,
-            animationSpec = tween(durationMillis = 650, easing = EaseOutCubic)
-        )
-
+        // Phase 1: Subtle elegant pulse (1.0 -> 1.08 -> 1.0)
         scaleAnim.animateTo(
-            targetValue = 1.28f,
-            animationSpec = tween(durationMillis = 750, easing = EaseOutCubic)
+            targetValue = 1.08f,
+            animationSpec = tween(durationMillis = 450, easing = EaseOutCubic)
         )
-
-        // Phase 2: Settle smoothly to normal scale
         scaleAnim.animateTo(
             targetValue = 1.0f,
-            animationSpec = tween(durationMillis = 400, easing = EaseInOutCubic)
+            animationSpec = tween(durationMillis = 350, easing = EaseInOutCubic)
         )
 
-        // Hold for a moment
-        delay(600)
+        // Hold briefly for visual impact
+        delay(300)
 
-        // Phase 3: Fade out everything
-        fadeOutAnim.animateTo(
-            targetValue = 0f,
-            animationSpec = tween(durationMillis = 400, easing = EaseInCubic)
-        )
+        // Phase 2: Slide Out Left + Fade Out
+        launch {
+            slideAnim.animateTo(
+                targetValue = -1.0f,
+                animationSpec = tween(durationMillis = 500, easing = EaseInOutCubic)
+            )
+        }
+        launch {
+            fadeOutAnim.animateTo(
+                targetValue = 0f,
+                animationSpec = tween(durationMillis = 450, easing = EaseInCubic)
+            )
+        }
 
+        delay(520)
         onFinished()
     }
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(NetflixBlack)
-            .graphicsLayer { alpha = fadeOutAnim.value },
+            .graphicsLayer {
+                translationX = slideAnim.value * size.width
+                alpha = fadeOutAnim.value
+            }
+            .background(NetflixBlack),
         contentAlignment = Alignment.Center
     ) {
         Column(
@@ -82,9 +86,7 @@ fun SplashScreen(
             verticalArrangement = Arrangement.Center
         ) {
             Box(
-                modifier = Modifier
-                    .scale(scaleAnim.value)
-                    .graphicsLayer { alpha = alphaAnim.value },
+                modifier = Modifier.scale(scaleAnim.value),
                 contentAlignment = Alignment.Center
             ) {
                 androidx.compose.foundation.Image(
@@ -106,9 +108,9 @@ fun SplashScreen(
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = "Conectando con el servidor de streaming...",
-                    color = com.animetv.app.ui.theme.NetflixLightGrey,
+                    color = NetflixLightGrey,
                     fontSize = 14.sp,
-                    fontFamily = com.animetv.app.ui.theme.Inter
+                    fontFamily = Inter
                 )
             }
         }
