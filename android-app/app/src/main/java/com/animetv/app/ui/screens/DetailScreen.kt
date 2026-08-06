@@ -344,17 +344,61 @@ fun DetailScreen(
             }
 
             if (isLoading) {
+                // Item 2: Title, Badges, Genres, and Synopsis Skeleton
                 item {
                     Column(
                         modifier = Modifier
                             .padding(top = 20.dp)
-                            .width(500.dp)
+                            .width(550.dp)
                     ) {
-                        ShimmerBox(width = 320.dp, height = 40.dp)
+                        ShimmerBox(width = 340.dp, height = 42.dp)
+                        Spacer(modifier = Modifier.height(14.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            ShimmerBox(width = 80.dp, height = 22.dp)
+                            ShimmerBox(width = 50.dp, height = 22.dp)
+                            ShimmerBox(width = 90.dp, height = 22.dp)
+                        }
                         Spacer(modifier = Modifier.height(12.dp))
-                        ShimmerBox(width = 240.dp, height = 20.dp)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            ShimmerBox(width = 75.dp, height = 24.dp)
+                            ShimmerBox(width = 85.dp, height = 24.dp)
+                            ShimmerBox(width = 65.dp, height = 24.dp)
+                        }
                         Spacer(modifier = Modifier.height(16.dp))
-                        ShimmerBox(width = 500.dp, height = 80.dp)
+                        ShimmerBox(width = 520.dp, height = 75.dp)
+                    }
+                }
+
+                // Item 3: Action Buttons Skeleton
+                item {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                        ShimmerBox(width = 185.dp, height = 44.dp)
+                        ShimmerBox(width = 135.dp, height = 44.dp)
+                    }
+                }
+
+                // Item 4: Episodes Section Skeleton
+                item {
+                    Spacer(modifier = Modifier.height(24.dp))
+                    ShimmerBox(width = 120.dp, height = 26.dp)
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                        repeat(5) {
+                            ShimmerBox(width = 220.dp, height = 135.dp)
+                        }
+                    }
+                }
+
+                // Item 5: Similar Anime Section Skeleton
+                item {
+                    Spacer(modifier = Modifier.height(24.dp))
+                    ShimmerBox(width = 160.dp, height = 26.dp)
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                        repeat(6) {
+                            ShimmerBox(width = 170.dp, height = 240.dp)
+                        }
                     }
                 }
             } else {
