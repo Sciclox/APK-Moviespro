@@ -318,7 +318,7 @@ fun DetailScreen(
                                 }
                             }
                         },
-                    scale = ButtonDefaults.scale(focusedScale = 1.08f),
+                    scale = ButtonDefaults.scale(focusedScale = 1.0f),
                     colors = ButtonDefaults.colors(
                         containerColor = Color.White.copy(alpha = 0.25f),
                         contentColor = Color.White,
@@ -494,7 +494,7 @@ fun DetailScreen(
                                         scope.launch { listState.animateScrollToItem(1) }
                                     }
                                 },
-                            scale = ButtonDefaults.scale(focusedScale = 1.08f),
+                            scale = ButtonDefaults.scale(focusedScale = 1.0f),
                             colors = ButtonDefaults.colors(
                                 containerColor = Color.White.copy(alpha = 0.25f),
                                 contentColor = Color.White,
@@ -526,7 +526,7 @@ fun DetailScreen(
                                 .focusProperties {
                                     right = FocusRequester.Cancel
                                 },
-                            scale = ButtonDefaults.scale(focusedScale = 1.08f),
+                            scale = ButtonDefaults.scale(focusedScale = 1.0f),
                             colors = ButtonDefaults.colors(
                                 containerColor = if (isInMyList) Color(0xFF2ECC71).copy(alpha = 0.25f) else Color.White.copy(alpha = 0.25f),
                                 contentColor = Color.White,
@@ -592,7 +592,7 @@ fun DetailScreen(
                                                 scope.launch { listState.animateScrollToItem(4) }
                                             }
                                         },
-                                    scale = ButtonDefaults.scale(focusedScale = 1.05f),
+                                    scale = ButtonDefaults.scale(focusedScale = 1.0f),
                                     colors = ButtonDefaults.colors(
                                         containerColor = if (isSelected) NetflixRed else Color.White.copy(alpha = 0.15f),
                                         contentColor = Color.White,
