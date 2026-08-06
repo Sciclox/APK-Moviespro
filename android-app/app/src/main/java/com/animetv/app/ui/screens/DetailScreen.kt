@@ -264,6 +264,8 @@ fun DetailScreen(
             AsyncImage(
                 model = coil.request.ImageRequest.Builder(LocalContext.current)
                     .data(currentBackdropUrl)
+                    .addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+                    .addHeader("Accept", "image/webp,image/apng,image/*,*/*;q=0.8")
                     .crossfade(true)
                     .build(),
                 contentDescription = anime.title,
