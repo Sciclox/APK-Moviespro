@@ -706,10 +706,10 @@ fun DetailScreen(
                     }
                 }
 
-                // Item 7: Temporadas y Relacionados / Animes Similares Section
+                // Item 7: Temporadas y Relacionados Section
                 val relatedItems = detail?.relatedAnime
                 val hasRelated = !relatedItems.isNullOrEmpty()
-                val displayList = if (hasRelated) {
+                val relatedDisplayList = if (hasRelated) {
                     relatedItems!!.map { rel ->
                         com.animetv.app.data.model.AnimeItem(
                             id = rel.id,
@@ -721,14 +721,14 @@ fun DetailScreen(
                         )
                     }
                 } else {
-                    recommendedList
+                    emptyList()
                 }
 
-                if (displayList.isNotEmpty()) {
+                if (relatedDisplayList.isNotEmpty()) {
                     item {
                         Spacer(modifier = Modifier.height(12.dp))
                         Text(
-                            text = if (hasRelated) "Temporadas y Relacionados" else "Animes Similares",
+                            text = "Temporadas y Relacionados",
                             color = Color.White,
                             fontSize = 22.sp,
                             fontWeight = FontWeight.Bold,
@@ -744,10 +744,67 @@ fun DetailScreen(
                             horizontalArrangement = Arrangement.spacedBy(14.dp),
                             contentPadding = PaddingValues(top = 8.dp, bottom = 16.dp, end = 24.dp)
                         ) {
-                            items(count = displayList.size, key = { idx -> displayList[idx].id }) { idx ->
-                                val recAnime = displayList[idx]
+                            items(count = relatedDisplayList.size, key = { idx -> "rel-${relatedDisplayList[idx].id}" }) { idx ->
+                                val recAnime = relatedDisplayList[idx]
                                 val isFirst = idx == 0
-                                val isLast = idx == displayList.lastIndex
+                                val isLast = idx == relatedDisplayList.lastIndex
+
+                                com.animetv.app.ui.components.TvAnimeCard(
+                                    anime = recAnime,
+                                    onClick = { onAnimeSelect?.invoke(recAnime) },
+                                    modifier = Modifier
+                                        .width(170.dp)
+                                        .focusProperties {
+                                            if (isFirst) left = FocusRequester.Cancel
+                                            if (isLast) right = FocusRequester.Cancel
+                                        }
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Item 8: Te Recomendamos Section
+                val recommendedItems = detail?.recommendedAnime
+                val hasRecommended = !recommendedItems.isNullOrEmpty()
+                val recommendedDisplayList = if (hasRecommended) {
+                    recommendedItems!!.map { rec ->
+                        com.animetv.app.data.model.AnimeItem(
+                            id = rec.id,
+                            title = rec.title,
+                            slug = rec.slug,
+                            image = rec.image ?: "https://cdn.jkdesa.com/assets/images/animes/image/${rec.slug}.jpg",
+                            type = rec.type
+                        )
+                    }
+                } else {
+                    recommendedList
+                }
+
+                if (recommendedDisplayList.isNotEmpty()) {
+                    item {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = "Te Recomendamos",
+                            color = Color.White,
+                            fontSize = 22.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = BebasNeue
+                        )
+                    }
+
+                    item {
+                        TvLazyRow(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(280.dp),
+                            horizontalArrangement = Arrangement.spacedBy(14.dp),
+                            contentPadding = PaddingValues(top = 8.dp, bottom = 16.dp, end = 24.dp)
+                        ) {
+                            items(count = recommendedDisplayList.size, key = { idx -> "rec-${recommendedDisplayList[idx].id}" }) { idx ->
+                                val recAnime = recommendedDisplayList[idx]
+                                val isFirst = idx == 0
+                                val isLast = idx == recommendedDisplayList.lastIndex
 
                                 com.animetv.app.ui.components.TvAnimeCard(
                                     anime = recAnime,

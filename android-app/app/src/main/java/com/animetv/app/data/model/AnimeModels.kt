@@ -55,6 +55,15 @@ data class RelatedAnimeItem(
 )
 
 @Immutable
+data class RecommendedAnimeItem(
+    @SerializedName("id") val id: String,
+    @SerializedName("title") val title: String,
+    @SerializedName("slug") val slug: String,
+    @SerializedName("type") val type: String? = null,
+    @SerializedName("image") val image: String? = null
+)
+
+@Immutable
 data class AnimeDetail(
     @SerializedName("id") val id: String,
     @SerializedName("title") val title: String,
@@ -70,7 +79,8 @@ data class AnimeDetail(
     @SerializedName("year") val year: Int?,
     @SerializedName("type") val type: String?,
     @SerializedName("episodes") val episodes: List<EpisodeItem>,
-    @SerializedName("relatedAnime") val relatedAnime: List<RelatedAnimeItem>? = null
+    @SerializedName("relatedAnime") val relatedAnime: List<RelatedAnimeItem>? = null,
+    @SerializedName("recommendedAnime") val recommendedAnime: List<RecommendedAnimeItem>? = null
 )
 
 @Immutable

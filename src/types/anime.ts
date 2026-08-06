@@ -42,6 +42,14 @@ export interface RelatedAnimeItem {
   image?: string;
 }
 
+export interface RecommendedAnimeItem {
+  id: string;
+  title: string;
+  slug: string;
+  type?: string;
+  image?: string;
+}
+
 export interface AnimeDetail {
   id: string;
   title: string;
@@ -58,6 +66,7 @@ export interface AnimeDetail {
   type: string;
   episodes: EpisodeItem[];
   relatedAnime?: RelatedAnimeItem[];
+  recommendedAnime?: RecommendedAnimeItem[];
 }
 
 export interface StreamSource {
