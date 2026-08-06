@@ -584,7 +584,7 @@ export class ScraperService {
    * Get Anime Detail, Spanish Synopsis, Episode Stills and Metadata
    */
   static async getAnimeDetails(slugInput: string): Promise<AnimeDetail> {
-    const cacheKey = `anime_detail_v5_${slugInput.toLowerCase()}`;
+    const cacheKey = `anime_detail_v6_${slugInput.toLowerCase()}`;
     const cached = apiCache.get<AnimeDetail>(cacheKey);
     if (cached && cached.backdrop) {
       return cached;
@@ -1009,7 +1009,7 @@ export class ScraperService {
       slug: slug,
       synopsis: finalSynopsis,
       image: meta?.coverImage?.extraLarge || validSpanishMeta?.image || jkMeta.seasonCover || 'https://cdn.animeav1.com/covers/222.jpg',
-      backdrop: validSpanishMeta?.backdrop || finalKitsuMeta || meta?.bannerImage || rootBackdrop || firstEpisodeStill || jkMeta.seasonCover || meta?.coverImage?.extraLarge || null,
+      backdrop: meta?.bannerImage || validSpanishMeta?.backdrop || finalKitsuMeta || rootBackdrop || firstEpisodeStill || jkMeta.seasonCover || meta?.coverImage?.extraLarge || null,
       genres: (jkMeta.jkGenres && jkMeta.jkGenres.length > 0) ? jkMeta.jkGenres : (meta?.genres || ['Acción', 'Aventura', 'Fantasía']),
       status: formattedStatus,
       score: validSpanishMeta?.score || (meta?.averageScore ? meta.averageScore / 10 : 8.5),
