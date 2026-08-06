@@ -252,20 +252,30 @@ fun DetailScreen(
             ?: anime.image
     }
 
+    var currentBackdropUrl by remember(backdropUrl) { mutableStateOf(backdropUrl) }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(NetflixBlack)
     ) {
-        // Hero Backdrop Background (wrapped in key to force instant reload when detail resolves)
-        key(backdropUrl) {
+        // Hero Backdrop Background (with automatic onError fallback to episode preview still if TMDB fails)
+        key(currentBackdropUrl) {
             AsyncImage(
                 model = coil.request.ImageRequest.Builder(LocalContext.current)
-                    .data(backdropUrl)
+                    .data(currentBackdropUrl)
                     .crossfade(true)
                     .build(),
                 contentDescription = anime.title,
                 contentScale = ContentScale.Crop,
+                onError = {
+                    val fallbackImg = detail?.episodes?.firstOrNull { !it.image.isNullOrBlank() }?.image
+                    if (!fallbackImg.isNullOrBlank() && currentBackdropUrl != fallbackImg) {
+                        currentBackdropUrl = fallbackImg
+                    } else if (!anime.image.isNullOrBlank() && currentBackdropUrl != anime.image) {
+                        currentBackdropUrl = anime.image
+                    }
+                },
                 modifier = Modifier.fillMaxSize()
             )
         }
