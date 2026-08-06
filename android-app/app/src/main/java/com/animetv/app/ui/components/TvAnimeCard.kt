@@ -116,9 +116,14 @@ fun TvAnimeCard(
             val statusText = remember(anime.status) {
                 val rawStatus = anime.status?.lowercase() ?: ""
                 when {
+                    rawStatus.contains("secuela") -> "Secuela"
+                    rawStatus.contains("precuela") -> "Precuela"
+                    rawStatus.contains("adicional") -> "Adicional"
+                    rawStatus.contains("entorno") || rawStatus.contains("alternativo") -> "Alternativo"
+                    rawStatus.contains("relacionado") -> "Relacionado"
                     rawStatus.contains("emision") || rawStatus.contains("currently") || rawStatus.contains("releasing") || rawStatus.contains("estreno") -> "En emisión"
                     rawStatus.contains("finalizad") || rawStatus.contains("finished") || rawStatus.contains("concluid") || rawStatus.contains("completed") -> "Finalizado"
-                    else -> null
+                    else -> anime.status
                 }
             }
 
@@ -145,10 +150,16 @@ fun TvAnimeCard(
                     )
                 }
 
-                // 2. Status Badge (En emisión, Finalizado)
-                if (statusText != null) {
-                    val isEmision = statusText == "En emisión"
-                    val statusBg = if (isEmision) Color(0xFFE50914) else Color(0xFF222222).copy(alpha = 0.85f)
+                // 2. Status / Relation Badge
+                if (!statusText.isNullOrBlank()) {
+                    val statusBg = when {
+                        statusText == "Secuela" -> Color(0xFFE50914)
+                        statusText == "Precuela" -> Color(0xFF007AFF)
+                        statusText == "Adicional" -> Color(0xFF8E44AD)
+                        statusText == "Alternativo" -> Color(0xFFE67E22)
+                        statusText == "En emisión" -> Color(0xFF2ECC71)
+                        else -> Color(0xFF222222).copy(alpha = 0.85f)
+                    }
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(4.dp))
@@ -214,12 +225,15 @@ fun TvAnimeCard(
                                 fontFamily = Inter,
                                 fontWeight = FontWeight.Bold
                             )
+                            val subTag = anime.status ?: anime.type ?: "Anime"
                             Text(
-                                text = anime.type ?: "Anime",
+                                text = subTag,
                                 color = Color.LightGray,
                                 fontSize = 10.sp,
                                 fontFamily = Inter,
-                                fontWeight = FontWeight.Medium
+                                fontWeight = FontWeight.Medium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
 

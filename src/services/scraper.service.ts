@@ -740,7 +740,7 @@ export class ScraperService {
                     slug: targetSlug,
                     relation: currentRelation || 'Relacionado',
                     type,
-                    image: `https://cdn.animeav1.com/covers/${targetSlug}.jpg`
+                    image: `https://cdn.jkdesa.com/assets/images/animes/image/${targetSlug}.jpg`
                   });
                 }
               }
