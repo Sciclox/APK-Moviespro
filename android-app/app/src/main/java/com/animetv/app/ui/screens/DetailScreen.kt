@@ -706,12 +706,29 @@ fun DetailScreen(
                     }
                 }
 
-                // Item 7: Recommended / Similar Anime Section
-                if (recommendedList.isNotEmpty()) {
+                // Item 7: Temporadas y Relacionados / Animes Similares Section
+                val relatedItems = detail?.relatedAnime
+                val hasRelated = !relatedItems.isNullOrEmpty()
+                val displayList = if (hasRelated) {
+                    relatedItems!!.map { rel ->
+                        com.animetv.app.data.model.AnimeItem(
+                            id = rel.id,
+                            title = rel.title,
+                            slug = rel.slug,
+                            image = rel.image ?: "https://cdn.animeav1.com/covers/${rel.slug}.jpg",
+                            type = rel.relation,
+                            status = rel.type
+                        )
+                    }
+                } else {
+                    recommendedList
+                }
+
+                if (displayList.isNotEmpty()) {
                     item {
                         Spacer(modifier = Modifier.height(12.dp))
                         Text(
-                            text = "Animes Similares",
+                            text = if (hasRelated) "Temporadas y Relacionados" else "Animes Similares",
                             color = Color.White,
                             fontSize = 22.sp,
                             fontWeight = FontWeight.Bold,
@@ -727,10 +744,10 @@ fun DetailScreen(
                             horizontalArrangement = Arrangement.spacedBy(14.dp),
                             contentPadding = PaddingValues(top = 8.dp, bottom = 16.dp, end = 24.dp)
                         ) {
-                            items(count = recommendedList.size, key = { idx -> recommendedList[idx].id }) { idx ->
-                                val recAnime = recommendedList[idx]
+                            items(count = displayList.size, key = { idx -> displayList[idx].id }) { idx ->
+                                val recAnime = displayList[idx]
                                 val isFirst = idx == 0
-                                val isLast = idx == recommendedList.lastIndex
+                                val isLast = idx == displayList.lastIndex
 
                                 com.animetv.app.ui.components.TvAnimeCard(
                                     anime = recAnime,
@@ -741,7 +758,6 @@ fun DetailScreen(
                                             if (isFirst) left = FocusRequester.Cancel
                                             if (isLast) right = FocusRequester.Cancel
                                         }
-
                                 )
                             }
                         }

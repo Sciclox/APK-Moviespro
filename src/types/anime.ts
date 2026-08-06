@@ -33,6 +33,15 @@ export interface EpisodeItem {
   slug: string;
 }
 
+export interface RelatedAnimeItem {
+  id: string;
+  title: string;
+  slug: string;
+  relation: string;
+  type?: string;
+  image?: string;
+}
+
 export interface AnimeDetail {
   id: string;
   title: string;
@@ -48,6 +57,7 @@ export interface AnimeDetail {
   year: number | null;
   type: string;
   episodes: EpisodeItem[];
+  relatedAnime?: RelatedAnimeItem[];
 }
 
 export interface StreamSource {

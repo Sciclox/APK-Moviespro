@@ -704,9 +704,53 @@ export class ScraperService {
           }
         }
 
-        return { epCount, seasonCover, seasonSynopsis, seasonTitle, altEnglish, altJapanese };
+        const relatedAnime: import('../types/anime').RelatedAnimeItem[] = [];
+        
+        // Scrape "Temporadas y relacionados" from JKAnime HTML
+        const $relHead = $('h2:contains("Temporadas y relacionados"), h3:contains("Temporadas y relacionados"), b:contains("Temporadas y relacionados")').first();
+        const $relContainer = $relHead.length > 0 ? $relHead.parent() : $('.relacionados, .temporadas, .info-rel');
+        const scanContainer = $relContainer.length > 0 ? $relContainer : $('body');
+
+        let currentRelation = 'Relacionado';
+        scanContainer.find('b, strong, h3, h4, a').each((_, el) => {
+          const tag = el.tagName.toLowerCase();
+          const text = $(el).text().trim();
+
+          if (tag === 'b' || tag === 'strong' || tag === 'h3' || tag === 'h4') {
+            if (text && !text.includes('Titulos') && !text.includes('Tipo') && !text.includes('Generos') && !text.includes('Temporadas')) {
+              currentRelation = text.replace(/:$/, '').trim();
+            }
+          } else if (tag === 'a') {
+            const href = $(el).attr('href') || '';
+            const slugMatch = href.match(/jkanime\.net\/([a-zA-Z0-9-]+)\/?$/);
+            if (slugMatch && slugMatch[1] && slugMatch[1] !== slug) {
+              const targetSlug = slugMatch[1];
+              if (!['directorio', 'horario', 'comunidad', 'estrenos', 'buscar', 'user', 'login', 'top'].includes(targetSlug)) {
+                let type = 'Serie';
+                const typeMatch = text.match(/\((Serie|Pelicula|Película|Especial|OVA)\)/i);
+                if (typeMatch) {
+                  type = typeMatch[1];
+                }
+                const cleanTitleText = text.replace(/\s*\((Serie|Pelicula|Película|Especial|OVA)\)/i, '').trim();
+
+                if (cleanTitleText && !relatedAnime.some(r => r.slug === targetSlug)) {
+                  relatedAnime.push({
+                    id: targetSlug,
+                    title: cleanTitleText,
+                    slug: targetSlug,
+                    relation: currentRelation || 'Relacionado',
+                    type,
+                    image: `https://cdn.animeav1.com/covers/${targetSlug}.jpg`
+                  });
+                }
+              }
+            }
+          }
+        });
+
+        return { epCount, seasonCover, seasonSynopsis, seasonTitle, altEnglish, altJapanese, relatedAnime };
       } catch (e) {
-        return { epCount: 0, seasonCover: null, seasonSynopsis: null, seasonTitle: null, altEnglish: null, altJapanese: null };
+        return { epCount: 0, seasonCover: null, seasonSynopsis: null, seasonTitle: null, altEnglish: null, altJapanese: null, relatedAnime: [] };
       }
     })();
 
@@ -857,6 +901,7 @@ export class ScraperService {
       year: validSpanishMeta?.year || 2024,
       type: mediaType,
       episodes: episodes,
+      relatedAnime: jkMeta.relatedAnime,
     };
 
     apiCache.set(cacheKey, resultDetail, 3600); // 1-hour in-memory cache
