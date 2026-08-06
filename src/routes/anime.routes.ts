@@ -185,6 +185,7 @@ router.get('/proxy/m3u8', async (req: Request, res: Response) => {
 
     res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
     res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cache-Control', 'public, max-age=60');
     res.send(fixed);
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
