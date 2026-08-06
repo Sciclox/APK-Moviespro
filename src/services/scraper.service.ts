@@ -706,43 +706,51 @@ export class ScraperService {
 
         const relatedAnime: import('../types/anime').RelatedAnimeItem[] = [];
         
-        // Scrape "Temporadas y relacionados" from JKAnime HTML
-        const $relHead = $('h2:contains("Temporadas y relacionados"), h3:contains("Temporadas y relacionados"), b:contains("Temporadas y relacionados")').first();
-        const $relContainer = $relHead.length > 0 ? $relHead.parent() : $('.relacionados, .temporadas, .info-rel');
-        const scanContainer = $relContainer.length > 0 ? $relContainer : $('body');
+        // Find the "Temporadas y relacionados" container section
+        let $relBox = $('div, section, td, article').filter((_, el) => {
+          const txt = $(el).find('h2, h3, h4, b, strong').text();
+          return txt.includes('Temporadas y relacionados');
+        }).first();
 
-        let currentRelation = 'Relacionado';
-        scanContainer.find('b, strong, h3, h4, a').each((_, el) => {
-          const tag = el.tagName.toLowerCase();
-          const text = $(el).text().trim();
+        if ($relBox.length === 0) {
+          $relBox = $('body');
+        }
 
-          if (tag === 'b' || tag === 'strong' || tag === 'h3' || tag === 'h4') {
-            if (text && !text.includes('Titulos') && !text.includes('Tipo') && !text.includes('Generos') && !text.includes('Temporadas')) {
-              currentRelation = text.replace(/:$/, '').trim();
-            }
-          } else if (tag === 'a') {
-            const href = $(el).attr('href') || '';
-            const slugMatch = href.match(/jkanime\.net\/([a-zA-Z0-9-]+)\/?$/);
-            if (slugMatch && slugMatch[1] && slugMatch[1] !== slug) {
-              const targetSlug = slugMatch[1];
-              if (!['directorio', 'horario', 'comunidad', 'estrenos', 'buscar', 'user', 'login', 'top'].includes(targetSlug)) {
-                let type = 'Serie';
-                const typeMatch = text.match(/\((Serie|Pelicula|Película|Especial|OVA)\)/i);
-                if (typeMatch) {
-                  type = typeMatch[1];
-                }
-                const cleanTitleText = text.replace(/\s*\((Serie|Pelicula|Película|Especial|OVA)\)/i, '').trim();
+        $relBox.find('a[href*="jkanime.net/"]').each((_, el) => {
+          const $a = $(el);
+          const href = $a.attr('href') || '';
+          const text = $a.text().trim();
+          const slugMatch = href.match(/jkanime\.net\/([a-zA-Z0-9-]+)\/?$/);
 
-                if (cleanTitleText && !relatedAnime.some(r => r.slug === targetSlug)) {
-                  relatedAnime.push({
-                    id: targetSlug,
-                    title: cleanTitleText,
-                    slug: targetSlug,
-                    relation: currentRelation || 'Relacionado',
-                    type,
-                    image: `https://cdn.jkdesa.com/assets/images/animes/image/${targetSlug}.jpg`
-                  });
-                }
+          if (slugMatch && slugMatch[1] && slugMatch[1] !== slug) {
+            const targetSlug = slugMatch[1];
+            if (!['directorio', 'horario', 'comunidad', 'estrenos', 'buscar', 'user', 'login', 'top'].includes(targetSlug)) {
+              // Find the closest preceding bold header for this link
+              let relationHeader = $a.prevAll('b, strong, h3, h4, h5').first().text().trim();
+              if (!relationHeader || relationHeader.includes('Temporadas')) {
+                relationHeader = $a.parent().prevAll('b, strong, h3, h4, h5').first().text().trim();
+              }
+              relationHeader = relationHeader.replace(/:$/, '').trim();
+              if (!relationHeader || relationHeader.includes('Temporadas') || relationHeader.includes('Titulos')) {
+                relationHeader = 'Relacionado';
+              }
+
+              let type = 'Serie';
+              const typeMatch = text.match(/\((Serie|Pelicula|Película|Especial|OVA)\)/i);
+              if (typeMatch) {
+                type = typeMatch[1];
+              }
+              const cleanTitleText = text.replace(/\s*\((Serie|Pelicula|Película|Especial|OVA)\)/i, '').trim();
+
+              if (cleanTitleText && !relatedAnime.some(r => r.slug === targetSlug)) {
+                relatedAnime.push({
+                  id: targetSlug,
+                  title: cleanTitleText,
+                  slug: targetSlug,
+                  relation: relationHeader,
+                  type,
+                  image: `https://cdn.jkdesa.com/assets/images/animes/image/${targetSlug}.jpg`
+                });
               }
             }
           }
