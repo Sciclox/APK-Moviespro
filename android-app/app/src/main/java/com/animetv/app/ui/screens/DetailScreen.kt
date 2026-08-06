@@ -345,7 +345,7 @@ fun DetailScreen(
                             }
                         }
                     },
-                    scale = ButtonDefaults.scale(focusedScale = 1.05f),
+                    scale = ButtonDefaults.scale(focusedScale = 1.0f),
                     colors = ButtonDefaults.colors(
                         containerColor = Color.White.copy(alpha = 0.25f),
                         contentColor = Color.White,
