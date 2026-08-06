@@ -88,7 +88,7 @@ export class ScraperService {
    */
   static async getHeroBanners(tipo?: string): Promise<AnimeItem[]> {
     const isMovies = tipo?.toLowerCase() === 'peliculas';
-    const cacheKey = isMovies ? 'hero_banners_peliculas' : 'hero_banners_home';
+    const cacheKey = isMovies ? 'hero_banners_v2_peliculas' : 'hero_banners_v2_home';
     const cached = apiCache.get<AnimeItem[]>(cacheKey);
     if (cached) return cached;
 
@@ -98,7 +98,7 @@ export class ScraperService {
         const topItems = catalogItems.slice(0, 30);
         const enrichedTopItems = await Promise.all(
           topItems.map(async (item, index) => {
-            if (index < 8) {
+            if (index < 15) {
               try {
                 const [spanishMeta, aniListMeta] = await Promise.all([
                   TMDBService.getSpanishMetadata(item.title),
