@@ -631,11 +631,7 @@ fun DetailScreen(
                                             if (isFirst) left = FocusRequester.Cancel
                                             if (isLast) right = FocusRequester.Cancel
                                         }
-                                        .onFocusChanged { focusState ->
-                                            if (focusState.isFocused) {
-                                                scope.launch { listState.animateScrollToItem(4) }
-                                            }
-                                        },
+
                                     scale = ButtonDefaults.scale(focusedScale = 1.0f),
                                     colors = ButtonDefaults.colors(
                                         containerColor = if (isSelected) NetflixRed else Color.White.copy(alpha = 0.15f),
@@ -704,7 +700,6 @@ fun DetailScreen(
                                     .onFocusChanged { focusState ->
                                         if (focusState.isFocused) {
                                             lastPlayedEpNum = ep.number
-                                            scope.launch { listState.animateScrollToItem(5) }
                                         }
                                     }
                             )
@@ -747,11 +742,7 @@ fun DetailScreen(
                                             if (isFirst) left = FocusRequester.Cancel
                                             if (isLast) right = FocusRequester.Cancel
                                         }
-                                        .onFocusChanged { focusState ->
-                                            if (focusState.isFocused) {
-                                                scope.launch { listState.animateScrollToItem(7) }
-                                            }
-                                        }
+
                                 )
                             }
                         }
