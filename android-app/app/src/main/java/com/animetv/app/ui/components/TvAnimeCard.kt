@@ -213,7 +213,6 @@ fun TvAnimeCard(
                     .align(Alignment.BottomStart)
                     .padding(8.dp)
             ) {
-                // Title (Expands smoothly up to 4 lines when focused to show full title)
                 Text(
                     text = cleanDisplayTitle,
                     color = Color.White,
@@ -222,6 +221,8 @@ fun TvAnimeCard(
                     fontWeight = FontWeight.Bold,
                     maxLines = if (isFocused || showExpanded) 4 else 1,
                     overflow = TextOverflow.Ellipsis,
+                    lineHeight = 15.sp
+                )
             }
         }
     }
