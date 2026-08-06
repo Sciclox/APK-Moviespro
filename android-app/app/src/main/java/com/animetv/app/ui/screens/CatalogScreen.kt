@@ -19,6 +19,7 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.material3.*
 import com.animetv.app.data.api.ApiClient
 import com.animetv.app.data.model.AnimeItem
+import com.animetv.app.data.repository.CatalogCacheManager
 import com.animetv.app.ui.components.ShimmerBox
 import com.animetv.app.ui.components.TvAnimeCard
 import com.animetv.app.ui.theme.BebasNeue
