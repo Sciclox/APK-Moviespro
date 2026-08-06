@@ -62,21 +62,18 @@ export class TMDBService {
       }
     }
 
-    // 3. Subtitles after '//' or ':' ONLY if long enough (>= 15 chars) to prevent matching short generic live-action titles
+    // 4. Root title candidates (strip season/arc suffixes to find main series in TMDB)
     for (const t of inputTitles) {
       if (!t || typeof t !== 'string') continue;
-      if (t.includes('//')) {
-        const afterSlash = t.split('//').pop()?.trim();
-        if (afterSlash && afterSlash.length >= 15 && !candidates.includes(afterSlash)) {
-          candidates.push(afterSlash);
-        }
-      }
-
-      if (t.includes(':')) {
-        const afterColon = t.split(':').pop()?.trim();
-        if (afterColon && afterColon.length >= 15 && !candidates.includes(afterColon)) {
-          candidates.push(afterColon);
-        }
+      const root = t
+        .replace(/\s+(?:2nd|3rd|4th|5th|6th|7th|8th|9th)\s+Season.*/i, '')
+        .replace(/\s+Season\s+\d+.*/i, '')
+        .replace(/\s+Part\s+\d+.*/i, '')
+        .replace(/:\s+.*$/i, '')
+        .replace(/\s+-\s+.*$/i, '')
+        .trim();
+      if (root && root.length > 3 && !candidates.includes(root)) {
+        candidates.push(root);
       }
     }
 
