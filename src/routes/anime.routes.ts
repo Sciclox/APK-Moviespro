@@ -145,59 +145,124 @@ function extractFullTargetUrl(req: Request): string | null {
   }
 }
 
+interface CacheEntry<T> {
+  data: T;
+  expiresAt: number;
+}
+
+class SimpleMemoryCache<T> {
+  private cache = new Map<string, CacheEntry<T>>();
+  private maxEntries = 200;
+
+  get(key: string): T | null {
+    const entry = this.cache.get(key);
+    if (!entry) return null;
+    if (Date.now() > entry.expiresAt) {
+      this.cache.delete(key);
+      return null;
+    }
+    return entry.data;
+  }
+
+  set(key: string, data: T, ttlMs: number): void {
+    if (this.cache.size >= this.maxEntries) {
+      const oldestKey = this.cache.keys().next().value;
+      if (oldestKey) this.cache.delete(oldestKey);
+    }
+    this.cache.set(key, { data, expiresAt: Date.now() + ttlMs });
+  }
+}
+
+const m3u8Cache = new SimpleMemoryCache<string>();
+const inFlightM3u8 = new Map<string, Promise<string>>();
+
 /**
  * @route GET /api/v1/proxy/m3u8
- * @desc Proxy HLS manifest with internal timing breakdown (Upstream CDN vs String Rewrite)
+ * @desc Proxy HLS manifest with 30s normalized memory cache and request coalescing
  */
 router.get('/proxy/m3u8', async (req: Request, res: Response) => {
   const t_received = Date.now();
   try {
-    const url = extractFullTargetUrl(req);
-    if (!url) {
+    const rawUrl = extractFullTargetUrl(req);
+    if (!rawUrl) {
       res.status(400).json({ success: false, error: 'Missing url parameter' });
       return;
     }
 
-    const t_upstream_start = Date.now();
-    const { data: manifest } = await axios.get(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Referer': 'https://jkanime.net/',
-        'Origin': 'https://jkanime.net',
-      },
-      timeout: 8000,
-      responseType: 'text',
-    });
-    const t_upstream_end = Date.now();
-    const upstreamDuration = t_upstream_end - t_upstream_start;
+    // Normalize URL key to prevent duplicate entries
+    let cacheKey: string;
+    try {
+      const parsedUrl = new URL(rawUrl);
+      parsedUrl.searchParams.sort();
+      cacheKey = `m3u8_${parsedUrl.toString()}`;
+    } catch {
+      cacheKey = `m3u8_${rawUrl.trim()}`;
+    }
 
-    const t_rewrite_start = Date.now();
-    const backendBase = getBackendBase(req);
+    // 1. Check Memory Cache Hit
+    const cachedManifest = m3u8Cache.get(cacheKey);
+    if (cachedManifest) {
+      res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Cache-Control', 'public, max-age=60');
+      const hitDuration = Date.now() - t_received;
+      console.log(`[Telemetry /m3u8 CACHE HIT] ⚡ Responded in ${hitDuration} ms (Saved ~1,100ms upstream)`);
+      res.send(cachedManifest);
+      return;
+    }
 
-    const baseUrlObj = new URL(url);
-    const lines = manifest.split('\n');
-    const rewrittenLines = lines.map((line: string) => {
-      const trimmed = line.trim();
-      if (!trimmed || trimmed.startsWith('#')) {
-        return line;
-      }
-      let fullSegmentUrl = trimmed;
-      if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) {
-        fullSegmentUrl = new URL(trimmed, baseUrlObj.href).href;
-      }
-      return `${backendBase}/api/v1/proxy/ts?url=${encodeURIComponent(fullSegmentUrl)}`;
-    });
+    // 2. Request Coalescing (Deduplication)
+    let fetchPromise = inFlightM3u8.get(cacheKey);
+    if (!fetchPromise) {
+      fetchPromise = (async () => {
+        const t_upstream_start = Date.now();
+        const { data: manifest } = await axios.get(rawUrl, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Referer': 'https://jkanime.net/',
+            'Origin': 'https://jkanime.net',
+          },
+          timeout: 8000,
+          responseType: 'text',
+        });
+        const upstreamDuration = Date.now() - t_upstream_start;
 
-    const fixed = rewrittenLines.join('\n');
-    const t_rewrite_end = Date.now();
-    const rewriteDuration = t_rewrite_end - t_rewrite_start;
+        const t_rewrite_start = Date.now();
+        const backendBase = getBackendBase(req);
+        const baseUrlObj = new URL(rawUrl);
+        const lines = manifest.split('\n');
+        const rewrittenLines = lines.map((line: string) => {
+          const trimmed = line.trim();
+          if (!trimmed || trimmed.startsWith('#')) {
+            return line;
+          }
+          let fullSegmentUrl = trimmed;
+          if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) {
+            fullSegmentUrl = new URL(trimmed, baseUrlObj.href).href;
+          }
+          return `${backendBase}/api/v1/proxy/ts?url=${encodeURIComponent(fullSegmentUrl)}`;
+        });
+
+        const fixed = rewrittenLines.join('\n');
+        const rewriteDuration = Date.now() - t_rewrite_start;
+
+        // Cache manifest in memory for 30 seconds
+        m3u8Cache.set(cacheKey, fixed, 30_000);
+        console.log(`[Telemetry /m3u8 CACHE MISS] ⏱️ Upstream CDN: ${upstreamDuration}ms | String Rewrite: ${rewriteDuration}ms`);
+        return fixed;
+      })().finally(() => {
+        inFlightM3u8.delete(cacheKey);
+      });
+
+      inFlightM3u8.set(cacheKey, fetchPromise);
+    }
+
+    const fixed = await fetchPromise;
 
     res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Cache-Control', 'public, max-age=60');
-    
-    const totalDuration = Date.now() - t_received;
-    console.log(`[Telemetry /m3u8 BREAKDOWN] ⏱️ Total: ${totalDuration}ms | Upstream CDN: ${upstreamDuration}ms | String Rewrite: ${rewriteDuration}ms`);
+    console.log(`[Telemetry /m3u8 TOTAL] ⏱️ Sent response in ${Date.now() - t_received} ms`);
     res.send(fixed);
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
