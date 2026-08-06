@@ -661,30 +661,61 @@ export class ScraperService {
 
         let altEnglish: string | null = null;
         let altJapanese: string | null = null;
+        const altSynonyms: string[] = [];
 
-        $('.sinopsis, .info-cap, div, li, p, span, td').each((_, el) => {
-          const rawText = $(el).text().replace(/\s+/g, ' ').trim();
-          const normText = rawText.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        // Extract structured title alternatives from JKAnime's "Titulos Alternativos" section
+        const $altSection = $('h5:contains("Titulos Alternativos")').first().parent();
+        if ($altSection.length > 0) {
+          $altSection.find('b.t').each((_, el) => {
+            const label = $(el).text().trim().toLowerCase();
+            // Get the text node immediately after this <b> element
+            const nextText = $(el).get(0)?.nextSibling;
+            const value = nextText && nextText.type === 'text' ? (nextText as unknown as { data: string }).data?.trim() : '';
+            
+            if (!value || value.length < 2) return;
 
-          if (/ingles|english/i.test(normText) && !altEnglish) {
-            const m = normText.match(/(?:ingles|english)\s*:?\s*([^\n\r<]+)/i);
-            if (m && m[1] && m[1].trim().length > 1) {
-              const candidate = m[1].split(/(?:japones|japanese|sinonimos|tipo)/i)[0].trim();
-              if (candidate && candidate.length < 100 && !candidate.toLowerCase().includes('titulos')) {
-                altEnglish = candidate;
+            if (label.includes('ingles') || label.includes('english')) {
+              if (!altEnglish) altEnglish = value;
+            } else if (label.includes('japones') || label.includes('japanese')) {
+              if (!altJapanese) altJapanese = value;
+            } else if (label.includes('sinonimos') || label.includes('synonyms')) {
+              // May have multiple synonyms separated by commas
+              value.split(',').forEach(s => {
+                const trimmed = s.trim();
+                if (trimmed && trimmed.length > 1 && !altSynonyms.includes(trimmed)) {
+                  altSynonyms.push(trimmed);
+                }
+              });
+            }
+          });
+        }
+
+        // Fallback: regex-based extraction if structured parsing didn't find titles
+        if (!altEnglish || !altJapanese) {
+          $('.sinopsis, .info-cap, div, li, p, span, td').each((_, el) => {
+            const rawText = $(el).text().replace(/\s+/g, ' ').trim();
+            const normText = rawText.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+            if (/ingles|english/i.test(normText) && !altEnglish) {
+              const m = normText.match(/(?:ingles|english)\s*:?\s*([^\n\r<]+)/i);
+              if (m && m[1] && m[1].trim().length > 1) {
+                const candidate = m[1].split(/(?:japones|japanese|sinonimos|tipo)/i)[0].trim();
+                if (candidate && candidate.length < 100 && !candidate.toLowerCase().includes('titulos')) {
+                  altEnglish = candidate;
+                }
               }
             }
-          }
-          if (/japones|japanese/i.test(normText) && !altJapanese) {
-            const m = normText.match(/(?:japones|japanese)\s*:?\s*([^\n\r<]+)/i);
-            if (m && m[1] && m[1].trim().length > 1) {
-              const candidate = m[1].split(/(?:ingles|english|sinonimos|tipo)/i)[0].trim();
-              if (candidate && candidate.length < 100 && !candidate.toLowerCase().includes('titulos')) {
-                altJapanese = candidate;
+            if (/japones|japanese/i.test(normText) && !altJapanese) {
+              const m = normText.match(/(?:japones|japanese)\s*:?\s*([^\n\r<]+)/i);
+              if (m && m[1] && m[1].trim().length > 1) {
+                const candidate = m[1].split(/(?:ingles|english|sinonimos|tipo)/i)[0].trim();
+                if (candidate && candidate.length < 100 && !candidate.toLowerCase().includes('titulos')) {
+                  altJapanese = candidate;
+                }
               }
             }
-          }
-        });
+          });
+        }
 
         // Fallback: Scrape AnimeFLV directly for native Spanish synopsis if JKAnime paragraph is missing
         if (!seasonSynopsis) {
@@ -785,9 +816,9 @@ export class ScraperService {
           }
         });
 
-        return { epCount, seasonCover, seasonSynopsis, seasonTitle, altEnglish, altJapanese, relatedAnime, recommendedAnime, jkGenres };
+        return { epCount, seasonCover, seasonSynopsis, seasonTitle, altEnglish, altJapanese, altSynonyms, relatedAnime, recommendedAnime, jkGenres };
       } catch (e) {
-        return { epCount: 0, seasonCover: null, seasonSynopsis: null, seasonTitle: null, altEnglish: null, altJapanese: null, relatedAnime: [], recommendedAnime: [], jkGenres: [] };
+        return { epCount: 0, seasonCover: null, seasonSynopsis: null, seasonTitle: null, altEnglish: null, altJapanese: null, altSynonyms: [] as string[], relatedAnime: [], recommendedAnime: [], jkGenres: [] };
       }
     })();
 
@@ -797,6 +828,10 @@ export class ScraperService {
     if (jkMeta.altEnglish) titleCandidates.push(jkMeta.altEnglish);
     if (jkMeta.altJapanese) titleCandidates.push(jkMeta.altJapanese);
     if (!titleCandidates.includes(cleanTitleText)) titleCandidates.push(cleanTitleText);
+    // Add JKAnime synonyms (e.g. "Blade of Demon Destruction") for broader search
+    for (const syn of jkMeta.altSynonyms) {
+      if (!titleCandidates.includes(syn)) titleCandidates.push(syn);
+    }
 
     let meta: Partial<import('./tmdb.service').AniListMedia> | null = null;
     for (const cand of titleCandidates) {
@@ -820,9 +855,28 @@ export class ScraperService {
       TMDBService.getKitsuMetadata(titleCandidates[0]),
     ]);
 
+    // If primary Kitsu lookup failed, try with English title from AniList
+    let finalKitsuMeta = kitsuMeta;
+    if (!finalKitsuMeta && meta?.title?.english) {
+      finalKitsuMeta = await TMDBService.getKitsuMetadata(meta.title.english);
+    }
+
     // Sanitize spanishMeta to prevent loose TMDB mismatches (e.g. Nihon Animator Mihonichi)
     const isInvalidSynopsis = spanishMeta?.synopsis ? (spanishMeta.synopsis.includes('Japan Anima') || spanishMeta.synopsis.includes('Exhibition')) : false;
-    const validSpanishMeta = (spanishMeta && !isInvalidSynopsis) ? spanishMeta : null;
+    let validSpanishMeta = (spanishMeta && !isInvalidSynopsis) ? spanishMeta : null;
+
+    // Backdrop retry: if validSpanishMeta has no backdrop, try TMDB again with AniList English title
+    if ((!validSpanishMeta || !validSpanishMeta.backdrop) && meta?.title?.english) {
+      const retryMeta = await TMDBService.getSpanishMetadata(meta.title.english);
+      if (retryMeta && retryMeta.backdrop) {
+        if (validSpanishMeta) {
+          // Merge: keep existing synopsis but take the new backdrop
+          validSpanishMeta = { ...validSpanishMeta, backdrop: retryMeta.backdrop, image: retryMeta.image || validSpanishMeta.image };
+        } else {
+          validSpanishMeta = retryMeta;
+        }
+      }
+    }
 
     const isMovie = meta?.format === 'MOVIE' || cleanTitleText.toLowerCase().includes('movie') || cleanTitleText.toLowerCase().includes('pelicula') || cleanTitleText.toLowerCase().includes('película');
     const mediaType = isMovie ? 'PELÍCULA' : (meta?.format === 'SPECIAL' || meta?.format === 'OVA' ? 'ESPECIAL' : 'SERIE');
@@ -931,7 +985,7 @@ export class ScraperService {
       slug: slug,
       synopsis: finalSynopsis,
       image: meta?.coverImage?.extraLarge || validSpanishMeta?.image || jkMeta.seasonCover || 'https://cdn.animeav1.com/covers/222.jpg',
-      backdrop: validSpanishMeta?.backdrop || kitsuMeta || meta?.bannerImage || jkMeta.seasonCover || meta?.coverImage?.extraLarge || null,
+      backdrop: validSpanishMeta?.backdrop || finalKitsuMeta || meta?.bannerImage || jkMeta.seasonCover || meta?.coverImage?.extraLarge || null,
       genres: (jkMeta.jkGenres && jkMeta.jkGenres.length > 0) ? jkMeta.jkGenres : (meta?.genres || ['Acción', 'Aventura', 'Fantasía']),
       status: formattedStatus,
       score: validSpanishMeta?.score || (meta?.averageScore ? meta.averageScore / 10 : 8.5),
