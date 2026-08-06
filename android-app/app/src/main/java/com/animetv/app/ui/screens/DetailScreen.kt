@@ -216,12 +216,27 @@ fun DetailScreen(
         }
     }
 
-    // Smart episode selection for main play button
     val resumeEpisodeNum = currentAnimeHistory?.episodeNumber ?: 1
     val resumeEpisode = remember(allEpisodes, resumeEpisodeNum) {
         allEpisodes.find { it.number == resumeEpisodeNum }
             ?: allEpisodes.firstOrNull()
             ?: fallbackEpisodes.first()
+    }
+
+    // Silent pre-fetch of stream sources for target resume episode in background
+    LaunchedEffect(resumeEpisode.slug) {
+        if (resumeEpisode.slug.isNotEmpty()) {
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                try {
+                    val parts = resumeEpisode.slug.split("/")
+                    val animeSlug = parts.firstOrNull() ?: resumeEpisode.slug
+                    val epNum = if (parts.size > 1) parts[1] else resumeEpisode.number.toString()
+                    com.animetv.app.data.api.ApiClient.apiService.getStreamSources(animeSlug, epNum)
+                } catch (_: Exception) {
+                    // Silent background pre-fetch fail-safe
+                }
+            }
+        }
     }
 
     val blurRadius by animateDpAsState(
