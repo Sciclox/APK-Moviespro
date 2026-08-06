@@ -251,6 +251,13 @@ fun DetailScreen(
         label = "loadingOverlayAlpha"
     )
 
+    val backdropUrl = remember(detail?.backdrop, detail?.episodes, anime.backdrop, anime.image) {
+        detail?.backdrop.takeIf { !it.isNullOrBlank() }
+            ?: detail?.episodes?.firstOrNull { !it.image.isNullOrBlank() }?.image
+            ?: anime.backdrop.takeIf { !it.isNullOrBlank() }
+            ?: anime.image
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -258,10 +265,10 @@ fun DetailScreen(
     ) {
         // Hero Backdrop Background
         AsyncImage(
-            model = detail?.backdrop.takeIf { !it.isNullOrBlank() }
-                ?: detail?.episodes?.firstOrNull { !it.image.isNullOrBlank() }?.image
-                ?: anime.backdrop.takeIf { !it.isNullOrBlank() }
-                ?: anime.image,
+            model = coil.request.ImageRequest.Builder(LocalContext.current)
+                .data(backdropUrl)
+                .crossfade(true)
+                .build(),
             contentDescription = anime.title,
             contentScale = ContentScale.Crop,
             modifier = Modifier
@@ -269,24 +276,41 @@ fun DetailScreen(
                 .blur(blurRadius)
         )
 
-        // Gradient overlay
+        // Left-to-Right gradient (darker on left for text readability, clear on right)
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.horizontalGradient(
+                        colors = listOf(
+                            NetflixBlack.copy(alpha = 0.95f),
+                            NetflixBlack.copy(alpha = 0.75f),
+                            Color.Transparent
+                        ),
+                        startX = 0f,
+                        endX = 1000f
+                    )
+                )
+        )
+
+        // Top-to-Bottom gradient (blends smoothly into dark list at bottom)
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(
                     Brush.verticalGradient(
                         colors = listOf(
-                            Color.Black.copy(alpha = 0.5f),
-                            NetflixBlack.copy(alpha = 0.85f),
+                            Color.Transparent,
+                            NetflixBlack.copy(alpha = 0.6f),
                             NetflixBlack
                         ),
-                        startY = 0f,
-                        endY = 1200f
+                        startY = 200f,
+                        endY = 1400f
                     )
                 )
         )
 
-        // Scrim Overlay
+        // Scrim Overlay when loading
         if (loadingOverlayAlpha > 0f) {
             Box(
                 modifier = Modifier
