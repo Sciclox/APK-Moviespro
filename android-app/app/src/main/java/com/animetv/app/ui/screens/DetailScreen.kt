@@ -239,12 +239,6 @@ fun DetailScreen(
         }
     }
 
-    val blurRadius by animateDpAsState(
-        targetValue = if (isLoading) 20.dp else 0.dp,
-        animationSpec = tween(durationMillis = 600),
-        label = "blur"
-    )
-
     val loadingOverlayAlpha by animateFloatAsState(
         targetValue = if (isLoading) 0.65f else 0f,
         animationSpec = tween(durationMillis = 600),
@@ -263,18 +257,18 @@ fun DetailScreen(
             .fillMaxSize()
             .background(NetflixBlack)
     ) {
-        // Hero Backdrop Background
-        AsyncImage(
-            model = coil.request.ImageRequest.Builder(LocalContext.current)
-                .data(backdropUrl)
-                .crossfade(true)
-                .build(),
-            contentDescription = anime.title,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier
-                .fillMaxSize()
-                .blur(blurRadius)
-        )
+        // Hero Backdrop Background (wrapped in key to force instant reload when detail resolves)
+        key(backdropUrl) {
+            AsyncImage(
+                model = coil.request.ImageRequest.Builder(LocalContext.current)
+                    .data(backdropUrl)
+                    .crossfade(true)
+                    .build(),
+                contentDescription = anime.title,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+        }
 
         // Left-to-Right gradient (Dark on left for text legibility, 100% clear on right for hero artwork)
         Box(
