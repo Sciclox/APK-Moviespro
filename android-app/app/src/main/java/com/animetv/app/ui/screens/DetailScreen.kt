@@ -715,9 +715,9 @@ fun DetailScreen(
                             id = rel.id,
                             title = rel.title,
                             slug = rel.slug,
-                            image = rel.image ?: "https://cdn.animeav1.com/covers/${rel.slug}.jpg",
-                            type = rel.relation,
-                            status = rel.type
+                            image = rel.image ?: "https://cdn.jkdesa.com/assets/images/animes/image/${rel.slug}.jpg",
+                            type = rel.type,
+                            status = rel.relation
                         )
                     }
                 } else {

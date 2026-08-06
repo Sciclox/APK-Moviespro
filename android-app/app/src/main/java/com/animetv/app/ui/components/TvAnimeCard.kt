@@ -101,30 +101,44 @@ fun TvAnimeCard(
                     )
             )
 
-            // Top Badges Overlay (Format & Status)
-            val formatLabel = remember(anime.type) {
-                val rawType = anime.type?.lowercase() ?: ""
-                when {
-                    rawType.contains("pelicula") || rawType.contains("movie") -> "Película"
-                    rawType.contains("ova") -> "OVA"
-                    rawType.contains("ona") -> "ONA"
-                    rawType.contains("especial") || rawType.contains("special") -> "Especial"
-                    else -> "Serie"
+            // Top Badges Overlay (Relation Header + Format)
+            val isRelationCard = remember(anime.status) {
+                !anime.status.isNullOrBlank() && !anime.status.contains("emision", ignoreCase = true) && !anime.status.contains("finalizad", ignoreCase = true)
+            }
+
+            val primaryBadgeText = remember(anime.status, anime.type) {
+                if (isRelationCard) {
+                    anime.status!!.trim()
+                } else {
+                    val rawType = anime.type?.lowercase() ?: ""
+                    when {
+                        rawType.contains("pelicula") || rawType.contains("movie") -> "Película"
+                        rawType.contains("ova") -> "OVA"
+                        rawType.contains("ona") -> "ONA"
+                        rawType.contains("especial") || rawType.contains("special") -> "Especial"
+                        else -> "Serie"
+                    }
                 }
             }
 
-            val statusText = remember(anime.status) {
-                val rawStatus = anime.status?.lowercase() ?: ""
-                when {
-                    rawStatus.contains("secuela") -> "Secuela"
-                    rawStatus.contains("precuela") -> "Precuela"
-                    rawStatus.contains("adicional") -> "Adicional"
-                    rawStatus.contains("entorno") || rawStatus.contains("alternativo") -> "Alternativo"
-                    rawStatus.contains("relacionado") -> "Relacionado"
-                    rawStatus.contains("emision") || rawStatus.contains("currently") || rawStatus.contains("releasing") || rawStatus.contains("estreno") -> "En emisión"
-                    rawStatus.contains("finalizad") || rawStatus.contains("finished") || rawStatus.contains("concluid") || rawStatus.contains("completed") -> "Finalizado"
-                    else -> anime.status
-                }
+            val secondaryBadgeText = remember(anime.status, anime.type) {
+                if (isRelationCard && !anime.type.isNullOrBlank()) {
+                    val rawType = anime.type.lowercase()
+                    when {
+                        rawType.contains("pelicula") || rawType.contains("movie") -> "Película"
+                        rawType.contains("ova") -> "OVA"
+                        rawType.contains("especial") || rawType.contains("special") -> "Especial"
+                        rawType.contains("serie") -> "Serie"
+                        else -> null
+                    }
+                } else if (!isRelationCard) {
+                    val rawStatus = anime.status?.lowercase() ?: ""
+                    when {
+                        rawStatus.contains("emision") || rawStatus.contains("currently") || rawStatus.contains("releasing") || rawStatus.contains("estreno") -> "En emisión"
+                        rawStatus.contains("finalizad") || rawStatus.contains("finished") || rawStatus.contains("concluid") || rawStatus.contains("completed") -> "Finalizado"
+                        else -> null
+                    }
+                } else null
             }
 
             Row(
@@ -134,15 +148,31 @@ fun TvAnimeCard(
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // 1. Format Badge (Serie, Película, Especial, OVA, ONA)
+                // 1. Primary Badge (Relation or Format)
+                val primaryBg = remember(primaryBadgeText, isRelationCard) {
+                    if (isRelationCard) {
+                        val norm = primaryBadgeText.lowercase()
+                        when {
+                            norm.contains("secuela") -> Color(0xFFE50914)
+                            norm.contains("precuela") -> Color(0xFF007AFF)
+                            norm.contains("adicional") -> Color(0xFF8E44AD)
+                            norm.contains("personaje") -> Color(0xFF2ECC71)
+                            norm.contains("entorno") || norm.contains("alternativo") -> Color(0xFFE67E22)
+                            else -> Color(0xFFE50914)
+                        }
+                    } else {
+                        Color.Black.copy(alpha = 0.75f)
+                    }
+                }
+
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(4.dp))
-                        .background(Color.Black.copy(alpha = 0.75f))
+                        .background(primaryBg)
                         .padding(horizontal = 5.dp, vertical = 2.dp)
                 ) {
                     Text(
-                        text = formatLabel.uppercase(),
+                        text = primaryBadgeText.uppercase(),
                         color = Color.White,
                         fontSize = 8.5.sp,
                         fontWeight = FontWeight.Bold,
@@ -150,24 +180,16 @@ fun TvAnimeCard(
                     )
                 }
 
-                // 2. Status / Relation Badge
-                if (!statusText.isNullOrBlank()) {
-                    val statusBg = when {
-                        statusText == "Secuela" -> Color(0xFFE50914)
-                        statusText == "Precuela" -> Color(0xFF007AFF)
-                        statusText == "Adicional" -> Color(0xFF8E44AD)
-                        statusText == "Alternativo" -> Color(0xFFE67E22)
-                        statusText == "En emisión" -> Color(0xFF2ECC71)
-                        else -> Color(0xFF222222).copy(alpha = 0.85f)
-                    }
+                // 2. Secondary Badge (Format or Status)
+                if (!secondaryBadgeText.isNullOrBlank()) {
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(4.dp))
-                            .background(statusBg)
+                            .background(Color.Black.copy(alpha = 0.75f))
                             .padding(horizontal = 5.dp, vertical = 2.dp)
                     ) {
                         Text(
-                            text = statusText.uppercase(),
+                            text = secondaryBadgeText.uppercase(),
                             color = Color.White,
                             fontSize = 8.5.sp,
                             fontWeight = FontWeight.Bold,
@@ -191,76 +213,15 @@ fun TvAnimeCard(
                     .align(Alignment.BottomStart)
                     .padding(8.dp)
             ) {
-                // Title
+                // Title (Expands smoothly up to 4 lines when focused to show full title)
                 Text(
                     text = cleanDisplayTitle,
                     color = Color.White,
                     fontSize = 12.sp,
                     fontFamily = Inter,
                     fontWeight = FontWeight.Bold,
-                    maxLines = if (showExpanded) 2 else 1,
+                    maxLines = if (isFocused || showExpanded) 4 else 1,
                     overflow = TextOverflow.Ellipsis,
-                    lineHeight = 15.sp
-                )
-
-                // Expanded info overlay inside card bounds
-                AnimatedVisibility(
-                    visible = showExpanded,
-                    enter = fadeIn(tween(200)) + expandVertically(tween(200)),
-                    exit = fadeOut(tween(150)) + shrinkVertically(tween(150))
-                ) {
-                    Column(
-                        modifier = Modifier.padding(top = 4.dp),
-                        verticalArrangement = Arrangement.spacedBy(3.dp)
-                    ) {
-                        // Match % + Type
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "98% Coincidencia",
-                                color = Color(0xFF46D369),
-                                fontSize = 10.sp,
-                                fontFamily = Inter,
-                                fontWeight = FontWeight.Bold
-                            )
-                            val subTag = anime.status ?: anime.type ?: "Anime"
-                            Text(
-                                text = subTag,
-                                color = Color.LightGray,
-                                fontSize = 10.sp,
-                                fontFamily = Inter,
-                                fontWeight = FontWeight.Medium,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-
-                        // Mini action buttons
-                        Row(
-                            modifier = Modifier.padding(top = 2.dp),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(3.dp))
-                                    .background(Color.White)
-                                    .padding(horizontal = 8.dp, vertical = 2.dp)
-                            ) {
-                                Text("PLAY", color = Color.Black, fontSize = 9.sp, fontFamily = Inter, fontWeight = FontWeight.Black)
-                            }
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(3.dp))
-                                    .background(Color.White.copy(alpha = 0.3f))
-                                    .padding(horizontal = 8.dp, vertical = 2.dp)
-                            ) {
-                                Text("INFO", color = Color.White, fontSize = 9.sp, fontFamily = Inter, fontWeight = FontWeight.Bold)
-                            }
-                        }
-                    }
-                }
             }
         }
     }
