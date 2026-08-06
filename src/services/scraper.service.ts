@@ -748,9 +748,17 @@ export class ScraperService {
           }
         });
 
-        return { epCount, seasonCover, seasonSynopsis, seasonTitle, altEnglish, altJapanese, relatedAnime };
+        const jkGenres: string[] = [];
+        $('a[href*="/genero/"]').each((_, el) => {
+          const g = $(el).text().trim();
+          if (g && !jkGenres.includes(g)) {
+            jkGenres.push(g);
+          }
+        });
+
+        return { epCount, seasonCover, seasonSynopsis, seasonTitle, altEnglish, altJapanese, relatedAnime, jkGenres };
       } catch (e) {
-        return { epCount: 0, seasonCover: null, seasonSynopsis: null, seasonTitle: null, altEnglish: null, altJapanese: null, relatedAnime: [] };
+        return { epCount: 0, seasonCover: null, seasonSynopsis: null, seasonTitle: null, altEnglish: null, altJapanese: null, relatedAnime: [], jkGenres: [] };
       }
     })();
 
@@ -895,7 +903,7 @@ export class ScraperService {
       synopsis: finalSynopsis,
       image: meta?.coverImage?.extraLarge || validSpanishMeta?.image || jkMeta.seasonCover || 'https://cdn.animeav1.com/covers/222.jpg',
       backdrop: validSpanishMeta?.backdrop || kitsuMeta || meta?.bannerImage || jkMeta.seasonCover || meta?.coverImage?.extraLarge || null,
-      genres: meta?.genres || ['Acción', 'Aventura', 'Fantasía'],
+      genres: (jkMeta.jkGenres && jkMeta.jkGenres.length > 0) ? jkMeta.jkGenres : (meta?.genres || ['Acción', 'Aventura', 'Fantasía']),
       status: formattedStatus,
       score: validSpanishMeta?.score || (meta?.averageScore ? meta.averageScore / 10 : 8.5),
       year: validSpanishMeta?.year || 2024,
