@@ -147,10 +147,10 @@ function extractFullTargetUrl(req: Request): string | null {
 
 /**
  * @route GET /api/v1/proxy/m3u8
- * @desc Proxy HLS manifest and rewrite dead CDN domains to working ones
+ * @desc Proxy HLS manifest with internal timing breakdown (Upstream CDN vs String Rewrite)
  */
 router.get('/proxy/m3u8', async (req: Request, res: Response) => {
-  const startTime = Date.now();
+  const t_received = Date.now();
   try {
     const url = extractFullTargetUrl(req);
     if (!url) {
@@ -158,6 +158,7 @@ router.get('/proxy/m3u8', async (req: Request, res: Response) => {
       return;
     }
 
+    const t_upstream_start = Date.now();
     const { data: manifest } = await axios.get(url, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -167,7 +168,10 @@ router.get('/proxy/m3u8', async (req: Request, res: Response) => {
       timeout: 8000,
       responseType: 'text',
     });
+    const t_upstream_end = Date.now();
+    const upstreamDuration = t_upstream_end - t_upstream_start;
 
+    const t_rewrite_start = Date.now();
     const backendBase = getBackendBase(req);
 
     const baseUrlObj = new URL(url);
@@ -185,11 +189,15 @@ router.get('/proxy/m3u8', async (req: Request, res: Response) => {
     });
 
     const fixed = rewrittenLines.join('\n');
+    const t_rewrite_end = Date.now();
+    const rewriteDuration = t_rewrite_end - t_rewrite_start;
 
     res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Cache-Control', 'public, max-age=60');
-    console.log(`[Telemetry /m3u8] ⏱️ Manifest processed in ${Date.now() - startTime} ms`);
+    
+    const totalDuration = Date.now() - t_received;
+    console.log(`[Telemetry /m3u8 BREAKDOWN] ⏱️ Total: ${totalDuration}ms | Upstream CDN: ${upstreamDuration}ms | String Rewrite: ${rewriteDuration}ms`);
     res.send(fixed);
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
@@ -198,13 +206,12 @@ router.get('/proxy/m3u8', async (req: Request, res: Response) => {
 
 /**
  * @route GET /api/v1/proxy/ts
- * @desc Proxy TS video segments using progressive stream piping with AbortController
+ * @desc Proxy TS video segments with host and upstream TTFB breakdown
  */
 router.get('/proxy/ts', async (req: Request, res: Response) => {
-  const startTime = Date.now();
+  const t_received = Date.now();
   const controller = new AbortController();
 
-  // Abort upstream connection if Android TV closes request early
   req.on('close', () => {
     if (!res.writableEnded) {
       controller.abort();
@@ -218,6 +225,7 @@ router.get('/proxy/ts', async (req: Request, res: Response) => {
       return;
     }
 
+    const t_upstream_start = Date.now();
     const response = await axios.get(url, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -229,8 +237,7 @@ router.get('/proxy/ts', async (req: Request, res: Response) => {
       signal: controller.signal,
     });
 
-    const ttfb = Date.now() - startTime;
-
+    const t_upstream_ttfb = Date.now() - t_upstream_start;
     const contentType = response.headers['content-type'];
     const contentLength = response.headers['content-length'];
 
@@ -241,7 +248,8 @@ router.get('/proxy/ts', async (req: Request, res: Response) => {
       res.setHeader('Content-Length', String(contentLength));
     }
 
-    console.log(`[Telemetry /ts STREAM] ⚡ TTFB to first byte: ${ttfb} ms`);
+    const segmentHost = new URL(url).hostname;
+    console.log(`[Telemetry /ts BREAKDOWN] ⚡ Host: ${segmentHost} | Upstream CDN TTFB: ${t_upstream_ttfb}ms | Express Total TTFB: ${Date.now() - t_received}ms`);
 
     response.data.on('error', (err: any) => {
       if (!res.headersSent) {
