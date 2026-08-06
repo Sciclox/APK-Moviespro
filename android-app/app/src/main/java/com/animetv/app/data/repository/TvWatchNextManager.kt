@@ -45,7 +45,7 @@ object TvWatchNextManager {
 
             val builder = WatchNextProgram.Builder()
                 .setWatchNextType(TvContractCompat.WatchNextPrograms.WATCH_NEXT_TYPE_CONTINUE)
-                .setType(TvContractCompat.PreviewPrograms.TYPE_CLIP)
+                .setType(TvContractCompat.PreviewPrograms.TYPE_TV_EPISODE)
                 .setTitle(animeTitle)
                 .setEpisodeTitle(episodeTitle.ifBlank { "Episodio $episodeNumber" })
                 .setEpisodeNumber(episodeNumber)
