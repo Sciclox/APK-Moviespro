@@ -23,7 +23,14 @@ object WatchHistoryManager {
         return try {
             val type = object : TypeToken<List<WatchHistoryItem>>() {}.type
             val list: List<WatchHistoryItem> = gson.fromJson(json, type) ?: emptyList()
-            list.sortedByDescending { it.updatedAt }
+            list.map { item ->
+                val cleanImg = if (item.animeImage.isBlank() || item.animeImage.contains("animeav1")) {
+                    "https://cdn.jkdesa.com/assets/images/animes/image/${item.animeSlug}.jpg"
+                } else {
+                    item.animeImage
+                }
+                item.copy(animeImage = cleanImg)
+            }.sortedByDescending { it.updatedAt }
         } catch (e: Exception) {
             e.printStackTrace()
             emptyList()

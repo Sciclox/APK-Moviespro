@@ -202,7 +202,7 @@ export class ScraperService {
               seenKeys.add(key);
 
               const imgEl = container.find('img').first();
-              const posterUrl = imgEl.attr('data-animepic') || imgEl.attr('src') || `https://cdn.animeav1.com/covers/${slug}.jpg`;
+              const posterUrl = imgEl.attr('data-animepic') || imgEl.attr('src') || `https://cdn.jkdesa.com/assets/images/animes/image/${slug}.jpg`;
               
               // Extract title from alt attribute (e.g. "One Piece - 1172") or h5 tag
               let altTitle = imgEl.attr('alt') || '';
@@ -918,7 +918,7 @@ export class ScraperService {
           : (meta?.episodes && meta.episodes > 0 ? meta.episodes : 12));
 
     const stills = validSpanishMeta?.episodeStills || {};
-    const seasonFallbackImage = jkMeta.seasonCover || validSpanishMeta?.backdrop || meta?.bannerImage || meta?.coverImage?.extraLarge || validSpanishMeta?.image || 'https://cdn.animeav1.com/covers/222.jpg';
+    const seasonFallbackImage = jkMeta.seasonCover || validSpanishMeta?.backdrop || meta?.bannerImage || meta?.coverImage?.extraLarge || validSpanishMeta?.image || `https://cdn.jkdesa.com/assets/images/animes/image/${slug}.jpg`;
 
     const isSequel = /(?:season|part|2nd|3rd|4th|ii|iii|iv)/i.test(slug);
     const isLongRunning = totalEpisodes > 50 || slug.includes('one-piece') || slug.includes('naruto') || slug.includes('detective-conan') || slug.includes('dragon-ball');
@@ -1016,7 +1016,7 @@ export class ScraperService {
       japaneseTitle: meta?.title?.native || '',
       slug: slug,
       synopsis: finalSynopsis,
-      image: meta?.coverImage?.extraLarge || validSpanishMeta?.image || jkMeta.seasonCover || 'https://cdn.animeav1.com/covers/222.jpg',
+      image: meta?.coverImage?.extraLarge || validSpanishMeta?.image || jkMeta.seasonCover || `https://cdn.jkdesa.com/assets/images/animes/image/${slug}.jpg`,
       backdrop: validSpanishMeta?.backdrop || meta?.bannerImage || rootBackdrop || finalKitsuMeta || firstEpisodeStill || jkMeta.seasonCover || meta?.coverImage?.extraLarge || null,
       genres: (jkMeta.jkGenres && jkMeta.jkGenres.length > 0) ? jkMeta.jkGenres : (meta?.genres || ['Acción', 'Aventura', 'Fantasía']),
       status: formattedStatus,
