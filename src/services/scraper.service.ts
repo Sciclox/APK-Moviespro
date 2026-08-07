@@ -134,7 +134,7 @@ export class ScraperService {
         id: 'sword-art-online',
         title: 'Sword Art Online',
         slug: 'sword-art-online',
-        image: 'https://cdn.animeav1.com/covers/222.jpg',
+        image: 'https://cdn.jkdesa.com/assets/images/animes/image/sword-art-online.jpg',
         backdrop: 'https://image.tmdb.org/t/p/original/6A8IHWrtMLtadNXnMTjggvVY8cs.jpg',
         synopsis: 'En el año 2022, el videojuego de realidad virtual Sword Art Online es lanzado.',
       },
