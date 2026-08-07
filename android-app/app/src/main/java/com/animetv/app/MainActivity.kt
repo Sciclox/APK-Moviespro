@@ -189,11 +189,12 @@ class MainActivity : ComponentActivity() {
                 // API Revalidation
                 // Parallel API revalidation — all 4 calls launch simultaneously
                 LaunchedEffect(Unit) {
-                    // Clear Coil image cache to purge stale/broken cached images
+                    // Clear Coil image cache safely off main thread to purge stale/broken cached images
                     try {
-                        val imageLoader = coil.ImageLoader(context)
-                        imageLoader.memoryCache?.clear()
-                        imageLoader.diskCache?.clear()
+                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                            coil.Coil.imageLoader(context).memoryCache?.clear()
+                            coil.Coil.imageLoader(context).diskCache?.clear()
+                        }
                     } catch (_: Exception) {}
 
                     try {
