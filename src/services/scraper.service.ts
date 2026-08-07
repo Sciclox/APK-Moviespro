@@ -142,6 +142,115 @@ export class ScraperService {
   }
 
   /**
+   * Fetch Unified Category Hub (Latino, Películas, Donghua)
+   */
+  static async getCategoryHub(category: string): Promise<import('../types/anime').CategoryHubResponse> {
+    const cleanCat = (category || 'latino').toLowerCase().trim();
+    const cacheKey = `hub_v1_${cleanCat}`;
+    const cached = apiCache.get<import('../types/anime').CategoryHubResponse>(cacheKey);
+    if (cached) return cached;
+
+    let mainParams: any = {};
+    let sectionsConfig: { slug: string; title: string }[] = [];
+
+    if (cleanCat === 'latino') {
+      mainParams = { categoria: 'latino', page: 1 };
+      sectionsConfig = [
+        { slug: 'accion', title: 'Acción en Español Latino' },
+        { slug: 'aventura', title: 'Aventura y Fantasía en Latino' },
+        { slug: 'comedia', title: 'Comedia en Latino' },
+        { slug: 'romance', title: 'Romance en Latino' },
+        { slug: 'shounen', title: 'Shounen en Latino' },
+        { slug: 'sci-fi', title: 'Ciencia Ficción y Mecha' },
+        { slug: 'sobrenatural', title: 'Sobrenatural y Terror' },
+        { slug: 'isekai', title: 'Isekai en Latino' },
+        { slug: 'drama', title: 'Drama y Vida Escolar' },
+      ];
+    } else if (cleanCat === 'peliculas') {
+      mainParams = { tipo: 'peliculas', page: 1 };
+      sectionsConfig = [
+        { slug: 'accion', title: 'Películas de Acción' },
+        { slug: 'aventura', title: 'Películas de Aventura' },
+        { slug: 'fantasia', title: 'Películas de Fantasía' },
+        { slug: 'sci-fi', title: 'Películas de Ciencia Ficción' },
+        { slug: 'romance', title: 'Películas de Romance' },
+        { slug: 'comedia', title: 'Películas de Comedia' },
+        { slug: 'drama', title: 'Películas de Drama' },
+        { slug: 'sobrenatural', title: 'Películas Sobrenaturales' },
+        { slug: 'shounen', title: 'Películas Shounen' },
+        { slug: 'terror', title: 'Películas de Terror' },
+        { slug: 'isekai', title: 'Películas Isekai' },
+        { slug: 'mecha', title: 'Películas Mecha' },
+      ];
+    } else {
+      mainParams = { categoria: 'donghua', page: 1 };
+      sectionsConfig = [
+        { slug: 'accion', title: 'Acción y Artes Marciales (Cultivo)' },
+        { slug: 'aventura', title: 'Aventura y Fantasía Chino' },
+        { slug: 'comedia', title: 'Comedia en Donghua' },
+        { slug: 'romance', title: 'Romance y Fantasía Histórica' },
+        { slug: 'sci-fi', title: 'Ciencia Ficción y Mecha' },
+        { slug: 'sobrenatural', title: 'Sobrenatural y Magia' },
+        { slug: 'drama', title: 'Drama y Misterio' },
+      ];
+    }
+
+    try {
+      const mainItems = await this.getCatalog(mainParams);
+      const heroEnriched = await Promise.all(
+        (mainItems || []).slice(0, 5).map(async (item) => {
+          try {
+            const [spanishMeta, aniListMeta] = await Promise.all([
+              TMDBService.getSpanishMetadata(item.title),
+              TMDBService.getAniListMetadata(item.title),
+            ]);
+            const backdropUrl = spanishMeta?.backdrop || aniListMeta?.bannerImage || null;
+            if (backdropUrl) {
+              return {
+                ...item,
+                backdrop: backdropUrl,
+                synopsis: spanishMeta?.synopsis || item.synopsis,
+              };
+            }
+          } catch (_e) {}
+          return item;
+        })
+      );
+
+      const heroList = (mainItems || []).map((item, idx) => (idx < 5 ? heroEnriched[idx] : item));
+
+      const sections = await Promise.all(
+        sectionsConfig.map(async (sec) => {
+          try {
+            const secParams = cleanCat === 'peliculas'
+              ? { tipo: 'peliculas', genre: sec.slug, page: 1 }
+              : { categoria: cleanCat, genre: sec.slug, page: 1 };
+            const items = await this.getCatalog(secParams);
+            return {
+              slug: sec.slug,
+              title: sec.title,
+              items: items || [],
+            };
+          } catch (_e) {
+            return { slug: sec.slug, title: sec.title, items: [] };
+          }
+        })
+      );
+
+      const response: import('../types/anime').CategoryHubResponse = {
+        hero: heroList,
+        sections: sections.filter((s) => s.items.length > 0),
+      };
+
+      apiCache.set(cacheKey, response, 900); // 15-min cache
+      return response;
+    } catch (e) {
+      console.error(`Error fetching category hub for ${cleanCat}:`, e);
+      return { hero: [], sections: [] };
+    }
+  }
+
+  /**
    * Fetch Currently Releasing Anime (Animes en Emisión)
    */
   static async getLatest(): Promise<AnimeItem[]> {

@@ -95,6 +95,20 @@ router.get('/anime/catalog', async (req: Request, res: Response) => {
 });
 
 /**
+ * @route GET /api/v1/anime/hub/:category
+ * @desc Get unified category hub screen data (Latino, Películas, Donghua)
+ */
+router.get('/anime/hub/:category', async (req: Request, res: Response) => {
+  try {
+    const category = req.params.category as string;
+    const hub = await ScraperService.getCategoryHub(category);
+    res.json({ success: true, data: hub });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
  * @route GET /api/v1/anime/details/:slug
  * @desc Get anime details, metadata, and episode list
  */

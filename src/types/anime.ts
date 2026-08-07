@@ -89,3 +89,15 @@ export interface CatalogResponse {
   hasMore: boolean;
   results: AnimeItem[];
 }
+
+export interface CategoryHubSection {
+  slug: string;
+  title: string;
+  items: AnimeItem[];
+}
+
+export interface CategoryHubResponse {
+  hero: AnimeItem[];
+  sections: CategoryHubSection[];
+}
+
