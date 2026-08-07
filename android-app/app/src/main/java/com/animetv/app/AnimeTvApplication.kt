@@ -11,8 +11,9 @@ class AnimeTvApplication : Application() {
     override fun onCreate() {
         super.onCreate()
 
-        // Configure global high-performance Coil ImageLoader with Memory & Disk caching
+        // Configure global high-performance Coil ImageLoader with Memory & Disk caching backed by ApiClient.okHttpClient
         val imageLoader = ImageLoader.Builder(this)
+            .okHttpClient(com.animetv.app.data.api.ApiClient.okHttpClient)
             .memoryCachePolicy(CachePolicy.ENABLED)
             .memoryCache {
                 MemoryCache.Builder(this)

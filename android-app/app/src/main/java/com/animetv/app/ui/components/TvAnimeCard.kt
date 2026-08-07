@@ -70,13 +70,22 @@ fun TvAnimeCard(
                 .clip(cardShape)
                 .background(Color.Black)
         ) {
-            // Poster image with rounded clip & downsampled memory target size
+            val safeAnimeImage = remember(anime) {
+                val raw = anime.image.trim()
+                if (raw.isBlank() || raw.contains("animeav1")) {
+                    "https://cdn.jkdesa.com/assets/images/animes/image/${anime.slug}.jpg"
+                } else {
+                    raw
+                }
+            }
             AsyncImage(
                 model = ImageRequest.Builder(context)
-                    .data(anime.image)
+                    .data(safeAnimeImage)
                     .crossfade(true)
                     .size(300, 450)
                     .placeholder(android.graphics.drawable.ColorDrawable(android.graphics.Color.DKGRAY))
+                    .error(android.graphics.drawable.ColorDrawable(android.graphics.Color.DKGRAY))
+                    .fallback(android.graphics.drawable.ColorDrawable(android.graphics.Color.DKGRAY))
                     .build(),
                 contentDescription = anime.title,
                 contentScale = ContentScale.Crop,
