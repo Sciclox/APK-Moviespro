@@ -105,14 +105,14 @@ export class ScraperService {
                   TMDBService.getAniListMetadata(item.title),
                 ]);
                 const backdropUrl = spanishMeta?.backdrop || aniListMeta?.bannerImage || null;
-                if (backdropUrl) {
-                  return {
-                    ...item,
-                    title: cleanTitle(item.title, item.slug),
-                    backdrop: backdropUrl,
-                    synopsis: spanishMeta?.synopsis || item.synopsis,
-                  };
-                }
+                const posterUrl = spanishMeta?.image || aniListMeta?.coverImage?.large || aniListMeta?.coverImage?.extraLarge || null;
+                return {
+                  ...item,
+                  title: cleanTitle(item.title, item.slug),
+                  image: posterUrl || item.image,
+                  backdrop: backdropUrl || item.backdrop,
+                  synopsis: spanishMeta?.synopsis || item.synopsis,
+                };
               } catch (_e) {}
             }
             return {
@@ -235,8 +235,23 @@ export class ScraperService {
       });
 
       if (items.length > 0) {
-        apiCache.set(cacheKey, items, 300); // 5-minute cache
-        return items;
+        const enrichedItems = await Promise.all(
+          items.map(async (ep) => {
+            try {
+              const [spanishMeta, aniListMeta] = await Promise.all([
+                TMDBService.getSpanishMetadata(ep.title),
+                TMDBService.getAniListMetadata(ep.title),
+              ]);
+              const posterUrl = spanishMeta?.image || aniListMeta?.coverImage?.large || aniListMeta?.coverImage?.extraLarge || null;
+              if (posterUrl) {
+                return { ...ep, image: posterUrl };
+              }
+            } catch (_e) {}
+            return ep;
+          })
+        );
+        apiCache.set(cacheKey, enrichedItems, 300); // 5-minute cache
+        return enrichedItems;
       }
     } catch (e) {
       console.error('Error fetching latest episodes from JKAnime:', e);
@@ -412,26 +427,25 @@ export class ScraperService {
             };
           });
 
-          // Enrich top catalog items (especially movies, latino, donghua) with 16:9 TMDB Backdrops
+          // Enrich catalog items with TMDB / AniList posters and 16:9 backdrops
           const enrichedItems = await Promise.all(
-            rawItems.map(async (animeItem, idx) => {
-              if (idx < 10 || cleanTipo === 'peliculas' || cleanCategoria === 'latino' || cleanCategoria === 'donghua') {
-                try {
-                  const [spanishMeta, aniListMeta] = await Promise.all([
-                    TMDBService.getSpanishMetadata(animeItem.title),
-                    TMDBService.getAniListMetadata(animeItem.title),
-                  ]);
-                  const backdropUrl = spanishMeta?.backdrop || aniListMeta?.bannerImage || null;
-                  if (backdropUrl) {
-                    return {
-                      ...animeItem,
-                      backdrop: backdropUrl,
-                      synopsis: spanishMeta?.synopsis || animeItem.synopsis,
-                    };
-                  }
-                } catch (_e) {}
+            rawItems.map(async (animeItem) => {
+              try {
+                const [spanishMeta, aniListMeta] = await Promise.all([
+                  TMDBService.getSpanishMetadata(animeItem.title),
+                  TMDBService.getAniListMetadata(animeItem.title),
+                ]);
+                const backdropUrl = spanishMeta?.backdrop || aniListMeta?.bannerImage || null;
+                const posterUrl = spanishMeta?.image || aniListMeta?.coverImage?.large || aniListMeta?.coverImage?.extraLarge || null;
+                return {
+                  ...animeItem,
+                  image: posterUrl || animeItem.image,
+                  backdrop: backdropUrl || animeItem.backdrop,
+                  synopsis: spanishMeta?.synopsis || animeItem.synopsis,
+                };
+              } catch (_e) {
+                return animeItem;
               }
-              return animeItem;
             })
           );
 
