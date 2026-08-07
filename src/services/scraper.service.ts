@@ -436,7 +436,7 @@ export class ScraperService {
                   TMDBService.getAniListMetadata(animeItem.title),
                 ]);
                 const backdropUrl = spanishMeta?.backdrop || aniListMeta?.bannerImage || null;
-                const posterUrl = spanishMeta?.image || aniListMeta?.coverImage?.large || aniListMeta?.coverImage?.extraLarge || null;
+                const posterUrl = spanishMeta?.image || aniListMeta?.coverImage?.large || aniListMeta?.coverImage?.extraLarge || backdropUrl || null;
                 return {
                   ...animeItem,
                   image: posterUrl || animeItem.image,

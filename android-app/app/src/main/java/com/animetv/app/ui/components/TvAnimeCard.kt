@@ -70,12 +70,17 @@ fun TvAnimeCard(
                 .clip(cardShape)
                 .background(Color.Black)
         ) {
-            // Poster image with rounded clip & downsampled memory target size
+            val displayImage = if (!anime.image.isNullOrBlank()) anime.image else anime.backdrop
             AsyncImage(
                 model = ImageRequest.Builder(context)
-                    .data(anime.image)
+                    .data(displayImage)
                     .crossfade(true)
                     .size(300, 450)
+                    .apply {
+                        if (!anime.backdrop.isNullOrBlank()) {
+                            error(anime.backdrop)
+                        }
+                    }
                     .placeholder(android.graphics.drawable.ColorDrawable(android.graphics.Color.DKGRAY))
                     .build(),
                 contentDescription = anime.title,
