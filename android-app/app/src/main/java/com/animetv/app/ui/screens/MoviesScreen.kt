@@ -128,7 +128,7 @@ fun MoviesScreen(
         )
     }
 
-    // Load Movies & Genre Sections in Parallel (Synchronized Instant Loading)
+    // Load Movies Hub (Unified Single Endpoint)
     LaunchedEffect(Unit) {
         moviesPage = 1
         hasMorePages = true
@@ -145,58 +145,20 @@ fun MoviesScreen(
         }
 
         try {
-            coroutineScope {
-                // 1. Fetch main catalog & pre-enrich top 5 hero movies with TMDB backdrops
-                val mainJob = async(Dispatchers.IO) {
-                    try {
-                        val res = ApiClient.apiService.getCatalog(tipo = "peliculas", page = 1)
-                        if (res.success && res.data.isNotEmpty()) {
-                            val top5Enriched = res.data.take(5).map { item ->
-                                async(Dispatchers.IO) {
-                                    try {
-                                        val details = ApiClient.apiService.getAnimeDetails(item.slug)
-                                        if (details.success && !details.data.backdrop.isNullOrEmpty()) {
-                                            return@async item.copy(backdrop = details.data.backdrop)
-                                        }
-                                    } catch (_: Exception) {}
-                                    item
-                                }
-                            }.awaitAll()
+            val res = withContext(Dispatchers.IO) {
+                ApiClient.apiService.getCategoryHub("peliculas")
+            }
+            if (res.success && res.data.hero.isNotEmpty()) {
+                moviesList.clear()
+                moviesList.addAll(res.data.hero)
+                CatalogCacheManager.put(context, cacheKey, res.data.hero)
+                HomeCacheManager.saveMoviesHeroData(context, res.data.hero.take(5))
 
-                            val fullList = res.data.toMutableList()
-                            top5Enriched.forEachIndexed { i, item -> fullList[i] = item }
-
-                            withContext(Dispatchers.Main) {
-                                moviesList.clear()
-                                moviesList.addAll(fullList)
-                            }
-                            CatalogCacheManager.put(context, cacheKey, fullList)
-                            HomeCacheManager.saveMoviesHeroData(context, fullList.take(5))
-                        }
-                    } catch (_: Exception) {}
+                // Save all genre sections to CatalogCacheManager
+                res.data.sections.forEach { sec ->
+                    val genreCacheKey = "peliculas:${sec.slug}:1"
+                    CatalogCacheManager.put(context, genreCacheKey, sec.items)
                 }
-
-                // 3. Fetch popular movie genres in smooth batches of 3
-                val genreJob = async(Dispatchers.IO) {
-                    for (batch in allSections.chunked(3)) {
-                        batch.map { (genreSlug, _) ->
-                            async(Dispatchers.IO) {
-                                val genreCacheKey = "peliculas:$genreSlug:1"
-                                if (CatalogCacheManager.get(context, genreCacheKey) == null) {
-                                    try {
-                                        val res = ApiClient.apiService.getCatalog(tipo = "peliculas", genre = genreSlug, page = 1)
-                                        if (res.success && res.data.isNotEmpty()) {
-                                            CatalogCacheManager.put(context, genreCacheKey, res.data)
-                                        }
-                                    } catch (_: Exception) {}
-                                }
-                            }
-                        }.awaitAll()
-                    }
-                }
-
-                mainJob.await()
-                genreJob.await()
             }
         } catch (_: Exception) {
         } finally {

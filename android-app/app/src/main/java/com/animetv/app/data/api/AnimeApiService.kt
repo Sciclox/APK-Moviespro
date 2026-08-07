@@ -33,6 +33,9 @@ interface AnimeApiService {
     @GET("api/v1/anime/details/{slug}")
     suspend fun getAnimeDetails(@Path("slug") slug: String): ApiResponse<AnimeDetail>
 
+    @GET("api/v1/anime/hub/{category}")
+    suspend fun getCategoryHub(@Path("category") category: String): ApiResponse<CategoryHubResponse>
+
     @GET("api/v1/anime/watch/{animeSlug}/{episodeNum}")
     suspend fun getStreamSources(
         @Path("animeSlug") animeSlug: String,

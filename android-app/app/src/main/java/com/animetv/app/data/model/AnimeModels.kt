@@ -112,3 +112,17 @@ data class WatchHistoryItem(
     @SerializedName("durationMs") val durationMs: Long = 0L,
     @SerializedName("updatedAt") val updatedAt: Long = System.currentTimeMillis()
 )
+
+@Immutable
+data class CategoryHubSection(
+    @SerializedName("slug") val slug: String,
+    @SerializedName("title") val title: String,
+    @SerializedName("items") val items: List<AnimeItem>
+)
+
+@Immutable
+data class CategoryHubResponse(
+    @SerializedName("hero") val hero: List<AnimeItem>,
+    @SerializedName("sections") val sections: List<CategoryHubSection>
+)
+
