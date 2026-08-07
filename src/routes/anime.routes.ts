@@ -240,7 +240,7 @@ router.get('/proxy/m3u8', async (req: Request, res: Response) => {
           if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) {
             fullSegmentUrl = new URL(trimmed, baseUrlObj.href).href;
           }
-          return `${backendBase}/api/v1/proxy/ts?url=${encodeURIComponent(fullSegmentUrl)}`;
+          return fullSegmentUrl;
         });
 
         const fixed = rewrittenLines.join('\n');
@@ -476,59 +476,11 @@ router.get('/proxy/video', async (req: Request, res: Response) => {
       return;
     }
 
-    const buildStreamHeaders = (ref: string): Record<string, string> => {
-      const h: Record<string, string> = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-        'Referer': ref,
-      };
-      if (req.headers.range) {
-        h['Range'] = req.headers.range as string;
-      }
-      return h;
-    };
-
-    let streamResponse: any = null;
-    try {
-      streamResponse = await axios.get(resolved.directUrl, {
-        headers: buildStreamHeaders(resolved.refererHeader),
-        responseType: 'stream',
-        timeout: 8000,
-      });
-    } catch (fetchErr) {
-      // Token expired or link dead — force fresh resolution and retry once
-      resolved = await getOrResolveDirectUrl(true);
-      if (resolved) {
-        streamResponse = await axios.get(resolved.directUrl, {
-          headers: buildStreamHeaders(resolved.refererHeader),
-          responseType: 'stream',
-          timeout: 8000,
-        });
-      } else {
-        throw fetchErr;
-      }
-    }
-
-    const rawContentType = streamResponse.headers['content-type'] ? String(streamResponse.headers['content-type']) : '';
-    const isMp4 = resolved.directUrl.includes('.mp4') || rawContentType.includes('octet-stream') || rawContentType.includes('mp4');
-    const contentType = isMp4 ? 'video/mp4' : (rawContentType || 'video/mp4');
-
-    res.setHeader('Content-Type', contentType);
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Accept-Ranges', 'bytes');
-    if (streamResponse.headers['content-range']) {
-      res.setHeader('Content-Range', String(streamResponse.headers['content-range']));
-      res.status(206);
-    } else {
-      res.status(streamResponse.status);
-    }
-    if (streamResponse.headers['content-length']) {
-      res.setHeader('Content-Length', String(streamResponse.headers['content-length']));
-    }
-
-    streamResponse.data.pipe(res);
+    console.log(`[Telemetry /proxy/video] 🔀 Redirecting 302 directly to CDN: ${resolved.directUrl}`);
+    res.redirect(302, resolved.directUrl);
   } catch (error: any) {
     if (!res.headersSent) {
-      res.status(502).json({ success: false, error: 'Video stream proxy failed' });
+      res.status(502).json({ success: false, error: 'Video stream resolution failed' });
     }
   }
 });

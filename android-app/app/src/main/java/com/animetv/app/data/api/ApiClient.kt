@@ -34,8 +34,35 @@ object ApiClient {
         response
     }
 
+    private val mediaHeaderInterceptor = okhttp3.Interceptor { chain ->
+        val originalRequest = chain.request()
+        val builder = originalRequest.newBuilder()
+
+        if (originalRequest.header("User-Agent") == null) {
+            builder.header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
+        }
+
+        val urlStr = originalRequest.url.toString()
+        if (originalRequest.header("Referer") == null) {
+            if (urlStr.contains("yourupload")) {
+                builder.header("Referer", "https://www.yourupload.com/")
+            } else if (urlStr.contains("mp4upload")) {
+                builder.header("Referer", "https://www.mp4upload.com/")
+            } else if (urlStr.contains("filemoon")) {
+                builder.header("Referer", "https://filemoon.sx/")
+            } else if (urlStr.contains("ok.ru")) {
+                builder.header("Referer", "https://ok.ru/")
+            } else {
+                builder.header("Referer", "https://jkanime.net/")
+            }
+        }
+
+        chain.proceed(builder.build())
+    }
+
     val okHttpClient: OkHttpClient = OkHttpClient.Builder()
         .connectionPool(okhttp3.ConnectionPool(10, 5, java.util.concurrent.TimeUnit.MINUTES))
+        .addInterceptor(mediaHeaderInterceptor)
         .addInterceptor(hlsTelemetryInterceptor)
         .addInterceptor(loggingInterceptor)
         .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
