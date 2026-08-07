@@ -637,9 +637,14 @@ export class ScraperService {
         }
 
         let seasonCover: string | null = null;
-        const imgTag = $('.anime_pic img, img[src*="assets/images/animes/image/"]').first().attr('src');
-        if (imgTag) {
+        const ogImg = $('meta[property="og:image"]').attr('content');
+        const imgTag = $('.anime_pic img, .movpic img, img[src*="assets/images/animes/image/"]').first().attr('src');
+        if (ogImg && ogImg.includes('http')) {
+          seasonCover = ogImg;
+        } else if (imgTag) {
           seasonCover = imgTag;
+        } else {
+          seasonCover = `https://cdn.jkdesa.com/assets/images/animes/image/${slug}.jpg`;
         }
 
         let seasonTitle: string | null = null;
@@ -1016,7 +1021,7 @@ export class ScraperService {
       japaneseTitle: meta?.title?.native || '',
       slug: slug,
       synopsis: finalSynopsis,
-      image: meta?.coverImage?.extraLarge || validSpanishMeta?.image || jkMeta.seasonCover || `https://cdn.jkdesa.com/assets/images/animes/image/${slug}.jpg`,
+      image: jkMeta.seasonCover || meta?.coverImage?.extraLarge || validSpanishMeta?.image || `https://cdn.jkdesa.com/assets/images/animes/image/${slug}.jpg`,
       backdrop: validSpanishMeta?.backdrop || meta?.bannerImage || rootBackdrop || finalKitsuMeta || firstEpisodeStill || jkMeta.seasonCover || meta?.coverImage?.extraLarge || null,
       genres: (jkMeta.jkGenres && jkMeta.jkGenres.length > 0) ? jkMeta.jkGenres : (meta?.genres || ['Acción', 'Aventura', 'Fantasía']),
       status: formattedStatus,
