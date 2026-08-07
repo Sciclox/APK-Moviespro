@@ -111,33 +111,31 @@ fun TvHeroBanner(
 
     val heroImageUrl = activeHeroBackdrop?.ifEmpty { null } ?: activeHero?.backdrop?.ifEmpty { null } ?: ""
 
-    // Dynamic color extraction for ambient resplandor glow (Offloaded to Dispatchers.IO)
+    // Dynamic color extraction for ambient resplandor glow (Offloaded to Dispatchers.Default)
     LaunchedEffect(heroImageUrl) {
         if (heroImageUrl.isNotEmpty()) {
             withContext(Dispatchers.IO) {
-                try {
-                    val loader = coil.Coil.imageLoader(context)
-                    val req = ImageRequest.Builder(context)
-                        .data(heroImageUrl)
-                        .allowHardware(false)
-                        .target { drawable ->
-                            val bitmap = (drawable as? BitmapDrawable)?.bitmap
-                            if (bitmap != null && !bitmap.isRecycled) {
-                                Palette.from(bitmap).generate { palette ->
-                                    val vibrant = palette?.dominantSwatch?.rgb ?: palette?.vibrantSwatch?.rgb
-                                    vibrant?.let {
-                                        val hsl = FloatArray(3)
-                                        ColorUtils.colorToHSL(it, hsl)
-                                        hsl[2] = 0.55f
-                                        val brightColor = Color(ColorUtils.HSLToColor(hsl))
-                                        dominantColor = brightColor
-                                    }
+                val loader = ImageLoader(context)
+                val req = ImageRequest.Builder(context)
+                    .data(heroImageUrl)
+                    .allowHardware(false)
+                    .target { drawable ->
+                        val bitmap = (drawable as? BitmapDrawable)?.bitmap
+                        if (bitmap != null && !bitmap.isRecycled) {
+                            Palette.from(bitmap).generate { palette ->
+                                val vibrant = palette?.dominantSwatch?.rgb ?: palette?.vibrantSwatch?.rgb
+                                vibrant?.let {
+                                    val hsl = FloatArray(3)
+                                    ColorUtils.colorToHSL(it, hsl)
+                                    hsl[2] = 0.55f
+                                    val brightColor = Color(ColorUtils.HSLToColor(hsl))
+                                    dominantColor = brightColor
                                 }
                             }
                         }
-                        .build()
-                    loader.enqueue(req)
-                } catch (_: Exception) {}
+                    }
+                    .build()
+                loader.enqueue(req)
             }
         }
     }

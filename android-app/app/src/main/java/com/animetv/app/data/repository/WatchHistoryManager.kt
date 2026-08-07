@@ -23,14 +23,24 @@ object WatchHistoryManager {
         return try {
             val type = object : TypeToken<List<WatchHistoryItem>>() {}.type
             val list: List<WatchHistoryItem> = gson.fromJson(json, type) ?: emptyList()
-            list.map { item ->
-                val cleanImg = if (item.animeImage.isBlank() || item.animeImage.contains("animeav1")) {
-                    "https://cdn.jkdesa.com/assets/images/animes/image/${item.animeSlug}.jpg"
+            var hasRepaired = false
+            val repairedList = list.map { item ->
+                if (item.animeImage.isBlank() || item.animeImage.contains("animeav1") || item.animeImage.contains("covers/222.jpg")) {
+                    hasRepaired = true
+                    val repairedImg = if (!item.backdrop.isNullOrBlank() && !item.backdrop.contains("animeav1")) {
+                        item.backdrop
+                    } else {
+                        "https://cdn.jkdesa.com/assets/images/animes/image/${item.animeSlug}.jpg"
+                    }
+                    item.copy(animeImage = repairedImg)
                 } else {
-                    item.animeImage
+                    item
                 }
-                item.copy(animeImage = cleanImg)
-            }.sortedByDescending { it.updatedAt }
+            }
+            if (hasRepaired) {
+                saveList(context, repairedList)
+            }
+            repairedList.sortedByDescending { it.updatedAt }
         } catch (e: Exception) {
             e.printStackTrace()
             emptyList()

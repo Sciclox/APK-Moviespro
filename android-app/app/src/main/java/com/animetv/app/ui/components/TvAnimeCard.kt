@@ -70,17 +70,12 @@ fun TvAnimeCard(
                 .clip(cardShape)
                 .background(Color.Black)
         ) {
-            val displayImage = if (!anime.image.isNullOrBlank()) anime.image else anime.backdrop
+            // Poster image with rounded clip & downsampled memory target size
             AsyncImage(
                 model = ImageRequest.Builder(context)
-                    .data(displayImage)
+                    .data(anime.image)
                     .crossfade(true)
                     .size(300, 450)
-                    .apply {
-                        if (!anime.backdrop.isNullOrBlank()) {
-                            error(anime.backdrop)
-                        }
-                    }
                     .placeholder(android.graphics.drawable.ColorDrawable(android.graphics.Color.DKGRAY))
                     .build(),
                 contentDescription = anime.title,
@@ -262,11 +257,21 @@ fun TvHistoryCard(
                 .clip(cardShape)
                 .background(Color.Black)
         ) {
+            val safeImage = remember(historyItem) {
+                val primary = historyItem.animeImage.ifBlank { historyItem.backdrop ?: "" }
+                if (primary.isBlank() || primary.contains("animeav1")) {
+                    "https://cdn.jkdesa.com/assets/images/animes/image/${historyItem.animeSlug}.jpg"
+                } else {
+                    primary
+                }
+            }
             AsyncImage(
                 model = ImageRequest.Builder(LocalContext.current)
-                    .data(historyItem.animeImage.ifBlank { historyItem.backdrop ?: "" })
+                    .data(safeImage)
                     .crossfade(true)
                     .placeholder(android.graphics.drawable.ColorDrawable(android.graphics.Color.DKGRAY))
+                    .error(android.graphics.drawable.ColorDrawable(android.graphics.Color.DKGRAY))
+                    .fallback(android.graphics.drawable.ColorDrawable(android.graphics.Color.DKGRAY))
                     .build(),
                 contentDescription = historyItem.animeTitle,
                 contentScale = ContentScale.Crop,
@@ -383,12 +388,21 @@ fun TvEpisodeCard(
                 .background(Color.Black)
         ) {
             // Poster image with downsampling for smooth performance
+            val safeEpImage = remember(episodeItem) {
+                if (episodeItem.image.isBlank() || episodeItem.image.contains("animeav1")) {
+                    "https://cdn.jkdesa.com/assets/images/animes/image/${episodeItem.slug}.jpg"
+                } else {
+                    episodeItem.image
+                }
+            }
             AsyncImage(
                 model = ImageRequest.Builder(LocalContext.current)
-                    .data(episodeItem.image)
+                    .data(safeEpImage)
                     .crossfade(true)
                     .size(300, 450)
                     .placeholder(android.graphics.drawable.ColorDrawable(android.graphics.Color.DKGRAY))
+                    .error(android.graphics.drawable.ColorDrawable(android.graphics.Color.DKGRAY))
+                    .fallback(android.graphics.drawable.ColorDrawable(android.graphics.Color.DKGRAY))
                     .build(),
                 contentDescription = episodeItem.title,
                 contentScale = ContentScale.Crop,

@@ -16,17 +16,17 @@ class AnimeTvApplication : Application() {
             .memoryCachePolicy(CachePolicy.ENABLED)
             .memoryCache {
                 MemoryCache.Builder(this)
-                    .maxSizePercent(0.20) // Use 20% of RAM to prevent OutOfMemory crashes on TV devices
+                    .maxSizePercent(0.35) // Use up to 35% of RAM for image cache
                     .build()
             }
             .diskCachePolicy(CachePolicy.ENABLED)
             .diskCache {
                 DiskCache.Builder()
                     .directory(cacheDir.resolve("image_cache"))
-                    .maxSizeBytes(250L * 1024L * 1024L) // 250 MB disk cache
+                    .maxSizeBytes(500L * 1024L * 1024L) // 500 MB disk cache
                     .build()
             }
-            .crossfade(true)
+            .crossfade(100)
             .build()
 
         Coil.setImageLoader(imageLoader)
