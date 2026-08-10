@@ -35,6 +35,8 @@ router.get('/watch/*', async (req: Request, res: Response) => {
       });
       return;
     }
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cache-Control', 'public, max-age=60, s-maxage=7200, stale-while-revalidate=86400');
     res.json({ success: true, data: stream });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
