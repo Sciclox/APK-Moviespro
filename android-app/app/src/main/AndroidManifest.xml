@@ -25,7 +25,7 @@
         android:banner="@drawable/tv_banner"
         android:label="Anime TV"
         android:supportsRtl="true"
-        android:usesCleartextTraffic="true"
+        android:usesCleartextTraffic="${usesCleartextTraffic}"
         android:theme="@style/Theme.AnimeTV">
 
         <activity

@@ -10,6 +10,7 @@ import coil.request.CachePolicy
 class AnimeTvApplication : Application() {
     override fun onCreate() {
         super.onCreate()
+        com.animetv.app.data.api.ApiClient.setCacheDir(cacheDir)
 
         // Configure global high-performance Coil ImageLoader with Memory & Disk caching backed by ApiClient.okHttpClient
         val imageLoader = ImageLoader.Builder(this)

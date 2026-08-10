@@ -5,6 +5,8 @@ import android.view.KeyEvent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -25,9 +27,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.tv.foundation.lazy.list.TvLazyRow
-import androidx.tv.foundation.lazy.list.itemsIndexed
 import androidx.tv.material3.*
+import kotlinx.coroutines.delay
 import com.animetv.app.data.model.AnimeItem
 import com.animetv.app.data.repository.HomeCacheManager
 import com.animetv.app.data.repository.MyListManager
@@ -54,7 +55,6 @@ fun MyListScreen(
     val listState = rememberLazyListState()
     var myListAnimes by remember { mutableStateOf(MyListManager.getSavedAnimes(context)) }
 
-    // Read saved playback positions from SharedPreferences for progress bar
     val prefs = remember { context.getSharedPreferences("player_positions", Context.MODE_PRIVATE) }
     val savedPositionsMap = remember(myListAnimes) {
         val map = mutableMapOf<String, Long>()
@@ -67,7 +67,6 @@ fun MyListScreen(
         map
     }
 
-    // Fallback/Popular suggestions for empty state
     val popularSuggestions = remember {
         val catalog = HomeCacheManager.getCatalogList(context)
         if (catalog.isNotEmpty()) catalog else HomeCacheManager.getHeroList(context)
@@ -86,7 +85,6 @@ fun MyListScreen(
             contentPadding = PaddingValues(start = 36.dp, top = 70.dp, end = 36.dp, bottom = 48.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
-            // 1. Header Title (Without Count Badge)
             item {
                 Text(
                     text = "MI LISTA DE ANIMES",
@@ -97,7 +95,6 @@ fun MyListScreen(
                 )
             }
 
-            // 2. Main 5-Column Grid or Cinematic Empty State
             item {
                 if (myListAnimes.isEmpty()) {
                     Column(
@@ -106,7 +103,6 @@ fun MyListScreen(
                             .padding(top = 16.dp),
                         verticalArrangement = Arrangement.spacedBy(28.dp)
                     ) {
-                        // Empty Banner Box
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -114,10 +110,7 @@ fun MyListScreen(
                                 .clip(RoundedCornerShape(12.dp))
                                 .background(
                                     Brush.horizontalGradient(
-                                        colors = listOf(
-                                            Color(0xFF1E1E1E),
-                                            Color(0xFF121212)
-                                        )
+                                        colors = listOf(Color(0xFF1E1E1E), Color(0xFF121212))
                                     )
                                 )
                                 .padding(24.dp),
@@ -151,7 +144,6 @@ fun MyListScreen(
                             }
                         }
 
-                        // Popular Anime Suggestions Carousel
                         if (popularSuggestions.isNotEmpty()) {
                             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                                 Text(
@@ -160,7 +152,7 @@ fun MyListScreen(
                                     fontSize = 20.sp,
                                     fontFamily = BebasNeue
                                 )
-                                TvLazyRow(
+                                LazyRow(
                                     horizontalArrangement = Arrangement.spacedBy(14.dp),
                                     contentPadding = PaddingValues(end = 36.dp)
                                 ) {
@@ -232,7 +224,6 @@ fun MyListScreen(
                         }
                     }
                 } else {
-                    // 5-Column Grid Layout
                     val rows = myListAnimes.chunked(5)
                     Column(
                         modifier = Modifier.fillMaxWidth(),
@@ -253,11 +244,10 @@ fun MyListScreen(
 
                                     LaunchedEffect(isScreenActive, lastSelectedAnime) {
                                         if (isScreenActive && lastSelectedAnime?.id == anime.id) {
-                                            kotlinx.coroutines.delay(300)
+                                            delay(300)
                                             try {
                                                 cardFocusRequester.requestFocus()
-                                            } catch (e: Exception) {
-                                                e.printStackTrace()
+                                            } catch (_: Exception) {
                                             }
                                         }
                                     }
@@ -276,7 +266,6 @@ fun MyListScreen(
                                                                 true
                                                             } else false
                                                         }
-                                                        // Long press / Menu key removes anime from list
                                                         KeyEvent.KEYCODE_MENU, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
                                                             MyListManager.toggleAnime(context, anime)
                                                             myListAnimes = MyListManager.getSavedAnimes(context)
@@ -293,7 +282,6 @@ fun MyListScreen(
                                             modifier = Modifier.fillMaxWidth()
                                         )
 
-                                        // Watch Progress Indicator Bar (Red bottom bar on card)
                                         if (hasProgress) {
                                             Box(
                                                 modifier = Modifier
@@ -313,7 +301,6 @@ fun MyListScreen(
                                     }
                                 }
 
-                                // Fill remaining columns if last row has less than 5 items
                                 if (rowItems.size < 5) {
                                     repeat(5 - rowItems.size) {
                                         Spacer(modifier = Modifier.weight(1f))

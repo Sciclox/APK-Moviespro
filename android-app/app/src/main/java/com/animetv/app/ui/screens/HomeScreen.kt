@@ -1,53 +1,35 @@
 package com.animetv.app.ui.screens
 
-import android.view.KeyEvent
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.CompositingStrategy
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.key.*
-import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.tv.foundation.lazy.list.TvLazyRow
-import androidx.tv.foundation.lazy.list.items
-import androidx.tv.foundation.lazy.list.itemsIndexed
 import androidx.tv.material3.*
-import coil.compose.AsyncImage
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import com.animetv.app.data.model.AnimeItem
-import com.animetv.app.ui.components.NetflixLogo
+import com.animetv.app.ui.components.PaginatedGenreRow
 import com.animetv.app.ui.components.TvAnimeCard
 import com.animetv.app.ui.components.TvHeroBanner
 import com.animetv.app.ui.components.TvTop10Card
-import com.animetv.app.data.api.ApiClient
 import com.animetv.app.ui.theme.*
-import android.graphics.drawable.BitmapDrawable
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.tween
-import androidx.compose.ui.platform.LocalContext
-import androidx.palette.graphics.Palette
-import androidx.core.graphics.ColorUtils
-import coil.ImageLoader
-import coil.request.ImageRequest
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalTvMaterial3Api::class)
@@ -60,6 +42,12 @@ fun HomeScreen(
     catalogList: List<AnimeItem>,
     releasingList: List<AnimeItem>,
     latestEpisodesList: List<com.animetv.app.data.model.RecentEpisodeItem> = emptyList(),
+    shounenList: List<AnimeItem> = emptyList(),
+    romanceList: List<AnimeItem> = emptyList(),
+    comedyList: List<AnimeItem> = emptyList(),
+    fantasyList: List<AnimeItem> = emptyList(),
+    supernaturalList: List<AnimeItem> = emptyList(),
+    moviesList: List<AnimeItem> = emptyList(),
     isLoading: Boolean,
     onAnimeSelect: (AnimeItem) -> Unit,
     onEpisodeSelect: ((com.animetv.app.data.model.RecentEpisodeItem) -> Unit)? = null,
@@ -69,54 +57,31 @@ fun HomeScreen(
     onFocusItem: (FocusRequester) -> Unit = {}
 ) {
     val listState = rememberLazyListState()
-    val scope = rememberCoroutineScope()
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var targetFocusedRowIndex by remember { mutableIntStateOf(-1) }
 
-    var ambientColor by remember { mutableStateOf<Color?>(null) }
-    var selectedGenre by remember { mutableStateOf("Todos") }
-    var currentHeroIndex by remember { mutableIntStateOf(0) }
-    var isHeroFocused by remember { mutableStateOf(false) }
-
-    val animatedAmbientColor by animateColorAsState(
-        targetValue = ambientColor ?: Color.Transparent,
-        animationSpec = tween(durationMillis = 800),
-        label = "ambientColorAnimation"
-    )
+    LaunchedEffect(targetFocusedRowIndex) {
+        if (targetFocusedRowIndex >= 0) {
+            delay(100)
+            try {
+                val totalItems = listState.layoutInfo.totalItemsCount
+                if (targetFocusedRowIndex in 0 until totalItems) {
+                    listState.animateScrollToItem(targetFocusedRowIndex, 0)
+                }
+            } catch (_: Exception) {}
+        }
+    }
 
     val cleanHeroList = remember(heroList) {
         heroList.filter { !it.slug.contains("perfil", ignoreCase = true) && !it.title.contains("perfil", ignoreCase = true) && !it.slug.contains("user", ignoreCase = true) }
     }
-    val cleanCatalogList = remember(catalogList) {
-        catalogList.filter { !it.slug.contains("perfil", ignoreCase = true) && !it.title.contains("perfil", ignoreCase = true) && !it.slug.contains("user", ignoreCase = true) }
-    }
-    val cleanReleasingList = remember(releasingList) {
-        releasingList.filter { !it.slug.contains("perfil", ignoreCase = true) && !it.title.contains("perfil", ignoreCase = true) && !it.slug.contains("user", ignoreCase = true) }
-    }
 
     val watchHistory = remember { mutableStateListOf<com.animetv.app.data.model.WatchHistoryItem>() }
 
-    DisposableEffect(context) {
+    LaunchedEffect(context) {
         watchHistory.clear()
         watchHistory.addAll(com.animetv.app.data.repository.WatchHistoryManager.getHistory(context))
-        onDispose {}
-    }
-
-    val rowWatchHistoryIndex = 2
-    val rowLatestEpisodesIndex = if (watchHistory.isNotEmpty()) 3 else 2
-    val offsetLatest = if (latestEpisodesList.isNotEmpty()) 1 else 0
-    val rowReleasingIndex = (if (watchHistory.isNotEmpty()) 3 else 2) + offsetLatest
-    val rowPopularIndex = rowReleasingIndex + 1
-    val rowActionIndex = rowPopularIndex + 1
-
-    var verticalScrollJob by remember { mutableStateOf<Job?>(null) }
-    val scrollToRow: (Int) -> Unit = { targetIndex ->
-        verticalScrollJob?.cancel()
-        verticalScrollJob = scope.launch {
-            delay(30)
-            if (listState.firstVisibleItemIndex != targetIndex || listState.firstVisibleItemScrollOffset > 5) {
-                listState.animateScrollToItem(targetIndex, 0)
-            }
-        }
     }
 
     // Restore focus with a slight delay when returning to HomeScreen
@@ -128,8 +93,7 @@ fun HomeScreen(
                     delay(300)
                     try {
                         playButtonFocusRequester.requestFocus()
-                    } catch (e: Exception) {
-                        e.printStackTrace()
+                    } catch (_: Exception) {
                     }
                 }
             }
@@ -141,18 +105,7 @@ fun HomeScreen(
         if (lastSelectedAnime == null) {
             try {
                 navFocusRequester.requestFocus()
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }
-    }
-
-    val scrollAlpha by remember {
-        derivedStateOf {
-            if (listState.firstVisibleItemIndex == 0) {
-                (1f - (listState.firstVisibleItemScrollOffset / 250f)).coerceIn(0f, 1f)
-            } else {
-                0f
+            } catch (_: Exception) {
             }
         }
     }
@@ -165,35 +118,84 @@ fun HomeScreen(
         if (isLoading) {
             SkeletonHomeScreen()
         } else {
+            var rowIndexCounter = 0
+            val heroRowIndex = rowIndexCounter++
+            val top10RowIndex = rowIndexCounter++
+            val historyRowIndex = if (watchHistory.isNotEmpty()) rowIndexCounter++ else -1
+            val episodesRowIndex = if (latestEpisodesList.isNotEmpty()) rowIndexCounter++ else -1
+            val releasingRowIndex = rowIndexCounter++
+            val popularRowIndex = rowIndexCounter++
+            val actionRowIndex = rowIndexCounter++
+            val shounenRowIndex = rowIndexCounter++
+            val romanceRowIndex = rowIndexCounter++
+            val comedyRowIndex = rowIndexCounter++
+            val fantasyRowIndex = rowIndexCounter++
+            val supernaturalRowIndex = rowIndexCounter++
+            val moviesRowIndex = rowIndexCounter++
+
+            val cleanCatalog = remember(catalogList) { catalogList.filter { !it.slug.contains("perfil", ignoreCase = true) } }
+
+            val displayShounen = remember(shounenList, cleanCatalog) {
+                shounenList.filter { !it.slug.contains("perfil", ignoreCase = true) }.ifEmpty {
+                    cleanCatalog.filter { it.title.contains("shounen", true) || it.title.contains("dragon", true) || it.title.contains("piece", true) || it.title.contains("hero", true) || (it.synopsis?.contains("batalla", true) == true) }.ifEmpty { cleanCatalog.drop(1) }
+                }
+            }
+
+            val displayRomance = remember(romanceList, cleanCatalog) {
+                romanceList.filter { !it.slug.contains("perfil", ignoreCase = true) }.ifEmpty {
+                    cleanCatalog.filter { it.title.contains("love", true) || it.title.contains("romance", true) || it.title.contains("amor", true) || (it.synopsis?.contains("amor", true) == true) }.ifEmpty { cleanCatalog.drop(3) }
+                }
+            }
+
+            val displayComedy = remember(comedyList, cleanCatalog) {
+                comedyList.filter { !it.slug.contains("perfil", ignoreCase = true) }.ifEmpty {
+                    cleanCatalog.filter { it.title.contains("comedia", true) || it.title.contains("comedy", true) || (it.synopsis?.contains("comedia", true) == true) }.ifEmpty { cleanCatalog.drop(5) }
+                }
+            }
+
+            val displayFantasy = remember(fantasyList, cleanCatalog, releasingList) {
+                fantasyList.filter { !it.slug.contains("perfil", ignoreCase = true) }.ifEmpty {
+                    cleanCatalog.filter { it.title.contains("isekai", true) || it.title.contains("fantasy", true) || it.title.contains("maou", true) || (it.synopsis?.contains("fantasía", true) == true) }.ifEmpty { releasingList.reversed() }
+                }
+            }
+
+            val displaySupernatural = remember(supernaturalList, cleanCatalog, heroList) {
+                supernaturalList.filter { !it.slug.contains("perfil", ignoreCase = true) }.ifEmpty {
+                    cleanCatalog.filter { it.title.contains("demon", true) || it.title.contains("ghost", true) || it.title.contains("misterio", true) || (it.synopsis?.contains("sobrenatural", true) == true) }.ifEmpty { heroList.filter { !it.slug.contains("perfil", ignoreCase = true) } }
+                }
+            }
+
+            val displayMovies = remember(moviesList, cleanCatalog) {
+                moviesList.filter { !it.slug.contains("perfil", ignoreCase = true) }.ifEmpty {
+                    cleanCatalog.filter { (it.type?.contains("Movie", true) == true || it.type?.contains("Película", true) == true || it.slug.contains("movie", true) || it.title.contains("movie", true) || it.title.contains("pelicula", true)) }.ifEmpty { cleanCatalog.takeLast(10) }
+                }
+            }
+
             LazyColumn(
                 state = listState,
                 modifier = Modifier.fillMaxSize(),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 contentPadding = PaddingValues(top = 68.dp, bottom = 64.dp)
             ) {
-
-                // -------------------------------------------------------------
-                // FEATURE 1: HERO BANNER ROTATIVO / MULTI-HERO (Reusable TvHeroBanner)
-                // -------------------------------------------------------------
-                item(key = "hero_banner", contentType = "hero_banner") {
+                // FEATURE 1: HERO BANNER
+                item(key = "hero_banner") {
                     TvHeroBanner(
                         heroList = heroList,
                         onAnimeSelect = onAnimeSelect,
                         onFocusItem = onFocusItem,
                         firstKeyFocusRequester = playButtonFocusRequester,
                         navFocusRequester = navFocusRequester,
-                        scrollToRow = scrollToRow,
+                        scrollToRow = { targetFocusedRowIndex = heroRowIndex },
                         categoryBadgeText = "A N I M E   O R I G I N A L"
                     )
                 }
 
-                // -------------------------------------------------------------
-                // FEATURE 2: FILA TOP 10 HOY (Números Gigantes)
-                // -------------------------------------------------------------
+                // FEATURE 2: FILA TOP 10 HOY
                 item {
-                    val top10Items = remember(cleanReleasingList, cleanCatalogList) {
-                        (cleanReleasingList.ifEmpty { cleanCatalogList }).take(10)
-                    }
+                    val cleanReleasingList = releasingList.filter { !it.slug.contains("perfil", ignoreCase = true) }
+                    val cleanCatalogList = catalogList.filter { !it.slug.contains("perfil", ignoreCase = true) }
+                    val top10Items = (cleanReleasingList.ifEmpty { cleanCatalogList }).take(10)
+
                     if (top10Items.isNotEmpty()) {
                         Column(modifier = Modifier.fillMaxWidth()) {
                             Text(
@@ -204,7 +206,7 @@ fun HomeScreen(
                                 fontWeight = FontWeight.Bold,
                                 modifier = Modifier.padding(start = 36.dp, bottom = 8.dp)
                             )
-                            TvLazyRow(
+                            LazyRow(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(280.dp),
@@ -222,7 +224,7 @@ fun HomeScreen(
                                             .onFocusChanged {
                                                 if (it.isFocused) {
                                                     onFocusItem(cardFocusRequester)
-                                                    scrollToRow(1)
+                                                    targetFocusedRowIndex = top10RowIndex
                                                 }
                                             }
                                     )
@@ -232,7 +234,7 @@ fun HomeScreen(
                     }
                 }
 
-                // ROW: CONTINUAR VIENDO (Watch History)
+                // ROW: CONTINUAR VIENDO
                 if (watchHistory.isNotEmpty()) {
                     item {
                         Column(modifier = Modifier.fillMaxWidth()) {
@@ -244,7 +246,7 @@ fun HomeScreen(
                                 fontWeight = FontWeight.Bold,
                                 modifier = Modifier.padding(start = 36.dp, bottom = 8.dp)
                             )
-                            TvLazyRow(
+                            LazyRow(
                                 modifier = Modifier.fillMaxWidth().height(310.dp),
                                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                                 contentPadding = PaddingValues(start = 36.dp, top = 8.dp, bottom = 16.dp, end = 36.dp)
@@ -257,7 +259,7 @@ fun HomeScreen(
                                             delay(300)
                                             try {
                                                 cardFocusRequester.requestFocus()
-                                            } catch (e: Exception) {
+                                            } catch (_: Exception) {
                                             }
                                         }
                                     }
@@ -286,7 +288,7 @@ fun HomeScreen(
                                             .onFocusChanged {
                                                 if (it.isFocused) {
                                                     onFocusItem(cardFocusRequester)
-                                                    scrollToRow(rowWatchHistoryIndex)
+                                                    targetFocusedRowIndex = historyRowIndex
                                                 }
                                             }
                                     )
@@ -308,7 +310,7 @@ fun HomeScreen(
                                 fontWeight = FontWeight.Bold,
                                 modifier = Modifier.padding(start = 36.dp, bottom = 8.dp)
                             )
-                            TvLazyRow(
+                            LazyRow(
                                 modifier = Modifier.fillMaxWidth().height(310.dp),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 contentPadding = PaddingValues(start = 36.dp, top = 8.dp, bottom = 16.dp, end = 36.dp)
@@ -341,7 +343,7 @@ fun HomeScreen(
                                             .onFocusChanged {
                                                 if (it.isFocused) {
                                                     onFocusItem(cardFocusRequester)
-                                                    scrollToRow(rowLatestEpisodesIndex)
+                                                    targetFocusedRowIndex = episodesRowIndex
                                                 }
                                             }
                                     )
@@ -351,7 +353,7 @@ fun HomeScreen(
                     }
                 }
 
-                // ROW: Nuevos lanzamientos (En emisión)
+                // ROW: Nuevos lanzamientos
                 item {
                     Column(modifier = Modifier.fillMaxWidth()) {
                         Text(
@@ -362,8 +364,8 @@ fun HomeScreen(
                             fontWeight = FontWeight.Bold,
                             modifier = Modifier.padding(start = 36.dp, bottom = 8.dp)
                         )
-                        val releasingRowItems = if (releasingList.isNotEmpty()) releasingList else catalogList
-                        TvLazyRow(
+                        val releasingRowItems = releasingList.filter { !it.slug.contains("perfil", ignoreCase = true) }.ifEmpty { catalogList.filter { !it.slug.contains("perfil", ignoreCase = true) } }
+                        LazyRow(
                             modifier = Modifier.fillMaxWidth().height(310.dp),
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             contentPadding = PaddingValues(start = 36.dp, top = 8.dp, bottom = 16.dp, end = 36.dp)
@@ -376,8 +378,7 @@ fun HomeScreen(
                                         delay(300)
                                         try {
                                             cardFocusRequester.requestFocus()
-                                        } catch (e: Exception) {
-                                            e.printStackTrace()
+                                        } catch (_: Exception) {
                                         }
                                     }
                                 }
@@ -391,7 +392,7 @@ fun HomeScreen(
                                         .onFocusChanged {
                                             if (it.isFocused) {
                                                 onFocusItem(cardFocusRequester)
-                                                scrollToRow(rowReleasingIndex)
+                                                targetFocusedRowIndex = releasingRowIndex
                                             }
                                         }
                                 )
@@ -400,7 +401,7 @@ fun HomeScreen(
                     }
                 }
 
-                // ROW: Popular en Anime TV
+                // ROW: Populares
                 item {
                     Column(modifier = Modifier.fillMaxWidth()) {
                         Text(
@@ -411,7 +412,7 @@ fun HomeScreen(
                             fontWeight = FontWeight.Bold,
                             modifier = Modifier.padding(start = 36.dp, bottom = 8.dp)
                         )
-                        TvLazyRow(
+                        LazyRow(
                             modifier = Modifier.fillMaxWidth().height(310.dp),
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             contentPadding = PaddingValues(start = 36.dp, top = 8.dp, bottom = 16.dp, end = 36.dp)
@@ -424,8 +425,7 @@ fun HomeScreen(
                                         delay(300)
                                         try {
                                             cardFocusRequester.requestFocus()
-                                        } catch (e: Exception) {
-                                            e.printStackTrace()
+                                        } catch (_: Exception) {
                                         }
                                     }
                                 }
@@ -439,7 +439,7 @@ fun HomeScreen(
                                         .onFocusChanged {
                                             if (it.isFocused) {
                                                 onFocusItem(cardFocusRequester)
-                                                scrollToRow(rowPopularIndex)
+                                                targetFocusedRowIndex = popularRowIndex
                                             }
                                         }
                                 )
@@ -448,51 +448,120 @@ fun HomeScreen(
                     }
                 }
 
-                // ROW: Anime de acción
+                // ROW: Acción
                 item {
-                    Column(modifier = Modifier.fillMaxWidth()) {
-                        Text(
-                            text = "Acción",
-                            color = Color.White,
-                            fontSize = 15.sp,
-                            fontFamily = Inter,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(start = 36.dp, bottom = 8.dp)
+                    PaginatedGenreRow(
+                        title = "Acción",
+                        genreKey = "Accion",
+                        initialItems = catalogList.reversed(),
+                        isScreenActive = isScreenActive,
+                        lastSelectedAnime = lastSelectedAnime,
+                        rowIndex = actionRowIndex,
+                        onAnimeSelect = onAnimeSelect,
+                        onFocusItem = onFocusItem,
+                        onFocusedRowChanged = { targetFocusedRowIndex = it }
+                    )
+                }
+
+                // ROW: Shounen & Aventura
+                if (displayShounen.isNotEmpty()) {
+                    item {
+                        PaginatedGenreRow(
+                            title = "Shounen & Aventura",
+                            genreKey = "shounen",
+                            initialItems = displayShounen,
+                            isScreenActive = isScreenActive,
+                            lastSelectedAnime = lastSelectedAnime,
+                            rowIndex = shounenRowIndex,
+                            onAnimeSelect = onAnimeSelect,
+                            onFocusItem = onFocusItem,
+                            onFocusedRowChanged = { targetFocusedRowIndex = it }
                         )
-                        TvLazyRow(
-                            modifier = Modifier.fillMaxWidth().height(310.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            contentPadding = PaddingValues(start = 36.dp, top = 8.dp, bottom = 16.dp, end = 36.dp)
-                        ) {
-                            items(items = catalogList.reversed(), key = { it.id }) { anime ->
-                                val cardFocusRequester = remember(anime.id) { FocusRequester() }
+                    }
+                }
 
-                                LaunchedEffect(isScreenActive, lastSelectedAnime) {
-                                    if (isScreenActive && lastSelectedAnime?.id == anime.id) {
-                                        delay(300)
-                                        try {
-                                            cardFocusRequester.requestFocus()
-                                        } catch (e: Exception) {
-                                            e.printStackTrace()
-                                        }
-                                    }
-                                }
+                // ROW: Romance & Drama
+                if (displayRomance.isNotEmpty()) {
+                    item {
+                        PaginatedGenreRow(
+                            title = "Romance & Drama",
+                            genreKey = "romance",
+                            initialItems = displayRomance,
+                            isScreenActive = isScreenActive,
+                            lastSelectedAnime = lastSelectedAnime,
+                            rowIndex = romanceRowIndex,
+                            onAnimeSelect = onAnimeSelect,
+                            onFocusItem = onFocusItem,
+                            onFocusedRowChanged = { targetFocusedRowIndex = it }
+                        )
+                    }
+                }
 
-                                TvAnimeCard(
-                                    anime = anime,
-                                    onClick = { onAnimeSelect(anime) },
-                                    modifier = Modifier
-                                        .width(190.dp)
-                                        .focusRequester(cardFocusRequester)
-                                        .onFocusChanged {
-                                            if (it.isFocused) {
-                                                onFocusItem(cardFocusRequester)
-                                                scrollToRow(rowActionIndex)
-                                            }
-                                        }
-                                )
-                            }
-                        }
+                // ROW: Comedia & Slice of Life
+                if (displayComedy.isNotEmpty()) {
+                    item {
+                        PaginatedGenreRow(
+                            title = "Comedia & Slice of Life",
+                            genreKey = "comedia",
+                            initialItems = displayComedy,
+                            isScreenActive = isScreenActive,
+                            lastSelectedAnime = lastSelectedAnime,
+                            rowIndex = comedyRowIndex,
+                            onAnimeSelect = onAnimeSelect,
+                            onFocusItem = onFocusItem,
+                            onFocusedRowChanged = { targetFocusedRowIndex = it }
+                        )
+                    }
+                }
+
+                // ROW: Fantasía e Isekai
+                if (displayFantasy.isNotEmpty()) {
+                    item {
+                        PaginatedGenreRow(
+                            title = "Fantasía e Isekai",
+                            genreKey = "fantasia",
+                            initialItems = displayFantasy,
+                            isScreenActive = isScreenActive,
+                            lastSelectedAnime = lastSelectedAnime,
+                            rowIndex = fantasyRowIndex,
+                            onAnimeSelect = onAnimeSelect,
+                            onFocusItem = onFocusItem,
+                            onFocusedRowChanged = { targetFocusedRowIndex = it }
+                        )
+                    }
+                }
+
+                // ROW: Sobrenatural & Terror
+                if (displaySupernatural.isNotEmpty()) {
+                    item {
+                        PaginatedGenreRow(
+                            title = "Sobrenatural & Terror",
+                            genreKey = "sobrenatural",
+                            initialItems = displaySupernatural,
+                            isScreenActive = isScreenActive,
+                            lastSelectedAnime = lastSelectedAnime,
+                            rowIndex = supernaturalRowIndex,
+                            onAnimeSelect = onAnimeSelect,
+                            onFocusItem = onFocusItem,
+                            onFocusedRowChanged = { targetFocusedRowIndex = it }
+                        )
+                    }
+                }
+
+                // ROW: Películas Anime & Especiales
+                if (displayMovies.isNotEmpty()) {
+                    item {
+                        PaginatedGenreRow(
+                            title = "Películas Anime & Especiales",
+                            tipoKey = "pelicula",
+                            initialItems = displayMovies,
+                            isScreenActive = isScreenActive,
+                            lastSelectedAnime = lastSelectedAnime,
+                            rowIndex = moviesRowIndex,
+                            onAnimeSelect = onAnimeSelect,
+                            onFocusItem = onFocusItem,
+                            onFocusedRowChanged = { targetFocusedRowIndex = it }
+                        )
                     }
                 }
 
@@ -504,6 +573,8 @@ fun HomeScreen(
         }
     }
 }
+
+
 
 @Composable
 fun SkeletonHomeScreen() {

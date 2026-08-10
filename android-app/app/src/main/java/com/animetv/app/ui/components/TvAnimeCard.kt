@@ -159,8 +159,10 @@ fun TvAnimeCard(
             ) {
                 // 1. Primary Badge (Relation or Format)
                 val primaryBg = remember(primaryBadgeText, isRelationCard) {
-                    if (isRelationCard) {
-                        val norm = primaryBadgeText.lowercase()
+                    val norm = primaryBadgeText.lowercase()
+                    if (norm.contains("emisi") || norm.contains("releasing") || norm.contains("estreno")) {
+                        Color(0xFF2ECC71)
+                    } else if (isRelationCard) {
                         when {
                             norm.contains("secuela") -> Color(0xFFE50914)
                             norm.contains("precuela") -> Color(0xFF007AFF)
@@ -191,10 +193,16 @@ fun TvAnimeCard(
 
                 // 2. Secondary Badge (Format or Status)
                 if (!secondaryBadgeText.isNullOrBlank()) {
+                    val isEnEmision = remember(secondaryBadgeText) {
+                        val norm = secondaryBadgeText.lowercase()
+                        norm.contains("emisi") || norm.contains("releasing") || norm.contains("estreno")
+                    }
+                    val secBg = if (isEnEmision) Color(0xFF2ECC71) else Color.Black.copy(alpha = 0.75f)
+
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(4.dp))
-                            .background(Color.Black.copy(alpha = 0.75f))
+                            .background(secBg)
                             .padding(horizontal = 5.dp, vertical = 2.dp)
                     ) {
                         Text(

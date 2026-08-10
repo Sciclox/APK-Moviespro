@@ -156,11 +156,12 @@ export class ScraperService {
     if (cleanCat === 'latino') {
       mainParams = { categoria: 'latino', page: 1 };
       sectionsConfig = [
+        { slug: 'deportes', title: 'Deportes en Español Latino' },
         { slug: 'accion', title: 'Acción en Español Latino' },
         { slug: 'aventura', title: 'Aventura y Fantasía en Latino' },
+        { slug: 'shounen', title: 'Shounen en Latino' },
         { slug: 'comedia', title: 'Comedia en Latino' },
         { slug: 'romance', title: 'Romance en Latino' },
-        { slug: 'shounen', title: 'Shounen en Latino' },
         { slug: 'sci-fi', title: 'Ciencia Ficción y Mecha' },
         { slug: 'sobrenatural', title: 'Sobrenatural y Terror' },
         { slug: 'isekai', title: 'Isekai en Latino' },
@@ -169,6 +170,7 @@ export class ScraperService {
     } else if (cleanCat === 'peliculas') {
       mainParams = { tipo: 'peliculas', page: 1 };
       sectionsConfig = [
+        { slug: 'deportes', title: 'Películas de Deportes' },
         { slug: 'accion', title: 'Películas de Acción' },
         { slug: 'aventura', title: 'Películas de Aventura' },
         { slug: 'fantasia', title: 'Películas de Fantasía' },
@@ -185,6 +187,7 @@ export class ScraperService {
     } else {
       mainParams = { categoria: 'donghua', page: 1 };
       sectionsConfig = [
+        { slug: 'deportes', title: 'Deportes y Juegos en Donghua' },
         { slug: 'accion', title: 'Acción y Artes Marciales (Cultivo)' },
         { slug: 'aventura', title: 'Aventura y Fantasía Chino' },
         { slug: 'comedia', title: 'Comedia en Donghua' },
@@ -1149,7 +1152,7 @@ export class ScraperService {
   /**
    * Scrape Real Video Stream Links for Specified Anime & Episode with Smart Slug Resolution
    */
-  static async getStreamSources(episodeSlug: string, backendBase: string = 'https://apk-animetv-backend.onrender.com'): Promise<WatchResponse> {
+  static async getStreamSources(episodeSlug: string, backendBase: string = 'https://apk-animetv-backend.vercel.app'): Promise<WatchResponse> {
     const cacheKey = `stream_v13_${episodeSlug}`;
     const cached = apiCache.get<WatchResponse>(cacheKey);
     if (cached) {

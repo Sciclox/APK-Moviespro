@@ -10,7 +10,7 @@ import android.content.Context
 import android.media.AudioManager
 import android.net.Uri
 import androidx.compose.animation.*
-import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -18,14 +18,19 @@ import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Forward10
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.PlaylistPlay
 import androidx.compose.material.icons.filled.Replay10
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
@@ -61,6 +66,7 @@ import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.PlayerView
 import androidx.tv.material3.*
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.animetv.app.data.api.ApiClient
 import com.animetv.app.data.model.AnimeItem
 import com.animetv.app.data.model.EpisodeItem
@@ -83,6 +89,8 @@ fun PlayerScreen(
     anime: AnimeItem?,
     episode: EpisodeItem,
     onBack: () -> Unit,
+    onGoToDetail: (() -> Unit)? = null,
+    onSelectEpisode: ((EpisodeItem) -> Unit)? = null,
     onNextEpisode: (() -> Unit)? = null,
     onPreviousEpisode: (() -> Unit)? = null
 ) {
@@ -113,6 +121,32 @@ fun PlayerScreen(
     var autoFallbackToast by remember { mutableStateOf<String?>(null) }
     var lastSelectedServerName by remember { mutableStateOf<String?>(null) }
 
+    // Episodes side drawer state
+    var episodesList by remember { mutableStateOf<List<EpisodeItem>>(emptyList()) }
+    var showEpisodesMenu by remember { mutableStateOf(false) }
+    val episodesListState = rememberLazyListState()
+    val episodesFocusRequester = remember { FocusRequester() }
+
+    val displayEpisodes = remember(episodesList, episode, anime) {
+        if (episodesList.isNotEmpty()) {
+            episodesList
+        } else {
+            val aSlug = anime?.slug?.ifBlank { null }
+                ?: episode.slug.split("/").firstOrNull()
+                ?: ""
+            val cleanSlug = aSlug.replace(Regex("-(episode|episodio)-\\d+$", RegexOption.IGNORE_CASE), "").replace(Regex("/$"), "")
+            val total = (episode.number + 5).coerceAtLeast(12)
+            (1..total).map { num ->
+                EpisodeItem(
+                    id = "$cleanSlug-episode-$num",
+                    number = num,
+                    title = "Episodio $num",
+                    slug = "$cleanSlug/$num"
+                )
+            }
+        }
+    }
+
     // Double tap detection for 30s quick skip
     var lastLeftPressTime by remember { mutableLongStateOf(0L) }
     var lastRightPressTime by remember { mutableLongStateOf(0L) }
@@ -140,6 +174,7 @@ fun PlayerScreen(
     val firstServerFocusRequester = remember { FocusRequester() }
     val nextEpFocusRequester = remember { FocusRequester() }
     val retryFocusRequester = remember { FocusRequester() }
+    val episodesButtonFocusRequester = remember { FocusRequester() }
     val scope = rememberCoroutineScope()
     val audioManager = remember { context.getSystemService(Context.AUDIO_SERVICE) as AudioManager }
 
@@ -337,22 +372,22 @@ fun PlayerScreen(
 
 
 
-    // Initial focus placement on Play/Pause button when controls appear
-    LaunchedEffect(showControls) {
-        if (showControls && !showServerMenu) {
-            delay(100)
+    // Initial focus placement on Play/Pause or Episodes button when controls appear
+    LaunchedEffect(showControls, showServerMenu, showEpisodesMenu) {
+        if (showControls && !showServerMenu && !showEpisodesMenu) {
+            delay(120)
             try {
-                playButtonFocusRequester.requestFocus()
+                episodesButtonFocusRequester.requestFocus()
             } catch (e: Exception) {
-                e.printStackTrace()
+                try {
+                    playButtonFocusRequester.requestFocus()
+                } catch (_: Exception) {}
             }
-        } else if (!showControls && !showServerMenu) {
+        } else if (!showControls && !showServerMenu && !showEpisodesMenu) {
             delay(50)
             try {
                 rootFocusRequester.requestFocus()
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
+            } catch (e: Exception) {}
         }
     }
 
@@ -479,6 +514,7 @@ fun PlayerScreen(
             try {
                 val detailsRes = ApiClient.apiService.getAnimeDetails(animeSlug)
                 if (detailsRes.success && detailsRes.data.episodes.isNotEmpty()) {
+                    episodesList = detailsRes.data.episodes
                     val maxEp = detailsRes.data.episodes.maxOfOrNull { it.number } ?: detailsRes.data.episodes.size
                     hasNextEpisodeAvailable = episode.number < maxEp
                 }
@@ -595,7 +631,13 @@ fun PlayerScreen(
             .onKeyEvent { keyEvent ->
                 if (keyEvent.type == KeyEventType.KeyDown) {
                     lastUserInteractionTime = System.currentTimeMillis()
-                    if (showServerMenu) {
+                    if (showEpisodesMenu) {
+                        if (keyEvent.nativeKeyEvent.keyCode == android.view.KeyEvent.KEYCODE_BACK) {
+                            showEpisodesMenu = false
+                            showControls = true
+                            return@onKeyEvent true
+                        }
+                    } else if (showServerMenu) {
                         if (keyEvent.nativeKeyEvent.keyCode == android.view.KeyEvent.KEYCODE_BACK) {
                             showServerMenu = false
                             return@onKeyEvent true
@@ -855,9 +897,32 @@ fun PlayerScreen(
             }
         }
 
+        // Auto scroll & focus for Episodes side drawer
+        LaunchedEffect(showEpisodesMenu) {
+            if (showEpisodesMenu) {
+                val targetIdx = displayEpisodes.indexOfFirst { it.number == episode.number }.coerceAtLeast(0)
+                try {
+                    episodesListState.scrollToItem(targetIdx)
+                } catch (_: Exception) {}
+                delay(100)
+                try {
+                    episodesFocusRequester.requestFocus()
+                } catch (_: Exception) {}
+            } else {
+                showControls = true
+                lastUserInteractionTime = System.currentTimeMillis()
+                delay(120)
+                try {
+                    episodesButtonFocusRequester.requestFocus()
+                } catch (_: Exception) {
+                    try { playButtonFocusRequester.requestFocus() } catch (_: Exception) {}
+                }
+            }
+        }
+
         // HUD Overlay Controls
         AnimatedVisibility(
-            visible = showControls && !showServerMenu && !showNextEpCountdown,
+            visible = showControls && !showServerMenu && !showNextEpCountdown && !showEpisodesMenu,
             enter = fadeIn(),
             exit = fadeOut()
         ) {
@@ -1276,6 +1341,64 @@ fun PlayerScreen(
                                     }
                                 }
                             }
+
+                            // Episodes List Drawer Button
+                            if (!isMovie) {
+                                Button(
+                                    onClick = {
+                                        showEpisodesMenu = true
+                                    },
+                                    modifier = Modifier
+                                        .size(42.dp)
+                                        .focusRequester(episodesButtonFocusRequester),
+                                    scale = ButtonDefaults.scale(focusedScale = 1.0f),
+                                    colors = ButtonDefaults.colors(
+                                        containerColor = Color.White.copy(alpha = 0.25f),
+                                        contentColor = Color.White,
+                                        focusedContainerColor = Color.White,
+                                        focusedContentColor = Color.Black
+                                    ),
+                                    border = ButtonDefaults.border(
+                                        focusedBorder = Border(
+                                            border = BorderStroke(2.dp, Color.White),
+                                            shape = androidx.compose.foundation.shape.CircleShape
+                                        )
+                                    ),
+                                    shape = ButtonDefaults.shape(shape = androidx.compose.foundation.shape.CircleShape),
+                                    contentPadding = PaddingValues(0.dp)
+                                ) {
+                                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                        Icon(Icons.Default.PlaylistPlay, contentDescription = "Lista de Episodios", modifier = Modifier.size(22.dp))
+                                    }
+                                }
+                            }
+
+                            // Go to Detail Screen Button
+                            if (onGoToDetail != null) {
+                                Button(
+                                    onClick = { onGoToDetail() },
+                                    modifier = Modifier.size(42.dp),
+                                    scale = ButtonDefaults.scale(focusedScale = 1.0f),
+                                    colors = ButtonDefaults.colors(
+                                        containerColor = Color.White.copy(alpha = 0.25f),
+                                        contentColor = Color.White,
+                                        focusedContainerColor = Color.White,
+                                        focusedContentColor = Color.Black
+                                    ),
+                                    border = ButtonDefaults.border(
+                                        focusedBorder = Border(
+                                            border = BorderStroke(2.dp, Color.White),
+                                            shape = androidx.compose.foundation.shape.CircleShape
+                                        )
+                                    ),
+                                    shape = ButtonDefaults.shape(shape = androidx.compose.foundation.shape.CircleShape),
+                                    contentPadding = PaddingValues(0.dp)
+                                ) {
+                                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                        Icon(Icons.Default.Home, contentDescription = "Ver Detalle", modifier = Modifier.size(20.dp))
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -1388,6 +1511,302 @@ fun PlayerScreen(
                             shape = ButtonDefaults.shape(shape = RoundedCornerShape(6.dp))
                         ) {
                             Text("Cerrar", fontFamily = Inter, fontSize = 13.sp)
+                        }
+                    }
+                }
+            }
+        }
+
+        // Side Drawer Modal: Vertical Episodes List Overlay (Netflix TV Style)
+        AnimatedVisibility(
+            visible = showEpisodesMenu,
+            enter = slideInHorizontally(initialOffsetX = { it }) + fadeIn(),
+            exit = slideOutHorizontally(targetOffsetX = { it }) + fadeOut()
+        ) {
+            val targetIdx = remember(displayEpisodes, episode) {
+                displayEpisodes.indexOfFirst { it.number == episode.number }.coerceAtLeast(0)
+            }
+
+            val currentAnimeSlug = anime?.slug?.ifBlank { null } ?: episode.slug
+            val watchHistoryList = remember(showEpisodesMenu) {
+                if (showEpisodesMenu) com.animetv.app.data.repository.WatchHistoryManager.getHistory(context) else emptyList()
+            }
+            val historyMap = remember(watchHistoryList, currentAnimeSlug) {
+                watchHistoryList.filter { it.animeSlug == currentAnimeSlug || it.animeId == currentAnimeSlug }
+                    .associateBy { it.episodeNumber }
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .onKeyEvent { keyEvent ->
+                        if (keyEvent.type == KeyEventType.KeyDown && (keyEvent.nativeKeyEvent.keyCode == android.view.KeyEvent.KEYCODE_BACK || keyEvent.nativeKeyEvent.keyCode == android.view.KeyEvent.KEYCODE_DPAD_LEFT)) {
+                            showEpisodesMenu = false
+                            showControls = true
+                            lastUserInteractionTime = System.currentTimeMillis()
+                            try { episodesButtonFocusRequester.requestFocus() } catch (_: Exception) {}
+                            return@onKeyEvent true
+                        }
+                        false
+                    },
+                contentAlignment = Alignment.CenterEnd
+            ) {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .width(390.dp)
+                        .border(
+                            BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
+                            shape = RoundedCornerShape(topStart = 16.dp, bottomStart = 16.dp)
+                        ),
+                    shape = RoundedCornerShape(topStart = 16.dp, bottomStart = 16.dp),
+                    color = Color(0xFF141414).copy(alpha = 0.96f)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(20.dp)
+                    ) {
+                        // Header: Title & Close Button
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "EPISODIOS (${displayEpisodes.size})",
+                                    color = Color.White,
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    fontFamily = BebasNeue
+                                )
+                                Text(
+                                    text = anime?.title ?: "Seleccionar capítulo",
+                                    color = NetflixLightGrey,
+                                    fontSize = 12.sp,
+                                    fontFamily = Inter,
+                                    maxLines = 1
+                                )
+                            }
+
+                            Button(
+                                onClick = {
+                                    showEpisodesMenu = false
+                                    showControls = true
+                                    lastUserInteractionTime = System.currentTimeMillis()
+                                    try { episodesButtonFocusRequester.requestFocus() } catch (_: Exception) {}
+                                },
+                                modifier = Modifier.size(32.dp),
+                                scale = ButtonDefaults.scale(focusedScale = 1.05f),
+                                colors = ButtonDefaults.colors(
+                                    containerColor = Color.White.copy(alpha = 0.15f),
+                                    contentColor = Color.White,
+                                    focusedContainerColor = Color.White,
+                                    focusedContentColor = Color.Black
+                                ),
+                                shape = ButtonDefaults.shape(shape = androidx.compose.foundation.shape.CircleShape),
+                                contentPadding = PaddingValues(0.dp)
+                            ) {
+                                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                    Icon(Icons.Default.Close, contentDescription = "Cerrar", modifier = Modifier.size(16.dp))
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        // Vertical List of Episodes with Preview Thumbnails & Fixed DPAD Focus
+                        LazyColumn(
+                            state = episodesListState,
+                            verticalArrangement = Arrangement.spacedBy(10.dp),
+                            modifier = Modifier.fillMaxSize()
+                        ) {
+                            itemsIndexed(displayEpisodes) { idx, item ->
+                                val isCurrent = (item.number == episode.number)
+                                var isFocused by remember { mutableStateOf(false) }
+                                val thumbUrl = item.image?.ifBlank { null } ?: anime?.image
+
+                                val epProgressFraction = remember(item.number, episode.number, currentTimeMs, durationMs, historyMap) {
+                                    if (isCurrent && durationMs > 0L) {
+                                        (currentTimeMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f)
+                                    } else {
+                                        val match = historyMap[item.number]
+                                        if (match != null && match.durationMs > 0L) {
+                                            (match.lastPositionMs.toFloat() / match.durationMs.toFloat()).coerceIn(0f, 1f)
+                                        } else null
+                                    }
+                                }
+
+                                Button(
+                                    onClick = {
+                                        showEpisodesMenu = false
+                                        showControls = true
+                                        lastUserInteractionTime = System.currentTimeMillis()
+                                        if (!isCurrent) {
+                                            if (onSelectEpisode != null) {
+                                                onSelectEpisode(item)
+                                            } else {
+                                                onNextEpisode?.invoke()
+                                            }
+                                        }
+                                    },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .then(if (idx == targetIdx) Modifier.focusRequester(episodesFocusRequester) else Modifier)
+                                        .onFocusChanged { isFocused = it.isFocused },
+                                    scale = ButtonDefaults.scale(focusedScale = 1.02f),
+                                    colors = ButtonDefaults.colors(
+                                        containerColor = if (isCurrent) NetflixRed.copy(alpha = 0.28f) else Color.White.copy(alpha = 0.08f),
+                                        contentColor = Color.White,
+                                        focusedContainerColor = Color.White,
+                                        focusedContentColor = Color.Black
+                                    ),
+                                    shape = ButtonDefaults.shape(shape = RoundedCornerShape(10.dp)),
+                                    border = ButtonDefaults.border(
+                                        border = Border(
+                                            border = BorderStroke(
+                                                width = if (isFocused) 2.dp else if (isCurrent) 1.5.dp else 1.dp,
+                                                color = if (isFocused) Color.White else if (isCurrent) NetflixRed else Color.White.copy(alpha = 0.08f)
+                                            ),
+                                            shape = RoundedCornerShape(10.dp)
+                                        )
+                                    ),
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        // Episode 16:9 Preview Thumbnail Image + Red Progress Bar
+                                        Box(
+                                            modifier = Modifier
+                                                .width(96.dp)
+                                                .height(54.dp)
+                                                .clip(RoundedCornerShape(6.dp))
+                                                .background(Color.White.copy(alpha = 0.1f))
+                                        ) {
+                                            if (!thumbUrl.isNullOrEmpty()) {
+                                                AsyncImage(
+                                                    model = ImageRequest.Builder(context)
+                                                        .data(thumbUrl)
+                                                        .crossfade(true)
+                                                        .size(200, 112)
+                                                        .build(),
+                                                    contentDescription = item.title,
+                                                    contentScale = ContentScale.Crop,
+                                                    modifier = Modifier.fillMaxSize()
+                                                )
+                                            } else {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .fillMaxSize()
+                                                        .background(NetflixDarkGrey),
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    Text(
+                                                        text = "EP ${item.number}",
+                                                        fontSize = 11.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = NetflixLightGrey,
+                                                        fontFamily = Inter
+                                                    )
+                                                }
+                                            }
+
+                                            // Netflix Red Progress Bar below thumbnail
+                                            if (epProgressFraction != null && epProgressFraction > 0.02f) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .height(3.5.dp)
+                                                        .align(Alignment.BottomStart)
+                                                        .background(Color.Black.copy(alpha = 0.5f))
+                                                ) {
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .fillMaxHeight()
+                                                            .fillMaxWidth(epProgressFraction)
+                                                            .background(NetflixRed)
+                                                    )
+                                                }
+                                            }
+                                        }
+
+                                        Spacer(modifier = Modifier.width(12.dp))
+
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = if (item.title.startsWith("Episodio", ignoreCase = true)) item.title else "Episodio ${item.number}",
+                                                fontSize = 13.sp,
+                                                fontWeight = if (isFocused || isCurrent) FontWeight.Bold else FontWeight.Medium,
+                                                fontFamily = Inter,
+                                                maxLines = 1,
+                                                color = if (isFocused) Color.Black else Color.White
+                                            )
+                                            if (!item.title.startsWith("Episodio", ignoreCase = true) && item.title.isNotBlank()) {
+                                                Spacer(modifier = Modifier.height(2.dp))
+                                                Text(
+                                                    text = item.title,
+                                                    fontSize = 11.sp,
+                                                    fontFamily = Inter,
+                                                    maxLines = 1,
+                                                    color = if (isFocused) Color(0xFF333333) else NetflixLightGrey
+                                                )
+                                            }
+                                        }
+
+                                        // Live Equalizer Badge for currently playing episode
+                                        if (isCurrent) {
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                modifier = Modifier
+                                                    .clip(RoundedCornerShape(4.dp))
+                                                    .background(NetflixRed)
+                                                    .padding(horizontal = 6.dp, vertical = 3.dp)
+                                            ) {
+                                                val transition = rememberInfiniteTransition(label = "eq")
+                                                val bar1Height by transition.animateFloat(
+                                                    initialValue = 3f, targetValue = 11f,
+                                                    animationSpec = infiniteRepeatable(tween(380, easing = LinearEasing), repeatMode = RepeatMode.Reverse),
+                                                    label = "b1"
+                                                )
+                                                val bar2Height by transition.animateFloat(
+                                                    initialValue = 11f, targetValue = 4f,
+                                                    animationSpec = infiniteRepeatable(tween(290, easing = LinearEasing), repeatMode = RepeatMode.Reverse),
+                                                    label = "b2"
+                                                )
+                                                val bar3Height by transition.animateFloat(
+                                                    initialValue = 5f, targetValue = 12f,
+                                                    animationSpec = infiniteRepeatable(tween(450, easing = LinearEasing), repeatMode = RepeatMode.Reverse),
+                                                    label = "b3"
+                                                )
+
+                                                Row(
+                                                    horizontalArrangement = Arrangement.spacedBy(1.5.dp),
+                                                    verticalAlignment = Alignment.Bottom,
+                                                    modifier = Modifier.height(12.dp)
+                                                ) {
+                                                    Box(Modifier.width(2.dp).height(bar1Height.dp).background(Color.White))
+                                                    Box(Modifier.width(2.dp).height(bar2Height.dp).background(Color.White))
+                                                    Box(Modifier.width(2.dp).height(bar3Height.dp).background(Color.White))
+                                                }
+
+                                                Spacer(modifier = Modifier.width(4.dp))
+
+                                                Text(
+                                                    text = "VIVO",
+                                                    fontSize = 9.sp,
+                                                    fontWeight = FontWeight.Black,
+                                                    color = Color.White,
+                                                    fontFamily = Inter
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }

@@ -1,7 +1,5 @@
 package com.animetv.app.ui.components
 
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
@@ -10,7 +8,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -18,7 +18,6 @@ import androidx.tv.material3.*
 import coil.compose.AsyncImage
 import com.animetv.app.data.model.AnimeItem
 import com.animetv.app.ui.theme.BebasNeue
-import com.animetv.app.ui.theme.NetflixRed
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
@@ -38,13 +37,8 @@ fun TvTop10Card(
             .padding(vertical = 4.dp, horizontal = 2.dp)
             .onFocusChanged { isFocused = it.isFocused },
         shape = CardDefaults.shape(shape = RoundedCornerShape(8.dp)),
-        scale = CardDefaults.scale(focusedScale = 1.05f),
-        border = CardDefaults.border(
-            focusedBorder = Border(
-                border = BorderStroke(2.5.dp, Color.White),
-                shape = RoundedCornerShape(8.dp)
-            )
-        ),
+        scale = CardDefaults.scale(focusedScale = 1.0f),
+        border = CardDefaults.border(focusedBorder = Border.None),
         colors = CardDefaults.colors(containerColor = Color.Transparent)
     ) {
         Box(
@@ -66,10 +60,15 @@ fun TvTop10Card(
                 )
             }
 
-            // LAYER 2 (ON TOP): Giant Rank Number 1..10 (ON TOP so number 10 is 100% visible and not cut off)
+            // LAYER 2 (ON TOP): Giant Rank Number 1..10 (Outlined stroke only, white on focus)
             Text(
                 text = "$rank",
-                color = if (isFocused) NetflixRed else Color.White,
+                color = if (isFocused) Color.White else Color.White.copy(alpha = 0.5f),
+                style = TextStyle(
+                    drawStyle = Stroke(
+                        width = 6f
+                    )
+                ),
                 fontSize = if (rank == 10) 110.sp else 125.sp,
                 fontFamily = BebasNeue,
                 fontWeight = FontWeight.Bold,
@@ -84,3 +83,4 @@ fun TvTop10Card(
         }
     }
 }
+

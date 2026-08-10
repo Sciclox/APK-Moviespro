@@ -1,7 +1,6 @@
 package com.animetv.app.ui.screens
 
 import android.view.KeyEvent
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -120,7 +119,7 @@ fun SearchScreen(
         )
     }
 
-    // Initial Load or Genre Filter Change (JKAnime Directorio Page 1)
+    // Initial Load
     LaunchedEffect(selectedGenreSlug, searchQuery) {
         if (searchQuery.isBlank()) {
             catalogPage = 1
@@ -144,7 +143,7 @@ fun SearchScreen(
         }
     }
 
-    // Infinite Scroll Pagination (Auto-fetch next page as user scrolls down)
+    // Infinite Scroll
     val firstVisibleItemIndex by remember { derivedStateOf { listState.firstVisibleItemIndex } }
     LaunchedEffect(firstVisibleItemIndex, catalogList.size) {
         if (searchQuery.isBlank() && !isLoadingCatalog && hasMorePages && catalogList.isNotEmpty()) {
@@ -177,7 +176,7 @@ fun SearchScreen(
         }
     }
 
-    // Debounced text search
+    // Search
     LaunchedEffect(searchQuery) {
         if (searchQuery.isNotBlank()) {
             isSearching = true
@@ -297,7 +296,7 @@ fun SearchScreen(
 
             Spacer(modifier = Modifier.width(32.dp))
 
-            // RIGHT: Directorio Results / Infinite Scroll Grid
+            // RIGHT: Directorio Results
             LazyColumn(
                 state = listState,
                 modifier = Modifier.weight(1f).fillMaxHeight(),
@@ -318,19 +317,21 @@ fun SearchScreen(
                 }
 
                 if (isSearching || (searchQuery.isBlank() && isLoadingCatalog && catalogList.isEmpty())) {
-                    items(2) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 4.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            repeat(4) {
-                                ShimmerBox(
-                                    width = 140.dp,
-                                    height = 210.dp,
-                                    modifier = Modifier.weight(1f)
-                                )
+                    repeat(2) {
+                        item {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                repeat(4) {
+                                    ShimmerBox(
+                                        width = 140.dp,
+                                        height = 210.dp,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
                             }
                         }
                     }
@@ -385,7 +386,6 @@ fun SearchScreen(
                             }
                         }
 
-                        // Loading Indicator at the bottom of the grid during infinite pagination
                         if (searchQuery.isBlank() && isLoadingCatalog && catalogList.isNotEmpty()) {
                             item {
                                 Box(

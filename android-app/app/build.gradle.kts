@@ -14,10 +14,16 @@ android {
         targetSdk = 34
         versionCode = 2
         versionName = "1.0.1"
+        manifestPlaceholders["usesCleartextTraffic"] = "false"
     }
 
     buildTypes {
+        debug {
+            buildConfigField("String", "BASE_URL", "\"https://apk-animetv-backend.vercel.app/\"")
+            manifestPlaceholders["usesCleartextTraffic"] = "true"
+        }
         release {
+            buildConfigField("String", "BASE_URL", "\"https://apk-animetv-backend.vercel.app/\"")
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
@@ -34,6 +40,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
@@ -56,6 +63,7 @@ dependencies {
 
     // Compose Foundation & UI
     implementation(libs.androidx.lifecycle.viewmodel.compose)
+    implementation(libs.androidx.lifecycle.viewmodel.ktx)
 
     // Media3 / ExoPlayer for Android TV Video Streaming
     implementation(libs.androidx.media3.exoplayer)

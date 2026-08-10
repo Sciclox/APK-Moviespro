@@ -60,7 +60,7 @@ fun CatalogScreen(
         "catalog:${categoria ?: "none"}:${tipo ?: "none"}:${genre ?: "none"}:1"
     }
 
-    // Initial Load with Instant Disk Cache + Network Sync
+    // Initial Load
     LaunchedEffect(categoria, tipo, genre) {
         catalogPage = 1
         hasMorePages = true
@@ -94,7 +94,7 @@ fun CatalogScreen(
         }
     }
 
-    // Proactive Infinite Scroll Pagination (pre-fetches next page early at 8 rows from end)
+    // Infinite Scroll
     val firstVisibleItemIndex by remember { derivedStateOf { listState.firstVisibleItemIndex } }
     LaunchedEffect(firstVisibleItemIndex, catalogList.size) {
         if (!isLoadingCatalog && hasMorePages && catalogList.isNotEmpty()) {

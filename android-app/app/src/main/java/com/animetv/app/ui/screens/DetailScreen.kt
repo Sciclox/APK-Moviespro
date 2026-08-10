@@ -2,13 +2,12 @@ package com.animetv.app.ui.screens
 
 import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.ui.draw.blur
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
@@ -34,8 +33,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.tv.foundation.lazy.list.TvLazyRow
-import androidx.tv.foundation.lazy.list.items
 import androidx.tv.material3.*
 import coil.compose.AsyncImage
 import com.animetv.app.data.api.ApiClient
@@ -138,7 +135,7 @@ fun DetailScreen(
         }
     }
 
-    // Watch history for smart "Continuar" button & episode progress indicators
+    // Watch history
     val watchHistoryList = remember(isScreenActive, anime.id) { WatchHistoryManager.getHistory(context) }
     val currentAnimeHistory = remember(watchHistoryList, anime.id, anime.slug) {
         watchHistoryList.find { it.animeSlug == anime.slug || it.animeId == anime.id }
@@ -159,7 +156,7 @@ fun DetailScreen(
         }
     }
 
-    // Load recommended/similar anime based on genre
+    // Load recommended
     LaunchedEffect(anime.slug, detail?.genres) {
         val firstGenre = detail?.genres?.firstOrNull()
         try {
@@ -173,21 +170,8 @@ fun DetailScreen(
         } catch (_: Exception) {}
     }
 
-    // Silent background pre-fetch for resume/next episode streams so Play button is instant
-    LaunchedEffect(detail?.slug) {
-        if (detail != null) {
-            scope.launch(kotlinx.coroutines.Dispatchers.IO) {
-                try {
-                    val targetEp = currentAnimeHistory?.episodeNumber ?: 1
-                    ApiClient.apiService.getStreamSources(anime.slug, targetEp.toString())
-                } catch (_: Exception) {}
-            }
-        }
-    }
-
-    // Group episodes into batches of 30 for long series
-    val batchSize = 30
     val allEpisodes = if (detail?.episodes.isNullOrEmpty()) fallbackEpisodes else detail!!.episodes
+    val batchSize = 30
     val episodeBatches = remember(allEpisodes) {
         if (allEpisodes.size > batchSize) {
             allEpisodes.chunked(batchSize)
@@ -209,8 +193,6 @@ fun DetailScreen(
                         selectedBatchIndex = batchIdx
                         delay(100)
                     }
-                    listState.animateScrollToItem(5)
-                    delay(100)
                     episodeFocusRequesters[targetEpNum]?.requestFocus()
                 } else {
                     playButtonFocusRequester.requestFocus()
@@ -227,22 +209,6 @@ fun DetailScreen(
         allEpisodes.find { it.number == resumeEpisodeNum }
             ?: allEpisodes.firstOrNull()
             ?: fallbackEpisodes.first()
-    }
-
-    // Silent pre-fetch of stream sources for target resume episode in background
-    LaunchedEffect(resumeEpisode.slug) {
-        if (resumeEpisode.slug.isNotEmpty()) {
-            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                try {
-                    val parts = resumeEpisode.slug.split("/")
-                    val animeSlug = parts.firstOrNull() ?: resumeEpisode.slug
-                    val epNum = if (parts.size > 1) parts[1] else resumeEpisode.number.toString()
-                    com.animetv.app.data.api.ApiClient.apiService.getStreamSources(animeSlug, epNum)
-                } catch (_: Exception) {
-                    // Silent background pre-fetch fail-safe
-                }
-            }
-        }
     }
 
     val loadingOverlayAlpha by animateFloatAsState(
@@ -265,7 +231,6 @@ fun DetailScreen(
             .fillMaxSize()
             .background(NetflixBlack)
     ) {
-        // Hero Backdrop Background (with automatic onError fallback to episode preview still if TMDB fails)
         key(currentBackdropUrl) {
             AsyncImage(
                 model = coil.request.ImageRequest.Builder(LocalContext.current)
@@ -288,14 +253,12 @@ fun DetailScreen(
             )
         }
 
-        // Full screen cinematic dark mask overlay (covers entire background uniformly)
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(NetflixBlack.copy(alpha = 0.78f))
         )
 
-        // Top-to-Bottom gradient (soft fade at bottom into NetflixBlack background)
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -309,7 +272,6 @@ fun DetailScreen(
                 )
         )
 
-        // Scrim Overlay when loading
         if (loadingOverlayAlpha > 0f) {
             Box(
                 modifier = Modifier
@@ -324,11 +286,9 @@ fun DetailScreen(
             contentPadding = PaddingValues(start = 72.dp, top = 36.dp, end = 48.dp, bottom = 48.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            // Item 1: ATRÁS Navigation Button (Row 1)
             item {
                 Button(
                     onClick = {
-                        scope.launch { listState.scrollToItem(0) }
                         onBack()
                     },
                     modifier = Modifier
@@ -337,14 +297,7 @@ fun DetailScreen(
                             up = FocusRequester.Cancel
                             left = FocusRequester.Cancel
                             right = FocusRequester.Cancel
-                        }
-                    .onFocusChanged { focusState ->
-                        if (focusState.isFocused) {
-                            scope.launch {
-                                listState.scrollToItem(0, 0)
-                            }
-                        }
-                    },
+                        },
                     scale = ButtonDefaults.scale(focusedScale = 1.0f),
                     colors = ButtonDefaults.colors(
                         containerColor = Color.White.copy(alpha = 0.25f),
@@ -372,7 +325,7 @@ fun DetailScreen(
                             modifier = Modifier.size(24.dp)
                         )
                         Text(
-                            text = "ATRÁS",
+                            text = "Atrás",
                             fontFamily = Inter,
                             fontWeight = FontWeight.Bold,
                             fontSize = 15.sp
@@ -382,14 +335,12 @@ fun DetailScreen(
             }
 
             if (isLoading) {
-                // Item 2: Title, Badges, Genres, and Synopsis Skeleton
+                // Skeleton 1: Title + Badges + Genres
                 item {
-                    Column(
-                        modifier = Modifier
-                            .padding(top = 20.dp)
-                            .width(550.dp)
-                    ) {
-                        ShimmerBox(width = 340.dp, height = 42.dp)
+                    Column(modifier = Modifier.padding(top = 10.dp).width(550.dp)) {
+                        ShimmerBox(width = 110.dp, height = 18.dp)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        ShimmerBox(width = 380.dp, height = 44.dp)
                         Spacer(modifier = Modifier.height(14.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             ShimmerBox(width = 80.dp, height = 22.dp)
@@ -398,52 +349,68 @@ fun DetailScreen(
                         }
                         Spacer(modifier = Modifier.height(12.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            ShimmerBox(width = 75.dp, height = 24.dp)
-                            ShimmerBox(width = 85.dp, height = 24.dp)
-                            ShimmerBox(width = 65.dp, height = 24.dp)
-                        }
-                        Spacer(modifier = Modifier.height(16.dp))
-                        ShimmerBox(width = 520.dp, height = 75.dp)
-                    }
-                }
-
-                // Item 3: Action Buttons Skeleton
-                item {
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                        ShimmerBox(width = 185.dp, height = 44.dp)
-                        ShimmerBox(width = 135.dp, height = 44.dp)
-                    }
-                }
-
-                // Item 4: Episodes Section Skeleton
-                item {
-                    Spacer(modifier = Modifier.height(24.dp))
-                    ShimmerBox(width = 120.dp, height = 26.dp)
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                        repeat(5) {
-                            ShimmerBox(width = 220.dp, height = 135.dp)
+                            ShimmerBox(width = 70.dp, height = 26.dp)
+                            ShimmerBox(width = 85.dp, height = 26.dp)
+                            ShimmerBox(width = 65.dp, height = 26.dp)
                         }
                     }
                 }
 
-                // Item 5: Similar Anime Section Skeleton
+                // Skeleton 2: Synopsis Lines
                 item {
-                    Spacer(modifier = Modifier.height(24.dp))
-                    ShimmerBox(width = 160.dp, height = 26.dp)
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Column(modifier = Modifier.fillMaxWidth(0.7f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        ShimmerBox(width = 520.dp, height = 16.dp)
+                        ShimmerBox(width = 460.dp, height = 16.dp)
+                        ShimmerBox(width = 320.dp, height = 16.dp)
+                    }
+                }
+
+                // Skeleton 3: Action Buttons (Play + My List)
+                item {
                     Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                        repeat(6) {
-                            ShimmerBox(width = 170.dp, height = 240.dp)
+                        ShimmerBox(width = 180.dp, height = 44.dp)
+                        ShimmerBox(width = 140.dp, height = 44.dp)
+                    }
+                }
+
+                // Skeleton 4: Episodes Header + Episodes Row
+                item {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    ShimmerBox(width = 130.dp, height = 28.dp)
+                }
+
+                item {
+                    LazyRow(
+                        modifier = Modifier.fillMaxWidth().height(185.dp),
+                        horizontalArrangement = Arrangement.spacedBy(14.dp),
+                        contentPadding = PaddingValues(top = 12.dp, bottom = 20.dp, end = 24.dp)
+                    ) {
+                        items(count = 5) {
+                            ShimmerBox(width = 230.dp, height = 150.dp)
+                        }
+                    }
+                }
+
+                // Skeleton 5: Recommended Header + Recommended Row
+                item {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    ShimmerBox(width = 180.dp, height = 28.dp)
+                }
+
+                item {
+                    LazyRow(
+                        modifier = Modifier.fillMaxWidth().height(280.dp),
+                        horizontalArrangement = Arrangement.spacedBy(14.dp),
+                        contentPadding = PaddingValues(top = 8.dp, bottom = 16.dp, end = 24.dp)
+                    ) {
+                        items(count = 5) {
+                            ShimmerBox(width = 170.dp, height = 250.dp)
                         }
                     }
                 }
             } else {
-                // Item 2: Title + Metadata
                 item {
                     Column {
-                        // Limotion Badge
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -466,7 +433,6 @@ fun DetailScreen(
 
                         Spacer(modifier = Modifier.height(4.dp))
 
-                        // Title
                         Text(
                             text = cleanTitleText,
                             color = Color.White,
@@ -478,18 +444,12 @@ fun DetailScreen(
 
                         Spacer(modifier = Modifier.height(14.dp))
 
-                        // Badges Row
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(10.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            val currentDetail = detail
-                            val score = currentDetail?.score
-                            val scoreText = if (score != null && score > 0) {
-                                "★ ${String.format("%.1f", score)}"
-                            } else {
-                                "98% Coincidencia"
-                            }
+                            val score = detail?.score
+                            val scoreText = if (score != null && score > 0) "★ ${String.format("%.1f", score)}" else "98% Coincidencia"
                             Text(scoreText, color = Color(0xFF46D369), fontSize = 13.sp, fontWeight = FontWeight.Bold, fontFamily = Inter)
                             Text("${detail?.year ?: 2024}", color = NetflixLightGrey, fontSize = 13.sp, fontWeight = FontWeight.Medium, fontFamily = Inter)
 
@@ -509,20 +469,10 @@ fun DetailScreen(
                                     fontFamily = Inter
                                 )
                             }
-
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(3.dp))
-                                    .background(NetflixRed)
-                                    .padding(horizontal = 8.dp, vertical = 2.dp)
-                            ) {
-                                Text("FULL HD", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Black, fontFamily = Inter)
-                            }
                         }
 
                         Spacer(modifier = Modifier.height(12.dp))
 
-                        // Genre chips
                         val genres = detail?.genres ?: listOf("Acción", "Aventura", "Fantasía")
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             genres.forEach { genre ->
@@ -539,7 +489,6 @@ fun DetailScreen(
                     }
                 }
 
-                // Item 3: Synopsis
                 item {
                     Text(
                         text = cleanSynopsisText,
@@ -552,30 +501,22 @@ fun DetailScreen(
                     )
                 }
 
-                // Item 4: Action Buttons Row
                 item {
                     Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                         val playButtonText = when {
-                            isMovie -> "REPRODUCIR PELÍCULA"
-                            currentAnimeHistory != null -> "CONTINUAR EP. $resumeEpisodeNum"
-                            else -> "REPRODUCIR EP. 1"
+                            isMovie -> "Reproducir película"
+                            currentAnimeHistory != null -> "Continuar Ep. $resumeEpisodeNum"
+                            else -> "Reproducir Ep. 1"
                         }
 
-                        // REPRODUCIR / CONTINUAR Button
                         Button(
                             onClick = {
-                                com.animetv.app.ui.screens.PlaybackTelemetryTracker.recordT0()
                                 onPlayEpisode(resumeEpisode)
                             },
                             modifier = Modifier
                                 .focusRequester(playButtonFocusRequester)
                                 .focusProperties {
                                     left = FocusRequester.Cancel
-                                }
-                                .onFocusChanged { focusState ->
-                                    if (focusState.isFocused) {
-                                        scope.launch { listState.animateScrollToItem(1) }
-                                    }
                                 },
                             scale = ButtonDefaults.scale(focusedScale = 1.0f),
                             colors = ButtonDefaults.colors(
@@ -612,7 +553,6 @@ fun DetailScreen(
                             }
                         }
 
-                        // + MI LISTA / ✓ EN MI LISTA Button
                         Button(
                             onClick = {
                                 isInMyList = MyListManager.toggleAnime(context, anime)
@@ -648,7 +588,7 @@ fun DetailScreen(
                                     modifier = Modifier.size(22.dp)
                                 )
                                 Text(
-                                    text = if (isInMyList) "EN MI LISTA" else "MI LISTA",
+                                    text = if (isInMyList) "En mi lista" else "Mi lista",
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 14.sp,
                                     fontFamily = Inter
@@ -658,10 +598,8 @@ fun DetailScreen(
                     }
                 }
 
-                // Item 5: Episodios / Película Header
                 item {
                     Spacer(modifier = Modifier.height(8.dp))
-
                     Text(
                         text = if (isMovie) "Película" else "Episodios",
                         color = Color.White,
@@ -671,29 +609,21 @@ fun DetailScreen(
                     )
                 }
 
-                // Item 5b: Episode Batch Selector
                 if (episodeBatches.isNotEmpty() && !isMovie) {
                     item {
-                        TvLazyRow(
+                        LazyRow(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             contentPadding = PaddingValues(bottom = 4.dp)
                         ) {
-                            items(count = episodeBatches.size, key = { idx -> episodeBatches[idx].first().id }) { idx ->
+                            items(count = episodeBatches.size) { idx ->
                                 val batch = episodeBatches[idx]
                                 val startEp = batch.first().number
                                 val endEp = batch.last().number
                                 val isSelected = selectedBatchIndex == idx
-                                val isFirst = idx == 0
-                                val isLast = idx == episodeBatches.lastIndex
 
                                 Button(
                                     onClick = { selectedBatchIndex = idx },
-                                    modifier = Modifier
-                                        .height(32.dp)
-                                        .focusProperties {
-                                            if (isFirst) left = FocusRequester.Cancel
-                                            if (isLast) right = FocusRequester.Cancel
-                                        },
+                                    modifier = Modifier.height(32.dp),
                                     scale = ButtonDefaults.scale(focusedScale = 1.0f),
                                     colors = ButtonDefaults.colors(
                                         containerColor = if (isSelected) NetflixRed else Color.White.copy(alpha = 0.15f),
@@ -716,34 +646,17 @@ fun DetailScreen(
                     }
                 }
 
-                // Item 6: Horizontal Episode List
                 item {
-                    val displayEpisodes = if (isMovie) {
-                        allEpisodes.take(1)
-                    } else if (episodeBatches.isNotEmpty()) {
-                        episodeBatches.getOrNull(selectedBatchIndex) ?: allEpisodes
-                    } else {
-                        allEpisodes
-                    }
-
-                    TvLazyRow(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(185.dp),
+                    val displayEpisodes = if (isMovie) allEpisodes.take(1) else (episodeBatches.getOrNull(selectedBatchIndex) ?: allEpisodes)
+                    LazyRow(
+                        modifier = Modifier.fillMaxWidth().height(185.dp),
                         horizontalArrangement = Arrangement.spacedBy(14.dp),
                         contentPadding = PaddingValues(top = 12.dp, bottom = 20.dp, end = 24.dp)
                     ) {
-                        items(count = displayEpisodes.size, key = { idx -> displayEpisodes[idx].id }) { idx ->
+                        items(count = displayEpisodes.size) { idx ->
                             val ep = displayEpisodes[idx]
-                            val epHistory = watchHistoryList.find {
-                                (it.animeSlug == anime.slug || it.animeId == anime.id) && it.episodeNumber == ep.number
-                            }
-                            val progressFraction = if (epHistory != null && epHistory.durationMs > 0) {
-                                (epHistory.lastPositionMs.toFloat() / epHistory.durationMs.toFloat())
-                            } else null
-                            val isFirst = idx == 0
-                            val isLast = idx == displayEpisodes.lastIndex
-
+                            val epHistory = watchHistoryList.find { (it.animeSlug == anime.slug || it.animeId == anime.id) && it.episodeNumber == ep.number }
+                            val progressFraction = if (epHistory != null && epHistory.durationMs > 0) (epHistory.lastPositionMs.toFloat() / epHistory.durationMs.toFloat()) else null
                             val epRequester = episodeFocusRequesters.getOrPut(ep.number) { FocusRequester() }
 
                             TvEpisodeCard(
@@ -755,129 +668,31 @@ fun DetailScreen(
                                 progressFraction = progressFraction,
                                 modifier = Modifier
                                     .focusRequester(epRequester)
-                                    .focusProperties {
-                                        if (isFirst) left = FocusRequester.Cancel
-                                        if (isLast) right = FocusRequester.Cancel
-                                    }
                                     .onFocusChanged { focusState ->
-                                        if (focusState.isFocused) {
-                                            lastPlayedEpNum = ep.number
-                                        }
+                                        if (focusState.isFocused) { lastPlayedEpNum = ep.number }
                                     }
                             )
                         }
                     }
                 }
 
-                // Item 7: Temporadas y Relacionados Section
-                val relatedItems = detail?.relatedAnime
-                val hasRelated = !relatedItems.isNullOrEmpty()
-                val relatedDisplayList = if (hasRelated) {
-                    relatedItems!!.map { rel ->
-                        com.animetv.app.data.model.AnimeItem(
-                            id = rel.id,
-                            title = rel.title,
-                            slug = rel.slug,
-                            image = rel.image ?: "https://cdn.jkdesa.com/assets/images/animes/image/${rel.slug}.jpg",
-                            type = rel.type,
-                            status = rel.relation
-                        )
-                    }
-                } else {
-                    emptyList()
-                }
-
-                if (relatedDisplayList.isNotEmpty()) {
+                if (recommendedList.isNotEmpty()) {
                     item {
                         Spacer(modifier = Modifier.height(12.dp))
-                        Text(
-                            text = "Temporadas y Relacionados",
-                            color = Color.White,
-                            fontSize = 22.sp,
-                            fontWeight = FontWeight.Bold,
-                            fontFamily = BebasNeue
-                        )
+                        Text(text = "Te Recomendamos", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold, fontFamily = BebasNeue)
                     }
-
                     item {
-                        TvLazyRow(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(280.dp),
+                        LazyRow(
+                            modifier = Modifier.fillMaxWidth().height(280.dp),
                             horizontalArrangement = Arrangement.spacedBy(14.dp),
                             contentPadding = PaddingValues(top = 8.dp, bottom = 16.dp, end = 24.dp)
                         ) {
-                            items(count = relatedDisplayList.size, key = { idx -> "rel-${relatedDisplayList[idx].id}" }) { idx ->
-                                val recAnime = relatedDisplayList[idx]
-                                val isFirst = idx == 0
-                                val isLast = idx == relatedDisplayList.lastIndex
-
+                            items(count = recommendedList.size) { idx ->
+                                val recAnime = recommendedList[idx]
                                 com.animetv.app.ui.components.TvAnimeCard(
                                     anime = recAnime,
                                     onClick = { onAnimeSelect?.invoke(recAnime) },
-                                    modifier = Modifier
-                                        .width(170.dp)
-                                        .focusProperties {
-                                            if (isFirst) left = FocusRequester.Cancel
-                                            if (isLast) right = FocusRequester.Cancel
-                                        }
-                                )
-                            }
-                        }
-                    }
-                }
-
-                // Item 8: Te Recomendamos Section
-                val recommendedItems = detail?.recommendedAnime
-                val hasRecommended = !recommendedItems.isNullOrEmpty()
-                val recommendedDisplayList = if (hasRecommended) {
-                    recommendedItems!!.map { rec ->
-                        com.animetv.app.data.model.AnimeItem(
-                            id = rec.id,
-                            title = rec.title,
-                            slug = rec.slug,
-                            image = rec.image ?: "https://cdn.jkdesa.com/assets/images/animes/image/${rec.slug}.jpg",
-                            type = rec.type
-                        )
-                    }
-                } else {
-                    recommendedList
-                }
-
-                if (recommendedDisplayList.isNotEmpty()) {
-                    item {
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Text(
-                            text = "Te Recomendamos",
-                            color = Color.White,
-                            fontSize = 22.sp,
-                            fontWeight = FontWeight.Bold,
-                            fontFamily = BebasNeue
-                        )
-                    }
-
-                    item {
-                        TvLazyRow(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(280.dp),
-                            horizontalArrangement = Arrangement.spacedBy(14.dp),
-                            contentPadding = PaddingValues(top = 8.dp, bottom = 16.dp, end = 24.dp)
-                        ) {
-                            items(count = recommendedDisplayList.size, key = { idx -> "rec-${recommendedDisplayList[idx].id}" }) { idx ->
-                                val recAnime = recommendedDisplayList[idx]
-                                val isFirst = idx == 0
-                                val isLast = idx == recommendedDisplayList.lastIndex
-
-                                com.animetv.app.ui.components.TvAnimeCard(
-                                    anime = recAnime,
-                                    onClick = { onAnimeSelect?.invoke(recAnime) },
-                                    modifier = Modifier
-                                        .width(170.dp)
-                                        .focusProperties {
-                                            if (isFirst) left = FocusRequester.Cancel
-                                            if (isLast) right = FocusRequester.Cancel
-                                        }
+                                    modifier = Modifier.width(170.dp)
                                 )
                             }
                         }
