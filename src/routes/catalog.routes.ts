@@ -3,6 +3,11 @@ import { ScraperService } from '../services/scraper.service';
 
 const router = Router();
 
+function setEdgeCacheHeaders(res: Response, maxAgeSec: number = 300, sMaxAgeSec: number = 3600) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Cache-Control', `public, max-age=${maxAgeSec}, s-maxage=${sMaxAgeSec}, stale-while-revalidate=86400`);
+}
+
 /**
  * @route GET /api/v1/anime/hero
  * @desc Get featured anime banners for TV home screen
@@ -11,7 +16,7 @@ router.get('/hero', async (req: Request, res: Response) => {
   try {
     const tipo = req.query.tipo as string;
     const banners = await ScraperService.getHeroBanners(tipo);
-    res.setHeader('Cache-Control', 'public, max-age=300');
+    setEdgeCacheHeaders(res, 300, 3600);
     res.json({ success: true, data: banners });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
@@ -25,7 +30,7 @@ router.get('/hero', async (req: Request, res: Response) => {
 router.get('/latest', async (_req: Request, res: Response) => {
   try {
     const results = await ScraperService.getLatest();
-    res.setHeader('Cache-Control', 'public, max-age=300');
+    setEdgeCacheHeaders(res, 300, 3600);
     res.json({ success: true, data: results });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
@@ -39,7 +44,7 @@ router.get('/latest', async (_req: Request, res: Response) => {
 router.get('/latest-episodes', async (_req: Request, res: Response) => {
   try {
     const results = await ScraperService.getLatestEpisodes();
-    res.setHeader('Cache-Control', 'public, max-age=300');
+    setEdgeCacheHeaders(res, 120, 1800);
     res.json({ success: true, data: results });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
@@ -57,7 +62,7 @@ router.get('/search', async (req: Request, res: Response) => {
       return res.status(400).json({ success: false, error: 'Query parameter "q" is required' });
     }
     const results = await ScraperService.searchAnime(query);
-    res.setHeader('Cache-Control', 'public, max-age=600');
+    setEdgeCacheHeaders(res, 600, 3600);
     res.json({ success: true, data: results });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
@@ -81,7 +86,7 @@ router.get('/catalog', async (req: Request, res: Response) => {
       return res.status(400).json({ success: false, error: 'Page must be an integer between 1 and 100' });
     }
     const results = await ScraperService.getCatalog({ genre, categoria, tipo, estado, demografia, filtro, page });
-    res.setHeader('Cache-Control', 'public, max-age=300');
+    setEdgeCacheHeaders(res, 300, 3600);
     res.json({ success: true, data: results });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
@@ -99,7 +104,7 @@ router.get('/hub/:category', async (req: Request, res: Response) => {
       return res.status(400).json({ success: false, error: 'Categoría no válida' });
     }
     const hub = await ScraperService.getCategoryHub(category);
-    res.setHeader('Cache-Control', 'public, max-age=300');
+    setEdgeCacheHeaders(res, 300, 3600);
     res.json({ success: true, data: hub });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
@@ -114,7 +119,7 @@ router.get('/details/:slug', async (req: Request, res: Response) => {
   try {
     const slug = req.params.slug as string;
     const details = await ScraperService.getAnimeDetails(slug);
-    res.setHeader('Cache-Control', 'public, max-age=600');
+    setEdgeCacheHeaders(res, 600, 7200);
     res.json({ success: true, data: details });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
