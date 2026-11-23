@@ -32,13 +32,14 @@ fun PaginatedGenreRow(
     title: String,
     genreKey: String? = null,
     tipoKey: String? = null,
+    categoriaKey: String? = null,
     initialItems: List<AnimeItem>,
     isScreenActive: Boolean,
     lastSelectedAnime: AnimeItem?,
-    rowIndex: Int,
+    rowIndex: Int = 0,
     onAnimeSelect: (AnimeItem) -> Unit,
     onFocusItem: (FocusRequester) -> Unit,
-    onFocusedRowChanged: (Int) -> Unit
+    onFocusedRowChanged: ((Int) -> Unit)? = null
 ) {
     val rowListState = rememberLazyListState()
     val scope = rememberCoroutineScope()
@@ -48,19 +49,15 @@ fun PaginatedGenreRow(
     var canLoadMore by remember { mutableStateOf(true) }
 
     fun loadNextPage() {
-        if (!isLoadingMore && canLoadMore && (genreKey != null || tipoKey != null)) {
+        if (!isLoadingMore && canLoadMore) {
             isLoadingMore = true
             scope.launch(Dispatchers.IO) {
                 try {
                     val nextPage = currentPage + 1
-                    val res = ApiClient.apiService.getCatalog(
-                        genre = genreKey,
-                        tipo = tipoKey,
-                        page = nextPage
-                    )
-                    if (res.success && res.data.isNotEmpty()) {
+                    val result = com.animetv.app.data.repository.AnimeRepository.getMoviesPage(nextPage)
+                    if (result is com.animetv.app.data.repository.RepositoryResult.Success && result.value.isNotEmpty()) {
                         val existingIds = itemsList.map { it.id }.toSet()
-                        val newItems = res.data.filter { newItem -> !existingIds.contains(newItem.id) }
+                        val newItems = result.value.filter { newItem -> !existingIds.contains(newItem.id) }
                         if (newItems.isNotEmpty()) {
                             currentPage = nextPage
                             withContext(Dispatchers.Main) {
@@ -73,6 +70,7 @@ fun PaginatedGenreRow(
                         canLoadMore = false
                     }
                 } catch (_: Exception) {
+                    canLoadMore = false
                 } finally {
                     isLoadingMore = false
                 }
@@ -129,7 +127,7 @@ fun PaginatedGenreRow(
                         .onFocusChanged {
                             if (it.isFocused) {
                                 onFocusItem(cardFocusRequester)
-                                onFocusedRowChanged(rowIndex)
+                                onFocusedRowChanged?.invoke(rowIndex)
                                 if (idx >= itemsList.size - 6) {
                                     loadNextPage()
                                 }

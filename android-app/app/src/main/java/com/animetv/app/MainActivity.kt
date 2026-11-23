@@ -20,6 +20,26 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
+            android.util.Log.e("AnimeTVCrash", "EXCEPTION in thread ${thread.name}: ${throwable.message}", throwable)
+            try {
+                val file = java.io.File(filesDir, "crash_log.txt")
+                file.writeText("Crash: ${throwable.stackTraceToString()}")
+            } catch (_: Exception) {}
+
+            val isNonFatal = throwable is android.content.ActivityNotFoundException ||
+                    throwable is NullPointerException ||
+                    throwable is IllegalStateException ||
+                    throwable.message?.contains("ActivityNotFoundException") == true ||
+                    throwable.message?.contains("WebView") == true ||
+                    throwable.message?.contains("media3") == true
+
+            if (!isNonFatal) {
+                defaultHandler?.uncaughtException(thread, throwable)
+            }
+        }
+
         installSplashScreen()
         super.onCreate(savedInstanceState)
         currentActivityIntent = intent

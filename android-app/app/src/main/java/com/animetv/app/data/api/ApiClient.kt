@@ -42,7 +42,9 @@ object ApiClient {
 
         val urlStr = originalRequest.url.toString()
         if (originalRequest.header("Referer") == null) {
-            if (urlStr.contains("yourupload")) {
+            if (urlStr.contains("moviedays") || urlStr.contains("11231data") || urlStr.contains("vimeos")) {
+                builder.header("Referer", "https://moviedays.top/")
+            } else if (urlStr.contains("yourupload")) {
                 builder.header("Referer", "https://www.yourupload.com/")
             } else if (urlStr.contains("mp4upload")) {
                 builder.header("Referer", "https://www.mp4upload.com/")
@@ -50,8 +52,8 @@ object ApiClient {
                 builder.header("Referer", "https://filemoon.sx/")
             } else if (urlStr.contains("ok.ru")) {
                 builder.header("Referer", "https://ok.ru/")
-            } else {
-                builder.header("Referer", "https://jkanime.net/")
+            } else if (urlStr.contains("zonaaps.com") || urlStr.contains("xzod.cloud") || urlStr.contains("workers.dev")) {
+                builder.header("Referer", "https://zonaaps.com/")
             }
         }
 

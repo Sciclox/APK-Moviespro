@@ -18,6 +18,7 @@ import androidx.tv.material3.*
 import coil.compose.AsyncImage
 import com.animetv.app.data.model.AnimeItem
 import com.animetv.app.ui.theme.BebasNeue
+import com.animetv.app.ui.theme.NetflixRed
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
@@ -60,10 +61,10 @@ fun TvTop10Card(
                 )
             }
 
-            // LAYER 2 (ON TOP): Giant Rank Number 1..10 (Outlined stroke only, white on focus)
+            // LAYER 2 (ON TOP): Giant Rank Number 1..10 (Outlined stroke, NetflixRed on focus)
             Text(
                 text = "$rank",
-                color = if (isFocused) Color.White else Color.White.copy(alpha = 0.5f),
+                color = if (isFocused) NetflixRed else Color.White.copy(alpha = 0.5f),
                 style = TextStyle(
                     drawStyle = Stroke(
                         width = 6f

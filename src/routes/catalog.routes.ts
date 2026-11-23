@@ -100,7 +100,7 @@ router.get('/catalog', async (req: Request, res: Response) => {
 router.get('/hub/:category', async (req: Request, res: Response) => {
   try {
     const category = req.params.category as string;
-    if (!['latino', 'peliculas', 'donghua'].includes(category.toLowerCase())) {
+    if (!['latino', 'peliculas', 'donghua', 'kdramas', 'k-dramas', 'series'].includes(category.toLowerCase())) {
       return res.status(400).json({ success: false, error: 'Categoría no válida' });
     }
     const hub = await ScraperService.getCategoryHub(category);

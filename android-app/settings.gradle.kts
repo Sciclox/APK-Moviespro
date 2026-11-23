@@ -16,5 +16,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "APK-AnimeTV"
+rootProject.name = "APK-Livmotion"
 include(":app")

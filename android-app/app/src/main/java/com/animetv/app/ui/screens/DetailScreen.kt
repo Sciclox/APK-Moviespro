@@ -52,6 +52,10 @@ import com.animetv.app.ui.theme.NetflixRed
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+import androidx.tv.foundation.PivotOffsets
+import androidx.tv.foundation.lazy.list.TvLazyColumn
+import androidx.tv.foundation.lazy.list.rememberTvLazyListState
+
 @OptIn(ExperimentalTvMaterial3Api::class, androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
 fun DetailScreen(
@@ -71,7 +75,7 @@ fun DetailScreen(
     val episodeFocusRequesters = remember { mutableStateMapOf<Int, FocusRequester>() }
 
     val scope = rememberCoroutineScope()
-    val listState = rememberLazyListState()
+    val listState = rememberTvLazyListState()
 
     // Focus Requesters
     val backButtonFocusRequester = remember { FocusRequester() }
@@ -79,7 +83,8 @@ fun DetailScreen(
 
     val isMovie = remember(detail, anime) {
         val rawType = (detail?.type ?: anime.type ?: "TV").uppercase()
-        rawType.contains("MOVIE") || rawType.contains("PELICULA") || rawType.contains("PELÍCULA")
+        val isSerieType = rawType.contains("SERIE") || rawType.contains("SHOW") || anime.slug.contains("/tvshows/")
+        (rawType.contains("MOVIE") || rawType.contains("PELICULA") || rawType.contains("PELÍCULA")) && !isSerieType
     }
 
     val cleanTitleText = remember(detail, anime) {
@@ -107,7 +112,19 @@ fun DetailScreen(
     }
 
     val fallbackEpisodes = remember(anime, isMovie) {
-        if (isMovie) {
+        if (anime.type == "tv_live" || anime.slug.endsWith(".m3u8") || anime.slug.contains(".m3u8?")) {
+            listOf(
+                EpisodeItem(
+                    id = "${anime.id}-live",
+                    number = 1,
+                    title = "Transmisión en Vivo",
+                    image = anime.backdrop ?: anime.image,
+                    duration = "En Vivo",
+                    overview = anime.synopsis ?: "Transmisión en directo las 24 horas de ${anime.title}.",
+                    slug = anime.slug
+                )
+            )
+        } else if (isMovie) {
             listOf(
                 EpisodeItem(
                     id = "${anime.id}-movie",
@@ -116,20 +133,29 @@ fun DetailScreen(
                     image = anime.backdrop ?: anime.image,
                     duration = "1 h 45 min",
                     overview = "Disfruta de la película completa de ${anime.title} en calidad Full HD.",
-                    slug = "${anime.slug}/1"
+                    slug = anime.slug
                 )
             )
         } else {
-            List(12) { i ->
+            val seriesSlugName = if (anime.slug.contains("/tvshows/")) {
+                anime.slug.substringAfter("/tvshows/").trim('/')
+            } else if (anime.slug.contains("/serie/")) {
+                anime.slug.substringAfter("/serie/").trim('/')
+            } else {
+                anime.slug.trim('/')
+            }
+            val isTudorama = anime.slug.contains("tudorama.com")
+            List(24) { i ->
                 val epNum = i + 1
+                val epLink = if (isTudorama) "https://tudorama.com/ver/$seriesSlugName-s1x$epNum/" else "https://zonaaps.com/episodes/$seriesSlugName-1x$epNum/"
                 EpisodeItem(
                     id = "${anime.id}-ep-$epNum",
                     number = epNum,
                     title = "Episodio $epNum",
                     image = anime.backdrop ?: anime.image,
-                    duration = "24 min",
-                    overview = "Capítulo $epNum de la serie animada ${anime.title}.",
-                    slug = "${anime.slug}/$epNum"
+                    duration = if (isTudorama) "45 min" else "24 min",
+                    overview = "Capítulo $epNum de la serie ${anime.title}.",
+                    slug = epLink
                 )
             }
         }
@@ -144,9 +170,9 @@ fun DetailScreen(
     LaunchedEffect(anime.slug) {
         scope.launch {
             try {
-                val res = ApiClient.apiService.getAnimeDetails(anime.slug)
-                if (res.success) {
-                    detail = res.data
+                val res = com.animetv.app.data.repository.AnimeRepository.getMovieDetails(anime.slug)
+                if (res is com.animetv.app.data.repository.RepositoryResult.Success) {
+                    detail = res.value
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -158,19 +184,20 @@ fun DetailScreen(
 
     // Load recommended
     LaunchedEffect(anime.slug, detail?.genres) {
-        val firstGenre = detail?.genres?.firstOrNull()
         try {
-            val res = ApiClient.apiService.getCatalog(
-                genre = firstGenre?.lowercase()?.replace(" ", "-"),
-                page = 1
-            )
-            if (res.success && res.data.isNotEmpty()) {
-                recommendedList = res.data.filter { it.id != anime.id && it.slug != anime.slug }.take(10)
+            val allCached = com.animetv.app.data.repository.AnimeRepository.getAllCachedMovies()
+            if (allCached.isNotEmpty()) {
+                recommendedList = allCached.filter { it.id != anime.id && it.slug != anime.slug }.take(10)
+            } else {
+                val pageRes = com.animetv.app.data.repository.AnimeRepository.getMoviesPage(1)
+                if (pageRes is com.animetv.app.data.repository.RepositoryResult.Success) {
+                    recommendedList = pageRes.value.filter { it.id != anime.id && it.slug != anime.slug }.take(10)
+                }
             }
         } catch (_: Exception) {}
     }
 
-    val allEpisodes = if (detail?.episodes.isNullOrEmpty()) fallbackEpisodes else detail!!.episodes
+    val allEpisodes = detail?.episodes?.ifEmpty { fallbackEpisodes } ?: fallbackEpisodes
     val batchSize = 30
     val episodeBatches = remember(allEpisodes) {
         if (allEpisodes.size > batchSize) {
@@ -280,8 +307,9 @@ fun DetailScreen(
             )
         }
 
-        LazyColumn(
+        TvLazyColumn(
             state = listState,
+            pivotOffsets = PivotOffsets(parentFraction = 0.24f),
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(start = 72.dp, top = 36.dp, end = 48.dp, bottom = 48.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)

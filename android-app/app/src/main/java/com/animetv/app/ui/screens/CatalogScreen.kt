@@ -75,16 +75,11 @@ fun CatalogScreen(
         }
 
         try {
-            val res = ApiClient.apiService.getCatalog(
-                genre = genre,
-                categoria = categoria,
-                tipo = tipo,
-                page = 1
-            )
-            if (res.success && res.data.isNotEmpty()) {
+            val res = com.animetv.app.data.repository.AnimeRepository.getMoviesPage(page = 1)
+            if (res is com.animetv.app.data.repository.RepositoryResult.Success && res.value.isNotEmpty()) {
                 catalogList.clear()
-                catalogList.addAll(res.data)
-                CatalogCacheManager.put(context, cacheKey, res.data)
+                catalogList.addAll(res.value)
+                CatalogCacheManager.put(context, cacheKey, res.value)
             } else if (cachedData.isNullOrEmpty()) {
                 hasMorePages = false
             }
@@ -104,15 +99,10 @@ fun CatalogScreen(
                 val nextPage = catalogPage + 1
                 scope.launch(kotlinx.coroutines.Dispatchers.IO) {
                     try {
-                        val res = ApiClient.apiService.getCatalog(
-                            genre = genre,
-                            categoria = categoria,
-                            tipo = tipo,
-                            page = nextPage
-                        )
-                        if (res.success && res.data.isNotEmpty()) {
+                        val res = com.animetv.app.data.repository.AnimeRepository.getMoviesPage(page = nextPage)
+                        if (res is com.animetv.app.data.repository.RepositoryResult.Success && res.value.isNotEmpty()) {
                             catalogPage = nextPage
-                            val newUniqueItems = res.data.filter { newItem -> catalogList.none { it.id == newItem.id } }
+                            val newUniqueItems = res.value.filter { newItem -> catalogList.none { it.id == newItem.id } }
                             if (newUniqueItems.isNotEmpty()) {
                                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
                                     catalogList.addAll(newUniqueItems)

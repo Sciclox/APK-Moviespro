@@ -139,9 +139,9 @@ fun NetflixTopNav(
 
     val navItems = remember {
         listOf(
-            "latino" to "Latino",
+            "series" to "Series",
             "peliculas" to "Películas",
-            "donghua" to "Donghua"
+            "kdramas" to "K-Dramas"
         )
     }
 

@@ -210,112 +210,149 @@ fun PlayerScreen(
     }
 
     // Switch server helper
-    var playServer by remember { mutableStateOf<(Int) -> Unit>({}) }
-
     var currentServerRetryCount by remember { mutableIntStateOf(0) }
+    var webViewRef by remember { mutableStateOf<android.webkit.WebView?>(null) }
 
-    // Create ExoPlayer instance with custom LoadControl, DataSource, and dropped frame detector
+    val currentServerListState = rememberUpdatedState(serverList)
+    val currentServerIndexState = rememberUpdatedState(currentServerIndex)
+    val currentRetryCountState = rememberUpdatedState(currentServerRetryCount)
+
+    // Create ExoPlayer instance with custom LoadControl and DataSource
     val exoPlayer = remember {
         ExoPlayer.Builder(context)
             .setMediaSourceFactory(DefaultMediaSourceFactory(httpDataSourceFactory))
             .setLoadControl(loadControl)
             .build().apply {
                 playWhenReady = true
-                addListener(object : Player.Listener {
-                    override fun onRenderedFirstFrame() {
-                        isLoading = false
-                        isBuffering = false
-                        currentServerRetryCount = 0
-                        PlaybackTelemetryTracker.recordT11()
-                    }
-                    override fun onIsPlayingChanged(playing: Boolean) {
-                        isPlaying = playing
-                        if (playing) {
-                            isLoading = false
-                        }
-                    }
-                    override fun onPlaybackStateChanged(state: Int) {
-                        isBuffering = state == Player.STATE_BUFFERING
-                        if (state == Player.STATE_READY) {
-                            PlaybackTelemetryTracker.recordT10()
-                            isLoading = false
-                        } else if (state == Player.STATE_ENDED) {
-                            isLoading = false
-                        }
-                    }
-                    override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
-                        error.printStackTrace()
-                        isLoading = false
-                        val errorMsg = error.localizedMessage ?: "Error de red"
-                        if (currentServerRetryCount < 2) {
-                            currentServerRetryCount++
-                            autoFallbackToast = "Reintentando conexión (${currentServerRetryCount}/2)..."
-                            scope.launch {
-                                delay(1500)
-                                playServer(currentServerIndex)
-                                delay(3000)
-                                autoFallbackToast = null
-                            }
-                        } else if (serverList.size > 1 && currentServerIndex < serverList.size - 1) {
-                            currentServerRetryCount = 0
-                            val nextIndex = currentServerIndex + 1
-                            val nextServerName = serverList[nextIndex].server
-                            autoFallbackToast = "Servidor no disponible. Cambiando a $nextServerName..."
-                            playServer(nextIndex)
-                            scope.launch {
-                                delay(4000)
-                                autoFallbackToast = null
-                            }
-                        } else {
-                            errorMessage = "Error al cargar video: $errorMsg"
-                        }
-                    }
-                })
             }
     }
 
-    playServer = remember(serverList, exoPlayer) {
+    val playServerAtIndex: (Int) -> Unit = remember(exoPlayer, httpDataSourceFactory) {
         { index ->
-            if (index in serverList.indices) {
-                currentServerIndex = index
-                val targetServer = serverList[index]
-                lastSelectedServerName = targetServer.server
-                val url = targetServer.url
-                streamUrl = url
-                isLoading = true
-                errorMessage = null
-                val currentPos = exoPlayer.currentPosition.coerceAtLeast(0L)
-                
-                val isHls = url.contains(".m3u8") || targetServer.format == "hls"
-                val mediaItem = if (isHls) {
-                    MediaItem.Builder()
-                        .setUri(Uri.parse(url))
-                        .setMimeType(MimeTypes.APPLICATION_M3U8)
-                        .build()
-                } else {
-                    MediaItem.Builder()
-                        .setUri(Uri.parse(url))
-                        .setMimeType(MimeTypes.VIDEO_MP4)
-                        .build()
-                }
+            try {
+                val list = currentServerListState.value
+                if (index in list.indices) {
+                    currentServerIndex = index
+                    val targetServer = list[index]
+                    lastSelectedServerName = targetServer.server
+                    val url = targetServer.url
+                    streamUrl = url
+                    isLoading = true
+                    errorMessage = null
+                    val currentPos = exoPlayer.currentPosition.coerceAtLeast(0L)
 
-                val mediaSource = if (isHls) {
-                    HlsMediaSource.Factory(httpDataSourceFactory).createMediaSource(mediaItem)
-                } else {
-                    DefaultMediaSourceFactory(httpDataSourceFactory).createMediaSource(mediaItem)
-                }
+                    val isEmbed = targetServer.format == "embed" || url.contains("cdn.tudorama") || url.contains("abyss") || url.contains("filemoon") || url.contains("hgcloud") || url.contains("earnvids") || url.contains("4meplayer")
+                    if (isEmbed) {
+                        exoPlayer.stop()
+                        exoPlayer.clearMediaItems()
+                        scope.launch {
+                            delay(500)
+                            isLoading = false
+                        }
+                    } else {
+                        val currentPos = exoPlayer.currentPosition.coerceAtLeast(0L)
+                        val isHls = url.contains(".m3u8") || targetServer.format == "hls"
+                        val mediaItem = if (isHls) {
+                            MediaItem.Builder()
+                                .setUri(Uri.parse(url))
+                                .setMimeType(MimeTypes.APPLICATION_M3U8)
+                                .build()
+                        } else {
+                            MediaItem.Builder()
+                                .setUri(Uri.parse(url))
+                                .setMimeType(MimeTypes.VIDEO_MP4)
+                                .build()
+                        }
 
-                exoPlayer.setMediaSource(mediaSource)
-                exoPlayer.prepare()
-                if (currentPos > 1000) {
-                    exoPlayer.seekTo(currentPos)
+                        val mediaSource = if (isHls) {
+                            HlsMediaSource.Factory(httpDataSourceFactory).createMediaSource(mediaItem)
+                        } else {
+                            DefaultMediaSourceFactory(httpDataSourceFactory).createMediaSource(mediaItem)
+                        }
+
+                        exoPlayer.setMediaSource(mediaSource)
+                        exoPlayer.prepare()
+                        if (currentPos > 1000) {
+                            exoPlayer.seekTo(currentPos)
+                        }
+                        exoPlayer.play()
+                        scope.launch {
+                            delay(1500)
+                            isLoading = false
+                        }
+                    }
                 }
-                exoPlayer.play()
-                scope.launch {
-                    delay(1500)
+            } catch (e: Exception) {
+                e.printStackTrace()
+                isLoading = false
+                errorMessage = "Error al iniciar el servidor seleccionado."
+            }
+        }
+    }
+
+    val playServer = playServerAtIndex
+
+    DisposableEffect(exoPlayer) {
+        val listener = object : Player.Listener {
+            override fun onRenderedFirstFrame() {
+                isLoading = false
+                isBuffering = false
+                currentServerRetryCount = 0
+                PlaybackTelemetryTracker.recordT11()
+            }
+            override fun onIsPlayingChanged(playing: Boolean) {
+                isPlaying = playing
+                if (playing) {
                     isLoading = false
                 }
             }
+            override fun onPlaybackStateChanged(state: Int) {
+                isBuffering = state == Player.STATE_BUFFERING
+                if (state == Player.STATE_READY) {
+                    PlaybackTelemetryTracker.recordT10()
+                    isLoading = false
+                } else if (state == Player.STATE_ENDED) {
+                    isLoading = false
+                }
+            }
+            override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                error.printStackTrace()
+                isLoading = false
+                try {
+                    val errorMsg = error.localizedMessage ?: "Error de red"
+                    val list = currentServerListState.value
+                    val curIdx = currentServerIndexState.value
+                    if (list.size > 1 && curIdx < list.size - 1) {
+                        currentServerRetryCount = 0
+                        val nextIndex = curIdx + 1
+                        val nextServer = list[nextIndex]
+                        autoFallbackToast = "Cambiando a ${nextServer.server}..."
+                        playServerAtIndex(nextIndex)
+                        scope.launch {
+                            delay(3000)
+                            autoFallbackToast = null
+                        }
+                    } else if (currentRetryCountState.value < 1) {
+                        currentServerRetryCount++
+                        autoFallbackToast = "Reintentando conexión..."
+                        scope.launch {
+                            delay(1200)
+                            playServerAtIndex(curIdx)
+                            delay(3000)
+                            autoFallbackToast = null
+                        }
+                    } else {
+                        errorMessage = "Error al reproducir: $errorMsg"
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    errorMessage = "Error en la reproducción de video."
+                }
+            }
+        }
+        exoPlayer.addListener(listener)
+        onDispose {
+            exoPlayer.removeListener(listener)
         }
     }
 
@@ -473,23 +510,17 @@ fun PlayerScreen(
         }
     }
 
-    // Silent Background Pre-fetching for Next Episode when reaching 75% progress
+    // Silent Background Pre-fetching for Next Episode
     LaunchedEffect(currentTimeMs, durationMs) {
         if (onNextEpisode != null && hasNextEpisodeAvailable && durationMs > 60_000 && currentTimeMs >= (durationMs * 0.75f) && preloadedNextStreamUrl == null) {
             scope.launch {
                 try {
-                    var animeSlug = anime?.slug?.ifBlank { null }
-                        ?: episode.slug.split("/").firstOrNull()
-                        ?: ""
-                    animeSlug = animeSlug.replace(Regex("-(episode|episodio)-\\d+$", RegexOption.IGNORE_CASE), "").replace(Regex("/$"), "")
-                    val nextEpNum = (episode.number + 1).toString()
-                    val res = ApiClient.apiService.getStreamSources(animeSlug, nextEpNum)
-                    if (res.success && res.data.servers.isNotEmpty()) {
-                        preloadedNextStreamUrl = res.data.servers.first().url
+                    val targetUrl = anime?.slug?.ifBlank { null } ?: episode.slug
+                    val res = com.animetv.app.data.repository.AnimeRepository.extractStream(targetUrl)
+                    if (res is com.animetv.app.data.repository.RepositoryResult.Success && res.value.streams.isNotEmpty()) {
+                        preloadedNextStreamUrl = res.value.streams.first().url
                     }
-                } catch (e: Exception) {
-                    // silent ignore
-                }
+                } catch (_: Exception) {}
             }
         }
     }
@@ -504,91 +535,135 @@ fun PlayerScreen(
         errorMessage = null
         preloadedNextStreamUrl = null
         try {
-            var animeSlug = anime?.slug?.ifBlank { null }
-                ?: episode.slug.split("/").firstOrNull()
-                ?: ""
-            animeSlug = animeSlug.replace(Regex("-(episode|episodio)-\\d+$", RegexOption.IGNORE_CASE), "").replace(Regex("/$"), "")
-            val epNum = episode.number.toString()
+            val targetUrl = episode.slug.ifBlank { anime?.slug ?: "" }
+            val isDirectStream = targetUrl.contains(".m3u8") || anime?.type == "tv_live" || targetUrl.contains("akamaized.net")
 
-            // Check total episodes count via anime details API
-            try {
-                val detailsRes = ApiClient.apiService.getAnimeDetails(animeSlug)
-                if (detailsRes.success && detailsRes.data.episodes.isNotEmpty()) {
-                    episodesList = detailsRes.data.episodes
-                    val maxEp = detailsRes.data.episodes.maxOfOrNull { it.number } ?: detailsRes.data.episodes.size
-                    hasNextEpisodeAvailable = episode.number < maxEp
-                }
-            } catch (e: Exception) {
-                // Keep default fallback if details fetch fails
-            }
-
-            PlaybackTelemetryTracker.recordT2()
-            val res = ApiClient.apiService.getStreamSources(animeSlug, epNum)
-            PlaybackTelemetryTracker.recordT3()
-            if (res.success && res.data.servers.isNotEmpty()) {
-                serverList = res.data.servers
-                // Check if the user previously selected a preferred server
-                val savedIdx = if (!lastSelectedServerName.isNullOrEmpty()) {
-                    res.data.servers.indexOfFirst { s ->
-                        s.server.equals(lastSelectedServerName, ignoreCase = true)
-                    }
-                } else -1
-
-                val preferredIdx = if (savedIdx != -1) {
-                    savedIdx
-                } else {
-                    // Smart pre-selection fallback: Prefer HLS (most stable on TV) > Direct MP4 > Proxy
-                    res.data.servers.indexOfFirst { s ->
-                        s.format == "hls" || s.url.contains(".m3u8")
-                    }.takeIf { it != -1 } ?: 0
-                }
-
-                currentServerIndex = preferredIdx
-                streamUrl = res.data.servers[preferredIdx].url
-                lastSelectedServerName = res.data.servers[preferredIdx].server
+            if (isDirectStream) {
+                val directServer = StreamSource(
+                    server = "Señal Principal",
+                    title = "En Vivo HD",
+                    url = targetUrl,
+                    format = "hls",
+                    audio = "Latino"
+                )
+                serverList = listOf(directServer)
+                currentServerIndex = 0
+                streamUrl = targetUrl
+                lastSelectedServerName = directServer.server
             } else {
-                errorMessage = "El Episodio ${episode.number} no está disponible."
+                // If episodesList is empty, fetch episodes for this series using anime slug
+                if (episodesList.isEmpty()) {
+                    try {
+                        val seriesSlug = anime?.slug ?: ""
+                        if (seriesSlug.contains("/tvshows/")) {
+                            val detailsRes = com.animetv.app.data.repository.AnimeRepository.getMovieDetails(seriesSlug)
+                            if (detailsRes is com.animetv.app.data.repository.RepositoryResult.Success && detailsRes.value.episodes.isNotEmpty()) {
+                                episodesList = detailsRes.value.episodes
+                                val maxEp = detailsRes.value.episodes.maxOfOrNull { it.number } ?: detailsRes.value.episodes.size
+                                hasNextEpisodeAvailable = episode.number < maxEp
+                            }
+                        }
+                    } catch (_: Exception) {}
+                }
+
+                PlaybackTelemetryTracker.recordT2()
+                val res = com.animetv.app.data.repository.AnimeRepository.extractStream(targetUrl)
+                PlaybackTelemetryTracker.recordT3()
+                if (res is com.animetv.app.data.repository.RepositoryResult.Success && res.value.streams.isNotEmpty()) {
+                    val cleaned = res.value.streams.mapIndexed { idx, s ->
+                        var rawUrl = s.url
+                        if (rawUrl.contains("url=")) {
+                            val encodedParam = rawUrl.substringAfter("url=").substringBefore("&")
+                            try {
+                                val decodedBytes = android.util.Base64.decode(encodedParam, android.util.Base64.DEFAULT)
+                                val decodedUrl = String(decodedBytes, Charsets.UTF_8)
+                                if (decodedUrl.startsWith("http")) {
+                                    rawUrl = decodedUrl
+                                }
+                            } catch (_: Exception) {}
+                        }
+                        StreamSource(
+                            server = s.source ?: "Servidor ${idx + 1}",
+                            title = "HD 720p",
+                            url = rawUrl,
+                            format = if (rawUrl.contains(".m3u8")) "hls" else s.type,
+                            audio = "Latino"
+                        )
+                    }
+
+                    val sortedServers = cleaned.sortedByDescending {
+                        when {
+                            it.server.contains("MovieDays", ignoreCase = true) -> 10
+                            it.url.contains("moviedays", ignoreCase = true) || it.url.contains("11231data") -> 9
+                            it.url.contains(".m3u8") || it.format == "hls" -> 8
+                            it.url.contains(".aaa.mp4") || it.url.contains(".caa.mp4") -> 7
+                            it.url.contains("1a-1791.com") -> 5
+                            else -> 1
+                        }
+                    }
+
+                    serverList = sortedServers
+                    val preferredIdx = 0
+                    currentServerIndex = preferredIdx
+                    streamUrl = sortedServers[preferredIdx].url
+                    lastSelectedServerName = sortedServers[preferredIdx].server
+                } else {
+                    errorMessage = "El contenido no está disponible actualmente."
+                }
             }
         } catch (e: Exception) {
             e.printStackTrace()
-            errorMessage = "Error al obtener las fuentes del Episodio ${episode.number}."
+            errorMessage = "Error al obtener las fuentes de reproducción."
         } finally {
-            if (!streamUrl.isNullOrEmpty() && errorMessage == null) {
-                streamUrl?.let { url ->
-                    val isHls = url.contains(".m3u8") || serverList.getOrNull(currentServerIndex)?.format == "hls"
-                    val mediaItem = if (isHls) {
-                        MediaItem.Builder()
-                            .setUri(Uri.parse(url))
-                            .setMimeType(MimeTypes.APPLICATION_M3U8)
-                            .build()
-                    } else {
-                        MediaItem.Builder()
-                            .setUri(Uri.parse(url))
-                            .setMimeType(MimeTypes.VIDEO_MP4)
-                            .build()
-                    }
+            try {
+                if (!streamUrl.isNullOrEmpty() && errorMessage == null) {
+                    streamUrl?.let { url ->
+                        val serverFormat = serverList.getOrNull(currentServerIndex)?.format
+                        val isEmbed = serverFormat == "embed" || url.contains("cdn.tudorama") || url.contains("abyss") || url.contains("filemoon") || url.contains("hgcloud") || url.contains("earnvids") || url.contains("4meplayer")
 
-                    val mediaSource = if (isHls) {
-                        HlsMediaSource.Factory(httpDataSourceFactory).createMediaSource(mediaItem)
-                    } else {
-                        DefaultMediaSourceFactory(httpDataSourceFactory).createMediaSource(mediaItem)
-                    }
+                        if (isEmbed) {
+                            exoPlayer.stop()
+                            exoPlayer.clearMediaItems()
+                        } else {
+                            val isHls = url.contains(".m3u8") || serverFormat == "hls"
+                            val mediaItem = if (isHls) {
+                                MediaItem.Builder()
+                                    .setUri(Uri.parse(url))
+                                    .setMimeType(MimeTypes.APPLICATION_M3U8)
+                                    .build()
+                            } else {
+                                MediaItem.Builder()
+                                    .setUri(Uri.parse(url))
+                                    .setMimeType(MimeTypes.VIDEO_MP4)
+                                    .build()
+                            }
 
-                    exoPlayer.setMediaSource(mediaSource)
-                    PlaybackTelemetryTracker.recordT4()
-                    exoPlayer.prepare()
-                    exoPlayer.play()
-                    
-                    val prefs = context.getSharedPreferences("player_positions", Context.MODE_PRIVATE)
-                    val historyMatch = com.animetv.app.data.repository.WatchHistoryManager.getHistory(context)
-                        .find { (it.animeSlug == anime?.slug || it.animeId == anime?.id) && it.episodeNumber == episode.number }
-                    val savedPosition = historyMatch?.lastPositionMs?.takeIf { it > 5_000 }
-                        ?: prefs.getLong(episode.slug, 0L)
-                    val totalDuration = exoPlayer.duration
-                    if (savedPosition > 5_000 && (totalDuration <= 0 || savedPosition < totalDuration - 15_000)) {
-                        exoPlayer.seekTo(savedPosition)
+                            val mediaSource = if (isHls) {
+                                HlsMediaSource.Factory(httpDataSourceFactory).createMediaSource(mediaItem)
+                            } else {
+                                DefaultMediaSourceFactory(httpDataSourceFactory).createMediaSource(mediaItem)
+                            }
+
+                            exoPlayer.setMediaSource(mediaSource)
+                            PlaybackTelemetryTracker.recordT4()
+                            exoPlayer.prepare()
+                            exoPlayer.play()
+
+                            val prefs = context.getSharedPreferences("player_positions", Context.MODE_PRIVATE)
+                            val historyMatch = com.animetv.app.data.repository.WatchHistoryManager.getHistory(context)
+                                .find { (it.animeSlug == anime?.slug || it.animeId == anime?.id) && it.episodeNumber == episode.number }
+                            val savedPosition = historyMatch?.lastPositionMs?.takeIf { it > 5_000 }
+                                ?: prefs.getLong(episode.slug, 0L)
+                            val totalDuration = exoPlayer.duration
+                            if (savedPosition > 5_000 && (totalDuration <= 0 || savedPosition < totalDuration - 15_000)) {
+                                exoPlayer.seekTo(savedPosition)
+                            }
+                        }
                     }
                 }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                errorMessage = "Error al iniciar la reproducción."
             }
             isLoading = false
         }
@@ -655,12 +730,59 @@ fun PlayerScreen(
                             return@onKeyEvent true
                         }
                     } else if (!showControls) {
+                        val currentEmbedUrl = streamUrl
+                        val isCurrentEmbed = currentEmbedUrl?.let {
+                            it.contains("cdn.tudorama") || it.contains("abyss") || it.contains("filemoon") || it.contains("hgcloud") || it.contains("earnvids") || it.contains("4meplayer") || serverList.getOrNull(currentServerIndex)?.format == "embed"
+                        } ?: false
+
+                        if (isCurrentEmbed && (keyEvent.nativeKeyEvent.keyCode in listOf(
+                                android.view.KeyEvent.KEYCODE_DPAD_CENTER,
+                                android.view.KeyEvent.KEYCODE_ENTER,
+                                android.view.KeyEvent.KEYCODE_NUMPAD_ENTER,
+                                android.view.KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
+                                android.view.KeyEvent.KEYCODE_MEDIA_PLAY
+                            ))
+                        ) {
+                            webViewRef?.evaluateJavascript(
+                                """
+                                (function() {
+                                    var v = document.querySelector('video');
+                                    if (v) {
+                                        if (v.paused) v.play(); else v.pause();
+                                        return;
+                                    }
+                                    var playSelectors = ['.vjs-big-play-button', '.jw-display-icon-container', '.play-button', '.play-btn', 'button[aria-label="Play"]', '.plyr__control--overlaid', '#player', '#playback', '.play'];
+                                    for (var j = 0; j < playSelectors.length; j++) {
+                                        var el = document.querySelector(playSelectors[j]);
+                                        if (el) { el.click(); return; }
+                                    }
+                                    var centerEl = document.elementFromPoint(window.innerWidth / 2, window.innerHeight / 2);
+                                    if (centerEl) centerEl.click();
+                                })();
+                                """.trimIndent(),
+                                null
+                            )
+                            return@onKeyEvent true
+                        }
+
                         when (keyEvent.nativeKeyEvent.keyCode) {
                             android.view.KeyEvent.KEYCODE_DPAD_LEFT -> {
                                 val now = System.currentTimeMillis()
                                 val seekAmount = if (now - lastLeftPressTime < 400) 30_000L else 10_000L
                                 lastLeftPressTime = now
-                                exoPlayer.seekTo((exoPlayer.currentPosition - seekAmount).coerceAtLeast(0))
+                                if (isCurrentEmbed) {
+                                    webViewRef?.evaluateJavascript(
+                                        """
+                                        (function() {
+                                            var v = document.querySelector('video');
+                                            if (v) { v.currentTime = Math.max(0, v.currentTime - 10); }
+                                        })();
+                                        """.trimIndent(),
+                                        null
+                                    )
+                                } else {
+                                    exoPlayer.seekTo((exoPlayer.currentPosition - seekAmount).coerceAtLeast(0))
+                                }
                                 quickSeekIcon = if (seekAmount == 30_000L) "↺30" else "↺10"
                                 scope.launch { delay(800); quickSeekIcon = null }
                                 return@onKeyEvent true
@@ -669,7 +791,19 @@ fun PlayerScreen(
                                 val now = System.currentTimeMillis()
                                 val seekAmount = if (now - lastRightPressTime < 400) 30_000L else 10_000L
                                 lastRightPressTime = now
-                                exoPlayer.seekTo((exoPlayer.currentPosition + seekAmount).coerceAtMost(exoPlayer.duration))
+                                if (isCurrentEmbed) {
+                                    webViewRef?.evaluateJavascript(
+                                        """
+                                        (function() {
+                                            var v = document.querySelector('video');
+                                            if (v) { v.currentTime = Math.min(v.duration, v.currentTime + 10); }
+                                        })();
+                                        """.trimIndent(),
+                                        null
+                                    )
+                                } else {
+                                    exoPlayer.seekTo((exoPlayer.currentPosition + seekAmount).coerceAtMost(exoPlayer.duration))
+                                }
                                 quickSeekIcon = if (seekAmount == 30_000L) "30↻" else "10↻"
                                 scope.launch { delay(800); quickSeekIcon = null }
                                 return@onKeyEvent true
@@ -684,19 +818,159 @@ fun PlayerScreen(
                 false
             }
     ) {
-        // ExoPlayer Media Player View (100% Fullscreen)
-        AndroidView(
-            factory = { ctx ->
-                PlayerView(ctx).apply {
-                    player = exoPlayer
-                    useController = false
-                }
-            },
-            update = { playerView ->
-                playerView.keepScreenOn = isPlaying || isBuffering || isLoading
-            },
-            modifier = Modifier.fillMaxSize()
-        )
+        val currentEmbedUrl = streamUrl
+        val isCurrentEmbed = currentEmbedUrl?.let {
+            it.contains("cdn.tudorama") || it.contains("abyss") || it.contains("filemoon") || it.contains("hgcloud") || it.contains("earnvids") || it.contains("4meplayer") || serverList.getOrNull(currentServerIndex)?.format == "embed"
+        } ?: false
+
+        if (isCurrentEmbed && currentEmbedUrl != null) {
+            AndroidView(
+                factory = { ctx ->
+                    android.webkit.WebView(ctx).apply {
+                        webViewRef = this
+                        layoutParams = android.view.ViewGroup.LayoutParams(
+                            android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                            android.view.ViewGroup.LayoutParams.MATCH_PARENT
+                        )
+                        settings.apply {
+                            javaScriptEnabled = true
+                            domStorageEnabled = true
+                            mediaPlaybackRequiresUserGesture = false
+                            loadWithOverviewMode = true
+                            useWideViewPort = true
+                            setSupportMultipleWindows(false)
+                            javaScriptCanOpenWindowsAutomatically = false
+                            mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+                            userAgentString = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+                        }
+                        webChromeClient = object : android.webkit.WebChromeClient() {
+                            override fun onCreateWindow(
+                                view: android.webkit.WebView?,
+                                isDialog: Boolean,
+                                isUserGesture: Boolean,
+                                resultMsg: android.os.Message?
+                            ): Boolean = false
+                        }
+                        webViewClient = object : android.webkit.WebViewClient() {
+                            override fun onPageFinished(view: android.webkit.WebView?, url: String?) {
+                                super.onPageFinished(view, url)
+                                isLoading = false
+                                view?.evaluateJavascript(
+                                    """
+                                    (function() {
+                                        function unlockAndAutoPlay() {
+                                            try {
+                                                var overlay = document.getElementById('overlay');
+                                                if (overlay) {
+                                                    overlay.click();
+                                                    overlay.style.display = 'none';
+                                                    overlay.remove();
+                                                }
+                                                var playback = document.getElementById('playback');
+                                                if (playback) {
+                                                    playback.click();
+                                                    playback.style.display = 'none';
+                                                    playback.remove();
+                                                }
+
+                                                var btn = document.getElementById('loadIframeButton');
+                                                if (btn) btn.click();
+
+                                                var notice = document.getElementById('notice-container');
+                                                if (notice) notice.style.display = 'none';
+                                                var msj = document.getElementById('msjad');
+                                                if (msj) msj.style.display = 'none';
+                                                var ifrC = document.getElementById('iframeContainer');
+                                                if (ifrC) ifrC.style.display = 'block';
+                                                var ifr = document.getElementById('myIframe');
+                                                if (ifr) ifr.style.display = 'block';
+
+                                                if (typeof window.jwplayer !== 'undefined') {
+                                                    try {
+                                                        var p = window.jwplayer();
+                                                        if (p && typeof p.play === 'function') p.play(true);
+                                                    } catch(e) {}
+                                                }
+
+                                                var videos = document.getElementsByTagName('video');
+                                                for (var i = 0; i < videos.length; i++) {
+                                                    videos[i].muted = false;
+                                                    videos[i].play().catch(function(){});
+                                                }
+
+                                                var playTargets = [
+                                                    '.jw-display-icon-container',
+                                                    '.vjs-big-play-button',
+                                                    '.play-button',
+                                                    '.play-btn',
+                                                    'button[aria-label="Play"]',
+                                                    '.plyr__control--overlaid',
+                                                    '#player',
+                                                    '#playback',
+                                                    '.play'
+                                                ];
+                                                for (var j = 0; j < playTargets.length; j++) {
+                                                    var target = document.querySelector(playTargets[j]);
+                                                    if (target) target.click();
+                                                }
+
+                                                var center = document.elementFromPoint(window.innerWidth / 2, window.innerHeight / 2);
+                                                if (center && center.tagName !== 'VIDEO') {
+                                                    center.click();
+                                                }
+                                            } catch(e) {}
+                                        }
+                                        unlockAndAutoPlay();
+                                        var count = 0;
+                                        var timer = setInterval(function() {
+                                            unlockAndAutoPlay();
+                                            count++;
+                                            if (count > 20) clearInterval(timer);
+                                        }, 250);
+                                    })();
+                                    """.trimIndent(),
+                                    null
+                                )
+                            }
+                            override fun shouldOverrideUrlLoading(
+                                view: android.webkit.WebView?,
+                                request: android.webkit.WebResourceRequest?
+                            ): Boolean {
+                                val reqUrl = request?.url?.toString() ?: ""
+                                if (reqUrl.startsWith("http://") || reqUrl.startsWith("https://")) {
+                                    val isAllowed = reqUrl.contains("abyss") || reqUrl.contains("tudorama") || reqUrl.contains("filemoon") || reqUrl.contains("hgcloud") || reqUrl.contains("earnvids") || reqUrl.contains("4meplayer")
+                                    if (isAllowed) return false
+                                }
+                                return true
+                            }
+                        }
+                        loadUrl(currentEmbedUrl)
+                    }
+                },
+                update = { webView ->
+                    webViewRef = webView
+                    if (webView.url != currentEmbedUrl) {
+                        webView.loadUrl(currentEmbedUrl)
+                    }
+                    webView.keepScreenOn = true
+                },
+                modifier = Modifier.fillMaxSize()
+            )
+        } else {
+            // ExoPlayer Media Player View (100% Fullscreen)
+            AndroidView(
+                factory = { ctx ->
+                    PlayerView(ctx).apply {
+                        player = exoPlayer
+                        useController = false
+                    }
+                },
+                update = { playerView ->
+                    playerView.keepScreenOn = isPlaying || isBuffering || isLoading
+                },
+                modifier = Modifier.fillMaxSize()
+            )
+        }
 
         // Quick Seek Icon Overlay
         AnimatedVisibility(
@@ -1228,7 +1502,21 @@ fun PlayerScreen(
 
                             // -10 Seconds
                             Button(
-                                onClick = { exoPlayer.seekTo((exoPlayer.currentPosition - 10000).coerceAtLeast(0)) },
+                                onClick = {
+                                    if (isCurrentEmbed) {
+                                        webViewRef?.evaluateJavascript(
+                                            """
+                                            (function() {
+                                                var v = document.querySelector('video');
+                                                if (v) { v.currentTime = Math.max(0, v.currentTime - 10); }
+                                            })();
+                                            """.trimIndent(),
+                                            null
+                                        )
+                                    } else {
+                                        exoPlayer.seekTo((exoPlayer.currentPosition - 10000).coerceAtLeast(0))
+                                    }
+                                },
                                 modifier = Modifier
                                     .size(42.dp)
                                     .then(
@@ -1260,7 +1548,29 @@ fun PlayerScreen(
                             // Play / Pause Main Action (Hero Compact Circular Button)
                             Button(
                                 onClick = {
-                                    if (isPlaying) exoPlayer.pause() else exoPlayer.play()
+                                    if (isCurrentEmbed) {
+                                        webViewRef?.evaluateJavascript(
+                                            """
+                                            (function() {
+                                                var v = document.querySelector('video');
+                                                if (v) {
+                                                    if (v.paused) v.play(); else v.pause();
+                                                    return;
+                                                }
+                                                var playSelectors = ['.jw-display-icon-container', '.vjs-big-play-button', '.play-button', '.play-btn', 'button[aria-label="Play"]', '.plyr__control--overlaid', '#player', '#playback', '.play'];
+                                                for (var j = 0; j < playSelectors.length; j++) {
+                                                    var el = document.querySelector(playSelectors[j]);
+                                                    if (el) { el.click(); return; }
+                                                }
+                                                var centerEl = document.elementFromPoint(window.innerWidth / 2, window.innerHeight / 2);
+                                                if (centerEl) centerEl.click();
+                                            })();
+                                            """.trimIndent(),
+                                            null
+                                        )
+                                    } else {
+                                        if (isPlaying) exoPlayer.pause() else exoPlayer.play()
+                                    }
                                 },
                                 modifier = Modifier
                                     .size(42.dp)
@@ -1284,7 +1594,7 @@ fun PlayerScreen(
                                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                                     Icon(
                                         imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                                        contentDescription = if (isPlaying) "Pausa" else "Reproducir",
+                                        contentDescription = "Reproducir / Pausar",
                                         modifier = Modifier.size(22.dp)
                                     )
                                 }
@@ -1292,7 +1602,21 @@ fun PlayerScreen(
 
                             // +10 Seconds
                             Button(
-                                onClick = { exoPlayer.seekTo((exoPlayer.currentPosition + 10000).coerceAtMost(exoPlayer.duration)) },
+                                onClick = {
+                                    if (isCurrentEmbed) {
+                                        webViewRef?.evaluateJavascript(
+                                            """
+                                            (function() {
+                                                var v = document.querySelector('video');
+                                                if (v) { v.currentTime = Math.min(v.duration, v.currentTime + 10); }
+                                            })();
+                                            """.trimIndent(),
+                                            null
+                                        )
+                                    } else {
+                                        exoPlayer.seekTo((exoPlayer.currentPosition + 10000).coerceAtMost(exoPlayer.duration))
+                                    }
+                                },
                                 modifier = Modifier.size(42.dp),
                                 scale = ButtonDefaults.scale(focusedScale = 1.0f),
                                 colors = ButtonDefaults.colors(

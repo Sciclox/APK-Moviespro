@@ -50,9 +50,13 @@ import com.animetv.app.ui.theme.Inter
 import com.animetv.app.ui.theme.NetflixLightGrey
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-@OptIn(ExperimentalTvMaterial3Api::class)
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
+
+@OptIn(ExperimentalTvMaterial3Api::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun TvHeroBanner(
     heroList: List<AnimeItem>,
@@ -62,11 +66,14 @@ fun TvHeroBanner(
     navFocusRequester: FocusRequester,
     scrollToRow: (Int) -> Unit,
     categoryBadgeText: String = "A N I M E   O R I G I N A L",
+    onHeroFocusChanged: ((Boolean) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     if (heroList.isEmpty()) return
 
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val bringIntoViewRequester = remember { BringIntoViewRequester() }
 
     val cleanHeroList = remember(heroList) {
         val withBackdrop = heroList.filter { !it.backdrop.isNullOrEmpty() }
@@ -94,9 +101,12 @@ fun TvHeroBanner(
     LaunchedEffect(activeHero?.id) {
         if (activeHero != null && (activeHeroBackdrop.isNullOrEmpty() || activeHeroBackdrop == activeHero.image)) {
             try {
-                val details = ApiClient.apiService.getAnimeDetails(activeHero.slug)
-                if (details.success && !details.data.backdrop.isNullOrEmpty()) {
-                    activeHeroBackdrop = details.data.backdrop
+                val detailsResult = com.animetv.app.data.repository.AnimeRepository.getMovieDetails(activeHero.slug)
+                if (detailsResult is com.animetv.app.data.repository.RepositoryResult.Success) {
+                    val bg = detailsResult.value.backdrop
+                    if (!bg.isNullOrEmpty()) {
+                        activeHeroBackdrop = bg
+                    }
                 }
             } catch (_: Exception) {}
         }
@@ -147,6 +157,16 @@ fun TvHeroBanner(
                 .fillMaxWidth()
                 .padding(start = 36.dp, end = 36.dp, bottom = 16.dp)
                 .height(380.dp)
+                .bringIntoViewRequester(bringIntoViewRequester)
+                .onFocusChanged { focusState ->
+                    if (focusState.hasFocus) {
+                        scope.launch {
+                            try {
+                                bringIntoViewRequester.bringIntoView()
+                            } catch (_: Exception) {}
+                        }
+                    }
+                }
                 .shadow(
                     elevation = 20.dp,
                     shape = heroShape,
@@ -287,6 +307,7 @@ fun TvHeroBanner(
                             .focusRequester(firstKeyFocusRequester)
                             .onFocusChanged { focusState ->
                                 isHeroFocused = focusState.isFocused
+                                onHeroFocusChanged?.invoke(focusState.isFocused)
                                 if (focusState.isFocused) {
                                     onFocusItem(firstKeyFocusRequester)
                                     scrollToRow(0)
@@ -346,6 +367,7 @@ fun TvHeroBanner(
                             .height(44.dp)
                             .onFocusChanged { focusState ->
                                 isHeroFocused = focusState.isFocused
+                                onHeroFocusChanged?.invoke(focusState.isFocused)
                                 if (focusState.isFocused) {
                                     onFocusItem(firstKeyFocusRequester)
                                     scrollToRow(0)

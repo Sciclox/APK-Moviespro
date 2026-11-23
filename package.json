@@ -1,7 +1,7 @@
 {
-  "name": "apk-animetv-backend",
+  "name": "apk-livmotion",
   "version": "1.0.0",
-  "description": "Backend API Gateway para App Android TV de Anime",
+  "description": "App Android TV Livmotion",
   "main": "dist/server.js",
   "scripts": {
     "dev": "tsx watch src/server.ts",

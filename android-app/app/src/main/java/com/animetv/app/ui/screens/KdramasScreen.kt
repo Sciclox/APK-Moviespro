@@ -5,7 +5,7 @@ import androidx.compose.ui.focus.FocusRequester
 import com.animetv.app.data.model.AnimeItem
 
 @Composable
-fun LatinoScreen(
+fun KdramasScreen(
     isScreenActive: Boolean = false,
     lastSelectedAnime: AnimeItem? = null,
     onAnimeSelect: (AnimeItem) -> Unit,
@@ -13,8 +13,8 @@ fun LatinoScreen(
     navFocusRequester: FocusRequester,
     onFocusItem: (FocusRequester) -> Unit = {},
 ) = CategoryHubScreen(
-    category = "latino",
-    badge = "A N I M E   L A T I N O",
+    category = "kdramas",
+    badge = "K - D R A M A S",
     isScreenActive = isScreenActive,
     lastSelectedAnime = lastSelectedAnime,
     onAnimeSelect = onAnimeSelect,

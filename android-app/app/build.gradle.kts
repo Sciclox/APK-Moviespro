@@ -19,11 +19,11 @@ android {
 
     buildTypes {
         debug {
-            buildConfigField("String", "BASE_URL", "\"https://apk-animetv-backend.vercel.app/\"")
+            buildConfigField("String", "BASE_URL", "\"https://apizonalatamsrc.xzod.cloud/\"")
             manifestPlaceholders["usesCleartextTraffic"] = "true"
         }
         release {
-            buildConfigField("String", "BASE_URL", "\"https://apk-animetv-backend.vercel.app/\"")
+            buildConfigField("String", "BASE_URL", "\"https://apizonalatamsrc.xzod.cloud/\"")
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }

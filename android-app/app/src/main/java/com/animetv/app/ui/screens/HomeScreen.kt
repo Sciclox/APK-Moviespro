@@ -32,6 +32,10 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+import androidx.tv.foundation.PivotOffsets
+import androidx.tv.foundation.lazy.list.TvLazyColumn
+import androidx.tv.foundation.lazy.list.rememberTvLazyListState
+
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 fun HomeScreen(
@@ -56,22 +60,9 @@ fun HomeScreen(
     navFocusRequester: FocusRequester,
     onFocusItem: (FocusRequester) -> Unit = {}
 ) {
-    val listState = rememberLazyListState()
+    val listState = rememberTvLazyListState()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var targetFocusedRowIndex by remember { mutableIntStateOf(-1) }
-
-    LaunchedEffect(targetFocusedRowIndex) {
-        if (targetFocusedRowIndex >= 0) {
-            delay(100)
-            try {
-                val totalItems = listState.layoutInfo.totalItemsCount
-                if (targetFocusedRowIndex in 0 until totalItems) {
-                    listState.animateScrollToItem(targetFocusedRowIndex, 0)
-                }
-            } catch (_: Exception) {}
-        }
-    }
 
     val cleanHeroList = remember(heroList) {
         heroList.filter { !it.slug.contains("perfil", ignoreCase = true) && !it.title.contains("perfil", ignoreCase = true) && !it.slug.contains("user", ignoreCase = true) }
@@ -118,21 +109,6 @@ fun HomeScreen(
         if (isLoading) {
             SkeletonHomeScreen()
         } else {
-            var rowIndexCounter = 0
-            val heroRowIndex = rowIndexCounter++
-            val top10RowIndex = rowIndexCounter++
-            val historyRowIndex = if (watchHistory.isNotEmpty()) rowIndexCounter++ else -1
-            val episodesRowIndex = if (latestEpisodesList.isNotEmpty()) rowIndexCounter++ else -1
-            val releasingRowIndex = rowIndexCounter++
-            val popularRowIndex = rowIndexCounter++
-            val actionRowIndex = rowIndexCounter++
-            val shounenRowIndex = rowIndexCounter++
-            val romanceRowIndex = rowIndexCounter++
-            val comedyRowIndex = rowIndexCounter++
-            val fantasyRowIndex = rowIndexCounter++
-            val supernaturalRowIndex = rowIndexCounter++
-            val moviesRowIndex = rowIndexCounter++
-
             val cleanCatalog = remember(catalogList) { catalogList.filter { !it.slug.contains("perfil", ignoreCase = true) } }
 
             val displayShounen = remember(shounenList, cleanCatalog) {
@@ -171,11 +147,12 @@ fun HomeScreen(
                 }
             }
 
-            LazyColumn(
+            TvLazyColumn(
                 state = listState,
+                pivotOffsets = PivotOffsets(parentFraction = 0.24f),
                 modifier = Modifier.fillMaxSize(),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
-                contentPadding = PaddingValues(top = 68.dp, bottom = 64.dp)
+                contentPadding = PaddingValues(top = 80.dp, bottom = 64.dp)
             ) {
                 // FEATURE 1: HERO BANNER
                 item(key = "hero_banner") {
@@ -185,7 +162,7 @@ fun HomeScreen(
                         onFocusItem = onFocusItem,
                         firstKeyFocusRequester = playButtonFocusRequester,
                         navFocusRequester = navFocusRequester,
-                        scrollToRow = { targetFocusedRowIndex = heroRowIndex },
+                        scrollToRow = {},
                         categoryBadgeText = "A N I M E   O R I G I N A L"
                     )
                 }
@@ -224,7 +201,6 @@ fun HomeScreen(
                                             .onFocusChanged {
                                                 if (it.isFocused) {
                                                     onFocusItem(cardFocusRequester)
-                                                    targetFocusedRowIndex = top10RowIndex
                                                 }
                                             }
                                     )
@@ -288,7 +264,6 @@ fun HomeScreen(
                                             .onFocusChanged {
                                                 if (it.isFocused) {
                                                     onFocusItem(cardFocusRequester)
-                                                    targetFocusedRowIndex = historyRowIndex
                                                 }
                                             }
                                     )
@@ -343,7 +318,6 @@ fun HomeScreen(
                                             .onFocusChanged {
                                                 if (it.isFocused) {
                                                     onFocusItem(cardFocusRequester)
-                                                    targetFocusedRowIndex = episodesRowIndex
                                                 }
                                             }
                                     )
@@ -392,7 +366,6 @@ fun HomeScreen(
                                         .onFocusChanged {
                                             if (it.isFocused) {
                                                 onFocusItem(cardFocusRequester)
-                                                targetFocusedRowIndex = releasingRowIndex
                                             }
                                         }
                                 )
@@ -439,7 +412,6 @@ fun HomeScreen(
                                         .onFocusChanged {
                                             if (it.isFocused) {
                                                 onFocusItem(cardFocusRequester)
-                                                targetFocusedRowIndex = popularRowIndex
                                             }
                                         }
                                 )
@@ -456,10 +428,8 @@ fun HomeScreen(
                         initialItems = catalogList.reversed(),
                         isScreenActive = isScreenActive,
                         lastSelectedAnime = lastSelectedAnime,
-                        rowIndex = actionRowIndex,
                         onAnimeSelect = onAnimeSelect,
-                        onFocusItem = onFocusItem,
-                        onFocusedRowChanged = { targetFocusedRowIndex = it }
+                        onFocusItem = onFocusItem
                     )
                 }
 
@@ -472,10 +442,8 @@ fun HomeScreen(
                             initialItems = displayShounen,
                             isScreenActive = isScreenActive,
                             lastSelectedAnime = lastSelectedAnime,
-                            rowIndex = shounenRowIndex,
                             onAnimeSelect = onAnimeSelect,
-                            onFocusItem = onFocusItem,
-                            onFocusedRowChanged = { targetFocusedRowIndex = it }
+                            onFocusItem = onFocusItem
                         )
                     }
                 }
@@ -489,10 +457,8 @@ fun HomeScreen(
                             initialItems = displayRomance,
                             isScreenActive = isScreenActive,
                             lastSelectedAnime = lastSelectedAnime,
-                            rowIndex = romanceRowIndex,
                             onAnimeSelect = onAnimeSelect,
-                            onFocusItem = onFocusItem,
-                            onFocusedRowChanged = { targetFocusedRowIndex = it }
+                            onFocusItem = onFocusItem
                         )
                     }
                 }
@@ -506,10 +472,8 @@ fun HomeScreen(
                             initialItems = displayComedy,
                             isScreenActive = isScreenActive,
                             lastSelectedAnime = lastSelectedAnime,
-                            rowIndex = comedyRowIndex,
                             onAnimeSelect = onAnimeSelect,
-                            onFocusItem = onFocusItem,
-                            onFocusedRowChanged = { targetFocusedRowIndex = it }
+                            onFocusItem = onFocusItem
                         )
                     }
                 }
@@ -523,10 +487,8 @@ fun HomeScreen(
                             initialItems = displayFantasy,
                             isScreenActive = isScreenActive,
                             lastSelectedAnime = lastSelectedAnime,
-                            rowIndex = fantasyRowIndex,
                             onAnimeSelect = onAnimeSelect,
-                            onFocusItem = onFocusItem,
-                            onFocusedRowChanged = { targetFocusedRowIndex = it }
+                            onFocusItem = onFocusItem
                         )
                     }
                 }
@@ -540,10 +502,8 @@ fun HomeScreen(
                             initialItems = displaySupernatural,
                             isScreenActive = isScreenActive,
                             lastSelectedAnime = lastSelectedAnime,
-                            rowIndex = supernaturalRowIndex,
                             onAnimeSelect = onAnimeSelect,
-                            onFocusItem = onFocusItem,
-                            onFocusedRowChanged = { targetFocusedRowIndex = it }
+                            onFocusItem = onFocusItem
                         )
                     }
                 }
@@ -557,10 +517,8 @@ fun HomeScreen(
                             initialItems = displayMovies,
                             isScreenActive = isScreenActive,
                             lastSelectedAnime = lastSelectedAnime,
-                            rowIndex = moviesRowIndex,
                             onAnimeSelect = onAnimeSelect,
-                            onFocusItem = onFocusItem,
-                            onFocusedRowChanged = { targetFocusedRowIndex = it }
+                            onFocusItem = onFocusItem
                         )
                     }
                 }

@@ -127,12 +127,10 @@ fun SearchScreen(
             isLoadingCatalog = true
             catalogList.clear()
             try {
-                val genreParam = if (!selectedGenreSlug.startsWith("tipo:")) selectedGenreSlug else null
-                val tipoParam = if (selectedGenreSlug.startsWith("tipo:")) selectedGenreSlug.removePrefix("tipo:") else null
-                val res = ApiClient.apiService.getCatalog(genre = genreParam, tipo = tipoParam, page = 1)
-                if (res.success && res.data.isNotEmpty()) {
+                val res = com.animetv.app.data.repository.AnimeRepository.getMoviesPage(page = 1)
+                if (res is com.animetv.app.data.repository.RepositoryResult.Success && res.value.isNotEmpty()) {
                     catalogList.clear()
-                    catalogList.addAll(res.data)
+                    catalogList.addAll(res.value)
                 } else {
                     hasMorePages = false
                 }
@@ -153,12 +151,10 @@ fun SearchScreen(
                 val nextPage = catalogPage + 1
                 scope.launch {
                     try {
-                        val genreParam = if (!selectedGenreSlug.startsWith("tipo:")) selectedGenreSlug else null
-                        val tipoParam = if (selectedGenreSlug.startsWith("tipo:")) selectedGenreSlug.removePrefix("tipo:") else null
-                        val res = ApiClient.apiService.getCatalog(genre = genreParam, tipo = tipoParam, page = nextPage)
-                        if (res.success && res.data.isNotEmpty()) {
+                        val res = com.animetv.app.data.repository.AnimeRepository.getMoviesPage(page = nextPage)
+                        if (res is com.animetv.app.data.repository.RepositoryResult.Success && res.value.isNotEmpty()) {
                             catalogPage = nextPage
-                            val newUniqueItems = res.data.filter { newItem -> catalogList.none { it.id == newItem.id } }
+                            val newUniqueItems = res.value.filter { newItem -> catalogList.none { it.id == newItem.id } }
                             if (newUniqueItems.isNotEmpty()) {
                                 catalogList.addAll(newUniqueItems)
                             } else {
@@ -180,13 +176,11 @@ fun SearchScreen(
     LaunchedEffect(searchQuery) {
         if (searchQuery.isNotBlank()) {
             isSearching = true
-            delay(400)
+            delay(150)
             try {
-                val res = ApiClient.apiService.searchAnime(searchQuery)
-                if (res.success) {
-                    searchResults = res.data
-                    onSearchStateChange(searchQuery, res.data)
-                }
+                val results = com.animetv.app.data.repository.AnimeRepository.searchInMemory(searchQuery)
+                searchResults = results
+                onSearchStateChange(searchQuery, results)
             } catch (_: Exception) {
             } finally {
                 isSearching = false

@@ -12,6 +12,14 @@ const DEFAULT_ALLOWED_HOSTS = [
   'filemoon.sx',
   'ok.ru',
   'monoschinos2.com',
+  'rumble.cloud',
+  '1a-1791.com',
+  'zonaaps.com',
+  'zonaaps-player.xyz',
+  'moviedays.top',
+  'moviedays.lat',
+  '11231data.com',
+  'akamaized.net',
 ];
 
 function configuredHosts(): string[] {

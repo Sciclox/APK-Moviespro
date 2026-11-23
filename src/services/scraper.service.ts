@@ -144,6 +144,90 @@ export class ScraperService {
   /**
    * Fetch Unified Category Hub (Latino, Películas, Donghua)
    */
+  static async getZonaGenre(genreSlug: string, page: number = 1): Promise<AnimeItem[]> {
+    try {
+      const url = page <= 1 ? `https://zonaaps.com/genre/${genreSlug}/` : `https://zonaaps.com/genre/${genreSlug}/page/${page}/`;
+      const { data: html } = await axios.get(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        },
+        timeout: 5000,
+      });
+      const $ = cheerio.load(html);
+      const items: AnimeItem[] = [];
+
+      $('article').each((_, el) => {
+        const $el = $(el);
+        const link = $el.find('h3 a').attr('href') || $el.find('a').attr('href') || '';
+        const title = $el.find('h3 a').text().trim() || $el.find('img').attr('alt') || '';
+        const image = $el.find('img').attr('data-lazy-src') || $el.find('img').attr('src') || '';
+        const score = parseFloat($el.find('.rating').text().trim()) || null;
+
+        if (title && link) {
+          const highRes = image.replace('/w185/', '/w780/').replace('/w300/', '/w780/');
+          items.push({
+            id: link,
+            title,
+            slug: link,
+            image: highRes,
+            score,
+            type: link.includes('/tvshows/') ? 'Serie' : 'Película',
+            status: 'Estreno',
+          });
+        }
+      });
+
+      return items;
+    } catch {
+      return [];
+    }
+  }
+
+  static async getTudoramaCatalog(page: number = 1): Promise<AnimeItem[]> {
+    try {
+      const urls = page <= 1
+        ? ['https://tudorama.com/', 'https://tudorama.com/genero/series/']
+        : [`https://tudorama.com/genero/series/page/${page}/`];
+
+      const results: AnimeItem[] = [];
+      for (const u of urls) {
+        try {
+          const { data: html } = await axios.get(u, {
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+              'Referer': 'https://tudorama.com/',
+            },
+            timeout: 5000,
+          });
+          const $ = cheerio.load(html);
+          $('a[href*="/serie/"]').each((_, el) => {
+            const $el = $(el);
+            const link = $el.attr('href') || '';
+            const title = $el.find('h2, h3, .title, .entry-title').text().trim() || $el.find('img').attr('alt') || '';
+            const rawImg = $el.find('img').attr('data-src') || $el.find('img').attr('src') || '';
+
+            if (link && title && !results.some(r => r.id === link)) {
+              const image = rawImg.replace('/w185/', '/w780/').replace('/w300/', '/w780/').replace('/w342/', '/w780/');
+              results.push({
+                id: link,
+                title,
+                slug: link,
+                image,
+                type: 'K-Drama',
+                status: 'TuDorama',
+                synopsis: 'Dorama coreano completo en HD disponible en TuDorama.',
+              });
+            }
+          });
+        } catch {}
+      }
+      return results;
+    } catch {
+      return [];
+    }
+  }
+
   static async getCategoryHub(category: string): Promise<import('../types/anime').CategoryHubResponse> {
     const cleanCat = (category || 'latino').toLowerCase().trim();
     const cacheKey = `hub_v1_${cleanCat}`;
@@ -153,7 +237,43 @@ export class ScraperService {
     let mainParams: any = {};
     let sectionsConfig: { slug: string; title: string }[] = [];
 
-    if (cleanCat === 'latino') {
+    if (cleanCat === 'kdramas' || cleanCat === 'k-dramas') {
+      const tudoramaList = await this.getTudoramaCatalog(1);
+      const hero = tudoramaList.slice(0, 5);
+      const tendencias = tudoramaList.slice(0, 15);
+      const romance = tudoramaList.filter(i => /amor|novio|kitty|chicos|ojos|besos|vida|esplendor|acaramelados|phobia|love/i.test(i.title)).slice(0, 15);
+      const accion = tudoramaList.filter(i => /driver|taxi|flex|cop|recruit|justiciera|killer|mousetrap|shin|korea/i.test(i.title)).slice(0, 15);
+      const populares = tudoramaList.filter(i => /promesa|royal|hidden|palacio|east|fila|genio/i.test(i.title)).slice(0, 15);
+
+      const res: import('../types/anime').CategoryHubResponse = {
+        hero,
+        sections: [
+          { slug: 'kdrama_tendencias', title: 'K-Dramas & Doramas en Tendencia', items: tendencias.length ? tendencias : tudoramaList.slice(0, 15) },
+          { slug: 'kdrama_romance', title: 'Romance & Sentimientos', items: romance.length ? romance : tudoramaList.slice(0, 15) },
+          { slug: 'kdrama_accion', title: 'Acción & Suspenso Coreano', items: accion.length ? accion : tudoramaList.slice(15, 30) },
+          { slug: 'kdrama_populares', title: 'Doramas Éxitos Mundiales', items: populares.length ? populares : tudoramaList.slice(0, 15) },
+          { slug: 'kdrama_todos', title: 'Catálogo Completo de TuDorama', items: tudoramaList.slice(15) },
+        ],
+      };
+      apiCache.set(cacheKey, res, 1800);
+      return res;
+    } else if (cleanCat === 'series') {
+      const zonaSeries = await this.getZonaGenre('series-de-tv', 1);
+      const hero = zonaSeries.slice(0, 5);
+      const tendencias = zonaSeries.slice(0, 15);
+      const accion = zonaSeries.filter(i => /chacal|cobra|dragon|guerra|mision|policia/i.test(i.title)).slice(0, 15);
+
+      const res: import('../types/anime').CategoryHubResponse = {
+        hero,
+        sections: [
+          { slug: 'series_tendencias', title: 'Series Más Populares', items: tendencias.length ? tendencias : zonaSeries.slice(0, 15) },
+          { slug: 'series_accion', title: 'Acción & Suspenso', items: accion.length ? accion : zonaSeries.slice(15, 30) },
+          { slug: 'series_todas', title: 'Todas las Series de TV', items: zonaSeries.slice(15) },
+        ],
+      };
+      apiCache.set(cacheKey, res, 1800);
+      return res;
+    } else if (cleanCat === 'latino') {
       mainParams = { categoria: 'latino', page: 1 };
       sectionsConfig = [
         { slug: 'deportes', title: 'Deportes en Español Latino' },
@@ -228,7 +348,40 @@ export class ScraperService {
             const secParams = cleanCat === 'peliculas'
               ? { tipo: 'peliculas', genre: sec.slug, page: 1 }
               : { categoria: cleanCat, genre: sec.slug, page: 1 };
-            const items = await this.getCatalog(secParams);
+            let items = await this.getCatalog(secParams);
+
+            if (cleanCat === 'latino') {
+              const filtered = (items || []).filter((it) => it.slug.toLowerCase().includes('latino') || it.title.toLowerCase().includes('latino'));
+              items = filtered.length > 0 ? filtered : (items || []).filter((it) => (mainItems || []).some((m) => m.id === it.id));
+              if (items.length === 0 && mainItems && mainItems.length > 0) {
+                const kw = sec.slug.toLowerCase();
+                items = mainItems.filter((it) => {
+                  const txt = `${it.title} ${it.synopsis || ''}`.toLowerCase();
+                  return txt.includes(kw) || (kw === 'deportes' && (txt.includes('deporte') || txt.includes('juego') || txt.includes('pelota') || txt.includes('futbol') || txt.includes('fútbol') || txt.includes('boxeo') || txt.includes('carrera') || txt.includes('tenis') || txt.includes('basket')));
+                });
+              }
+            } else if (cleanCat === 'peliculas') {
+              const filtered = (items || []).filter((it) => it.type?.toLowerCase().includes('movie') || it.type?.toLowerCase().includes('película') || it.type?.toLowerCase().includes('pelicula') || it.slug.toLowerCase().includes('movie') || it.slug.toLowerCase().includes('pelicula') || it.title.toLowerCase().includes('movie') || it.title.toLowerCase().includes('película'));
+              items = filtered.length > 0 ? filtered : (items || []).filter((it) => (mainItems || []).some((m) => m.id === it.id));
+              if (items.length === 0 && mainItems && mainItems.length > 0) {
+                const kw = sec.slug.toLowerCase();
+                items = mainItems.filter((it) => {
+                  const txt = `${it.title} ${it.synopsis || ''}`.toLowerCase();
+                  return txt.includes(kw);
+                });
+              }
+            } else if (cleanCat === 'donghua') {
+              const filtered = (items || []).filter((it) => it.type?.toLowerCase().includes('donghua') || it.slug.toLowerCase().includes('donghua') || it.title.toLowerCase().includes('donghua'));
+              items = filtered.length > 0 ? filtered : (items || []).filter((it) => (mainItems || []).some((m) => m.id === it.id));
+              if (items.length === 0 && mainItems && mainItems.length > 0) {
+                const kw = sec.slug.toLowerCase();
+                items = mainItems.filter((it) => {
+                  const txt = `${it.title} ${it.synopsis || ''}`.toLowerCase();
+                  return txt.includes(kw);
+                });
+              }
+            }
+
             return {
               slug: sec.slug,
               title: sec.title,
@@ -1181,6 +1334,56 @@ export class ScraperService {
       'Accept-Language': 'es-ES,es;q=0.9,en-US;q=0.8,en;q=0.7',
     };
 
+    const extractZonaServers = async (targetSlug: string, targetEp: number): Promise<StreamSource[]> => {
+      const results: StreamSource[] = [];
+      const candidateUrls = [
+        targetSlug.startsWith('http') ? targetSlug : `https://zonaaps.com/episodes/${targetSlug}/`,
+        `https://zonaaps.com/episodes/${targetSlug}-${targetEp}x1/`,
+        `https://zonaaps.com/episodes/${targetSlug}-1x${targetEp}/`,
+        `https://zonaaps.com/episodes/${targetSlug}/`,
+        `https://zonaaps.com/movies/${targetSlug}/`,
+      ];
+
+      for (const epUrl of candidateUrls) {
+        try {
+          const { data: html } = await axios.get(epUrl, {
+            headers: DEFAULT_HEADERS,
+            timeout: 4500,
+          });
+          const $ = cheerio.load(html);
+          const iframes = $('iframe').map((_, el) => $(el).attr('src')).get().filter(u => u && !u.includes('banner'));
+
+          for (const ifr of iframes) {
+            const fixedIfr = ifr.replace('zonaaps-player.xyz', 'zonaaps.com');
+            try {
+              const { data: ifrHtml } = await axios.get(fixedIfr, {
+                headers: {
+                  ...DEFAULT_HEADERS,
+                  Referer: 'https://zonaaps.com/',
+                },
+                timeout: 4500,
+              });
+              const mediaMatches = (ifrHtml.match(/(https?:\/\/(?:[a-zA-Z0-9.-]+\.cdn\.rumble\.cloud|1a-1791\.com)\/video\/[^\s"'<>]+\.(?:aaa\.mp4|caa\.mp4|mp4|tar|m3u8)[^\s"'<>]*)/gi) || []);
+              for (const m of mediaMatches) {
+                if (!results.some(s => s.url === m)) {
+                  results.push({
+                    server: 'ZonaAPS HD CDN',
+                    title: `Servidor Principal ${results.length + 1} (Full HD)`,
+                    url: m,
+                    format: m.includes('.tar') || m.includes('.m3u8') ? 'hls' : 'mp4',
+                    audio: 'latino',
+                    isDirect: true,
+                  });
+                }
+              }
+            } catch {}
+          }
+          if (results.length > 0) break;
+        } catch {}
+      }
+      return results;
+    };
+
     const extractJkServers = async (targetSlug: string, targetEp: number): Promise<StreamSource[]> => {
       const results: StreamSource[] = [];
       try {
@@ -1345,11 +1548,16 @@ export class ScraperService {
       return secServers;
     };
 
-    // Run JKAnime and AnimeFLV/Secondary scrapers in parallel
-    const [jkResult, secResult] = await Promise.allSettled([
+    // Run ZonaAPS, JKAnime and AnimeFLV/Secondary scrapers in parallel
+    const [zonaResult, jkResult, secResult] = await Promise.allSettled([
+      extractZonaServers(animeSlug, epNum),
       extractJkServers(animeSlug, epNum),
       extractSecondaryProvider(animeSlug, epNum),
     ]);
+
+    if (zonaResult.status === 'fulfilled' && zonaResult.value.length > 0) {
+      servers.push(...zonaResult.value);
+    }
 
     let jkServers: StreamSource[] = [];
     if (jkResult.status === 'fulfilled') {

@@ -117,7 +117,7 @@ fun TvAnimeCard(
 
             val primaryBadgeText = remember(anime.status, anime.type) {
                 if (isRelationCard) {
-                    anime.status!!.trim()
+                    anime.status?.trim() ?: "Serie"
                 } else {
                     val rawType = anime.type?.lowercase() ?: ""
                     when {

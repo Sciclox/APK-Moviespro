@@ -17,9 +17,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import com.animetv.app.data.api.ApiClient
-import com.animetv.app.data.model.AnimeItem
-import com.animetv.app.data.model.EpisodeItem
-import com.animetv.app.data.model.RecentEpisodeItem
+import com.animetv.app.data.model.*
+import com.animetv.app.data.repository.AnimeRepository
 import com.animetv.app.data.repository.HomeCacheManager
 import com.animetv.app.data.repository.WatchHistoryManager
 import com.animetv.app.ui.components.NetflixTopNav
@@ -81,23 +80,15 @@ fun AnimeTvApp(activityIntent: Intent?) {
         val homeNavFocusRequester = remember { FocusRequester() }
         val myListNavFocusRequester = remember { FocusRequester() }
 
-        val donghuaNavFocusRequester = remember { FocusRequester() }
-        val latinoNavFocusRequester = remember { FocusRequester() }
-        val animesNavFocusRequester = remember { FocusRequester() }
+        val seriesNavFocusRequester = remember { FocusRequester() }
         val peliculasNavFocusRequester = remember { FocusRequester() }
-        val especialesNavFocusRequester = remember { FocusRequester() }
-        val ovasNavFocusRequester = remember { FocusRequester() }
-        val onasNavFocusRequester = remember { FocusRequester() }
+        val kdramasNavFocusRequester = remember { FocusRequester() }
 
         val navFocusRequesters = remember {
             mapOf(
-                "donghua" to donghuaNavFocusRequester,
-                "latino" to latinoNavFocusRequester,
-                "animes" to animesNavFocusRequester,
+                "series" to seriesNavFocusRequester,
                 "peliculas" to peliculasNavFocusRequester,
-                "especiales" to especialesNavFocusRequester,
-                "ovas" to ovasNavFocusRequester,
-                "onas" to onasNavFocusRequester
+                "kdramas" to kdramasNavFocusRequester
             )
         }
 
@@ -108,13 +99,9 @@ fun AnimeTvApp(activityIntent: Intent?) {
         val searchFirstKeyFocusRequester = remember { FocusRequester() }
         val myListFirstCardFocusRequester = remember { FocusRequester() }
 
-        val donghuaFirstKeyFocusRequester = remember { FocusRequester() }
-        val latinoFirstKeyFocusRequester = remember { FocusRequester() }
-        val animesFirstKeyFocusRequester = remember { FocusRequester() }
+        val seriesFirstKeyFocusRequester = remember { FocusRequester() }
         val peliculasFirstKeyFocusRequester = remember { FocusRequester() }
-        val especialesFirstKeyFocusRequester = remember { FocusRequester() }
-        val ovasFirstKeyFocusRequester = remember { FocusRequester() }
-        val onasFirstKeyFocusRequester = remember { FocusRequester() }
+        val kdramasFirstKeyFocusRequester = remember { FocusRequester() }
 
         var lastFocusedRequester by remember { mutableStateOf<FocusRequester?>(null) }
 
@@ -148,73 +135,49 @@ fun AnimeTvApp(activityIntent: Intent?) {
             )
         }
 
-        // Parallel API revalidation — all genre calls launch simultaneously in parallel
+        // Parallel API load for ZonaAPI
         LaunchedEffect(Unit) {
             try {
                 coroutineScope {
-                    val heroDeferred = async { ApiClient.apiService.getHeroBanners() }
-                    val catalogDeferred = async { ApiClient.apiService.getCatalog(genre = "Accion") }
-                    val releasingDeferred = async { ApiClient.apiService.getLatest() }
-                    val latestEpDeferred = async { ApiClient.apiService.getLatestEpisodes() }
-                    val shounenDeferred = async { ApiClient.apiService.getCatalog(genre = "shounen") }
-                    val romanceDeferred = async { ApiClient.apiService.getCatalog(genre = "romance") }
-                    val comedyDeferred = async { ApiClient.apiService.getCatalog(genre = "comedia") }
-                    val fantasyDeferred = async { ApiClient.apiService.getCatalog(genre = "fantasia") }
-                    val supernaturalDeferred = async { ApiClient.apiService.getCatalog(genre = "sobrenatural") }
-                    val moviesDeferred = async { ApiClient.apiService.getCatalog(tipo = "pelicula") }
+                    val p1Deferred = async { ApiClient.apiService.getList(page = 1) }
+                    val p2Deferred = async { ApiClient.apiService.getList(page = 2) }
+                    val p3Deferred = async { ApiClient.apiService.getList(page = 3) }
+                    val p4Deferred = async { ApiClient.apiService.getList(page = 4) }
 
                     try {
-                        val heroRes = heroDeferred.await()
-                        if (heroRes.success && heroRes.data.isNotEmpty()) homeHeroList = heroRes.data
+                        val p1 = p1Deferred.await()
+                        if (p1.featured.isNotEmpty()) {
+                            homeHeroList = p1.featured.map { it.toAnimeItem() }
+                        }
+                        if (p1.movies.isNotEmpty()) {
+                            homeCatalogList = p1.movies.map { it.toAnimeItem() }
+                        }
                     } catch (_: Exception) {}
 
                     try {
-                        val catalogRes = catalogDeferred.await()
-                        if (catalogRes.success && catalogRes.data.isNotEmpty()) homeCatalogList = catalogRes.data
+                        val p2 = p2Deferred.await()
+                        if (p2.movies.isNotEmpty()) {
+                            homeReleasingList = p2.movies.map { it.toAnimeItem() }
+                        }
                     } catch (_: Exception) {}
 
                     try {
-                        val releasingRes = releasingDeferred.await()
-                        if (releasingRes.success && releasingRes.data.isNotEmpty()) homeReleasingList = releasingRes.data
+                        val p3 = p3Deferred.await()
+                        if (p3.movies.isNotEmpty()) {
+                            homeShounenList = p3.movies.map { it.toAnimeItem() }
+                        }
                     } catch (_: Exception) {}
 
                     try {
-                        val latestEpRes = latestEpDeferred.await()
-                        if (latestEpRes.success && latestEpRes.data.isNotEmpty()) homeLatestEpisodesList = latestEpRes.data
-                    } catch (_: Exception) {}
-
-                    try {
-                        val shounenRes = shounenDeferred.await()
-                        if (shounenRes.success && shounenRes.data.isNotEmpty()) homeShounenList = shounenRes.data
-                    } catch (_: Exception) {}
-
-                    try {
-                        val romanceRes = romanceDeferred.await()
-                        if (romanceRes.success && romanceRes.data.isNotEmpty()) homeRomanceList = romanceRes.data
-                    } catch (_: Exception) {}
-
-                    try {
-                        val comedyRes = comedyDeferred.await()
-                        if (comedyRes.success && comedyRes.data.isNotEmpty()) homeComedyList = comedyRes.data
-                    } catch (_: Exception) {}
-
-                    try {
-                        val fantasyRes = fantasyDeferred.await()
-                        if (fantasyRes.success && fantasyRes.data.isNotEmpty()) homeFantasyList = fantasyRes.data
-                    } catch (_: Exception) {}
-
-                    try {
-                        val supernaturalRes = supernaturalDeferred.await()
-                        if (supernaturalRes.success && supernaturalRes.data.isNotEmpty()) homeSupernaturalList = supernaturalRes.data
-                    } catch (_: Exception) {}
-
-                    try {
-                        val moviesRes = moviesDeferred.await()
-                        if (moviesRes.success && moviesRes.data.isNotEmpty()) homeMoviesList = moviesRes.data
+                        val p4 = p4Deferred.await()
+                        if (p4.movies.isNotEmpty()) {
+                            homeRomanceList = p4.movies.map { it.toAnimeItem() }
+                        }
                     } catch (_: Exception) {}
                 }
 
                 HomeCacheManager.saveHomeData(context, homeHeroList, homeCatalogList, homeReleasingList)
+                AnimeRepository.preloadCatalog(16)
             } catch (e: Exception) {
                 e.printStackTrace()
             } finally {
@@ -239,8 +202,8 @@ fun AnimeTvApp(activityIntent: Intent?) {
 
         val mainTabScreens = remember {
             setOf(
-                TvScreen.HOME, TvScreen.SEARCH, TvScreen.LATINO, TvScreen.PELICULAS,
-                TvScreen.DONGHUA, TvScreen.MYLIST
+                TvScreen.HOME, TvScreen.SEARCH, TvScreen.SERIES, TvScreen.PELICULAS,
+                TvScreen.KDRAMAS, TvScreen.MYLIST
             )
         }
 
@@ -255,13 +218,9 @@ fun AnimeTvApp(activityIntent: Intent?) {
                 when (currentScreen) {
                     TvScreen.HOME -> homeNavFocusRequester.requestFocus()
                     TvScreen.SEARCH -> searchNavFocusRequester.requestFocus()
-                    TvScreen.DONGHUA -> donghuaNavFocusRequester.requestFocus()
-                    TvScreen.LATINO -> latinoNavFocusRequester.requestFocus()
-                    TvScreen.ANIMES -> animesNavFocusRequester.requestFocus()
+                    TvScreen.SERIES -> seriesNavFocusRequester.requestFocus()
                     TvScreen.PELICULAS -> peliculasNavFocusRequester.requestFocus()
-                    TvScreen.ESPECIALES -> especialesNavFocusRequester.requestFocus()
-                    TvScreen.OVAS -> ovasNavFocusRequester.requestFocus()
-                    TvScreen.ONAS -> onasNavFocusRequester.requestFocus()
+                    TvScreen.KDRAMAS -> kdramasNavFocusRequester.requestFocus()
                     TvScreen.MYLIST -> myListNavFocusRequester.requestFocus()
                     else -> {}
                 }
@@ -275,9 +234,8 @@ fun AnimeTvApp(activityIntent: Intent?) {
         ) {
             val allMainTabs = remember {
                 setOf(
-                    TvScreen.HOME, TvScreen.SEARCH, TvScreen.DONGHUA, TvScreen.LATINO,
-                    TvScreen.ANIMES, TvScreen.PELICULAS, TvScreen.ESPECIALES,
-                    TvScreen.OVAS, TvScreen.ONAS, TvScreen.MYLIST, TvScreen.SPLASH
+                    TvScreen.HOME, TvScreen.SEARCH, TvScreen.SERIES,
+                    TvScreen.PELICULAS, TvScreen.KDRAMAS, TvScreen.MYLIST, TvScreen.SPLASH
                 )
             }
             val activeTabScreen = remember(currentScreen, screenStack.size) {
@@ -427,44 +385,16 @@ fun AnimeTvApp(activityIntent: Intent?) {
                                         onFocusItem = { lastFocusedRequester = it }
                                     )
                                 }
-                                TvScreen.DONGHUA -> {
-                                    DonghuaScreen(
-                                        isScreenActive = (currentScreen == TvScreen.DONGHUA),
+                                TvScreen.SERIES -> {
+                                    SeriesScreen(
+                                        isScreenActive = (currentScreen == TvScreen.SERIES),
                                         lastSelectedAnime = selectedAnime,
                                         onAnimeSelect = { anime ->
                                             selectedAnime = anime
                                             pushScreen(TvScreen.DETAIL)
                                         },
-                                        firstKeyFocusRequester = donghuaFirstKeyFocusRequester,
-                                        navFocusRequester = donghuaNavFocusRequester,
-                                        onFocusItem = { lastFocusedRequester = it }
-                                    )
-                                }
-                                TvScreen.LATINO -> {
-                                    LatinoScreen(
-                                        isScreenActive = (currentScreen == TvScreen.LATINO),
-                                        lastSelectedAnime = selectedAnime,
-                                        onAnimeSelect = { anime ->
-                                            selectedAnime = anime
-                                            pushScreen(TvScreen.DETAIL)
-                                        },
-                                        firstKeyFocusRequester = latinoFirstKeyFocusRequester,
-                                        navFocusRequester = latinoNavFocusRequester,
-                                        onFocusItem = { lastFocusedRequester = it }
-                                    )
-                                }
-                                TvScreen.ANIMES -> {
-                                    CatalogScreen(
-                                        title = "Animes",
-                                        tipo = "tv",
-                                        isScreenActive = (currentScreen == TvScreen.ANIMES),
-                                        lastSelectedAnime = selectedAnime,
-                                        onAnimeSelect = { anime ->
-                                            selectedAnime = anime
-                                            pushScreen(TvScreen.DETAIL)
-                                        },
-                                        firstKeyFocusRequester = animesFirstKeyFocusRequester,
-                                        navFocusRequester = animesNavFocusRequester,
+                                        firstKeyFocusRequester = seriesFirstKeyFocusRequester,
+                                        navFocusRequester = seriesNavFocusRequester,
                                         onFocusItem = { lastFocusedRequester = it }
                                     )
                                 }
@@ -481,51 +411,20 @@ fun AnimeTvApp(activityIntent: Intent?) {
                                         onFocusItem = { lastFocusedRequester = it }
                                     )
                                 }
-                                TvScreen.ESPECIALES -> {
-                                    CatalogScreen(
-                                        title = "Especiales",
-                                        tipo = "special",
-                                        isScreenActive = (currentScreen == TvScreen.ESPECIALES),
+                                TvScreen.KDRAMAS -> {
+                                    KdramasScreen(
+                                        isScreenActive = (currentScreen == TvScreen.KDRAMAS),
                                         lastSelectedAnime = selectedAnime,
                                         onAnimeSelect = { anime ->
                                             selectedAnime = anime
                                             pushScreen(TvScreen.DETAIL)
                                         },
-                                        firstKeyFocusRequester = especialesFirstKeyFocusRequester,
-                                        navFocusRequester = especialesNavFocusRequester,
+                                        firstKeyFocusRequester = kdramasFirstKeyFocusRequester,
+                                        navFocusRequester = kdramasNavFocusRequester,
                                         onFocusItem = { lastFocusedRequester = it }
                                     )
                                 }
-                                TvScreen.OVAS -> {
-                                    CatalogScreen(
-                                        title = "OVAs",
-                                        tipo = "ova",
-                                        isScreenActive = (currentScreen == TvScreen.OVAS),
-                                        lastSelectedAnime = selectedAnime,
-                                        onAnimeSelect = { anime ->
-                                            selectedAnime = anime
-                                            pushScreen(TvScreen.DETAIL)
-                                        },
-                                        firstKeyFocusRequester = ovasFirstKeyFocusRequester,
-                                        navFocusRequester = ovasNavFocusRequester,
-                                        onFocusItem = { lastFocusedRequester = it }
-                                    )
-                                }
-                                TvScreen.ONAS -> {
-                                    CatalogScreen(
-                                        title = "ONAs",
-                                        tipo = "ona",
-                                        isScreenActive = (currentScreen == TvScreen.ONAS),
-                                        lastSelectedAnime = selectedAnime,
-                                        onAnimeSelect = { anime ->
-                                            selectedAnime = anime
-                                            pushScreen(TvScreen.DETAIL)
-                                        },
-                                        firstKeyFocusRequester = onasFirstKeyFocusRequester,
-                                        navFocusRequester = onasNavFocusRequester,
-                                        onFocusItem = { lastFocusedRequester = it }
-                                    )
-                                }
+
                                 TvScreen.MYLIST -> {
                                     MyListScreen(
                                         isScreenActive = (currentScreen == TvScreen.MYLIST),
@@ -548,7 +447,7 @@ fun AnimeTvApp(activityIntent: Intent?) {
 
                 // Detail Screen Overlay
                 AnimatedContent(
-                    targetState = if (currentScreen == TvScreen.DETAIL || currentScreen == TvScreen.PLAYER) selectedAnime else null,
+                    targetState = if (currentScreen == TvScreen.DETAIL) selectedAnime else null,
                     modifier = Modifier.fillMaxSize(),
                     transitionSpec = {
                         if (targetState != null) {
@@ -595,9 +494,10 @@ fun AnimeTvApp(activityIntent: Intent?) {
                     },
                     label = "player_transition"
                 ) { isPlayerActive ->
-                    if (isPlayerActive && selectedEpisode != null && selectedAnime != null) {
-                        val playerEpItem = selectedEpisode!!
-                        val animeSlug = selectedAnime!!.slug
+                    val playerEpItem = selectedEpisode
+                    val playerAnime = selectedAnime
+                    if (isPlayerActive && playerEpItem != null && playerAnime != null) {
+                        val animeSlug = playerAnime.slug
                         val currentEpNum = playerEpItem.number
 
                         Box(
@@ -608,7 +508,7 @@ fun AnimeTvApp(activityIntent: Intent?) {
                                 }
                         ) {
                             PlayerScreen(
-                                anime = selectedAnime,
+                                anime = playerAnime,
                                 episode = playerEpItem,
                                 onBack = { popBackStack() },
                                 onGoToDetail = {
@@ -659,13 +559,9 @@ fun AnimeTvApp(activityIntent: Intent?) {
                 NetflixTopNav(
                     selectedId = when (currentScreen) {
                         TvScreen.SEARCH -> "search"
-                        TvScreen.DONGHUA -> "donghua"
-                        TvScreen.LATINO -> "latino"
-                        TvScreen.ANIMES -> "animes"
+                        TvScreen.SERIES -> "series"
                         TvScreen.PELICULAS -> "peliculas"
-                        TvScreen.ESPECIALES -> "especiales"
-                        TvScreen.OVAS -> "ovas"
-                        TvScreen.ONAS -> "onas"
+                        TvScreen.KDRAMAS -> "kdramas"
                         TvScreen.MYLIST -> "my_list"
                         else -> "home"
                     },
@@ -675,13 +571,9 @@ fun AnimeTvApp(activityIntent: Intent?) {
                         val targetScreen = when (navId) {
                             "search" -> TvScreen.SEARCH
                             "home" -> TvScreen.HOME
-                            "donghua" -> TvScreen.DONGHUA
-                            "latino" -> TvScreen.LATINO
-                            "animes" -> TvScreen.ANIMES
+                            "series" -> TvScreen.SERIES
                             "peliculas" -> TvScreen.PELICULAS
-                            "especiales" -> TvScreen.ESPECIALES
-                            "ovas" -> TvScreen.OVAS
-                            "onas" -> TvScreen.ONAS
+                            "kdramas" -> TvScreen.KDRAMAS
                             "my_list", "mylist" -> TvScreen.MYLIST
                             else -> TvScreen.HOME
                         }
@@ -699,13 +591,9 @@ fun AnimeTvApp(activityIntent: Intent?) {
                         val fallback = when (currentScreen) {
                             TvScreen.HOME -> homePlayButtonFocusRequester
                             TvScreen.SEARCH -> searchFirstKeyFocusRequester
-                            TvScreen.DONGHUA -> donghuaFirstKeyFocusRequester
-                            TvScreen.LATINO -> latinoFirstKeyFocusRequester
-                            TvScreen.ANIMES -> animesFirstKeyFocusRequester
+                            TvScreen.SERIES -> seriesFirstKeyFocusRequester
                             TvScreen.PELICULAS -> peliculasFirstKeyFocusRequester
-                            TvScreen.ESPECIALES -> especialesFirstKeyFocusRequester
-                            TvScreen.OVAS -> ovasFirstKeyFocusRequester
-                            TvScreen.ONAS -> onasFirstKeyFocusRequester
+                            TvScreen.KDRAMAS -> kdramasFirstKeyFocusRequester
                             TvScreen.MYLIST -> myListFirstCardFocusRequester
                             else -> null
                         }
